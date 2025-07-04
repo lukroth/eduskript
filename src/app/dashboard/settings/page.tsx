@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DomainSettings } from '@/components/dashboard/domain-settings'
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -16,7 +17,7 @@ export default async function SettingsPage() {
           Settings
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Manage your account and preferences
+          Manage your account and domain settings
         </p>
       </div>
 
@@ -62,6 +63,8 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <DomainSettings />
     </div>
   )
 }

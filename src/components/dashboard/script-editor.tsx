@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreateChapterModal } from './create-chapter-modal'
+import { ScriptSettingsModal } from './script-settings-modal'
 import { SortableChapters } from './sortable-chapters'
 import { ArrowLeft, Plus, BookOpen, FileText } from 'lucide-react'
 
@@ -15,11 +16,53 @@ interface ScriptEditorProps {
 
 export function ScriptEditor({ script }: ScriptEditorProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isPublished, setIsPublished] = useState(script.isPublished)
+  const [currentScript, setCurrentScript] = useState(script)
   const router = useRouter()
 
   const handleChapterCreated = () => {
     // Force a complete page refresh to ensure data is updated
     window.location.reload()
+  }
+
+  const handleScriptUpdated = (updatedScript?: any) => {
+    if (updatedScript && updatedScript.slug !== currentScript.slug) {
+      // If slug changed, redirect to new URL
+      router.push(`/dashboard/scripts/${updatedScript.slug}`)
+    } else {
+      // Force a complete page refresh to ensure data is updated
+      window.location.reload()
+    }
+  }
+
+  const handlePublish = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/scripts/${script.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isPublished: !isPublished
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update script')
+      }
+
+      const updatedScript = await response.json()
+      setIsPublished(updatedScript.isPublished)
+      
+      // Optionally show success message or refresh
+      window.location.reload()
+    } catch (error) {
+      console.error('Error publishing script:', error)
+      // You might want to show an error toast here
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -33,18 +76,22 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
         </Link>
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {script.title}
+            {currentScript.title}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {script.description || 'No description'}
+            {currentScript.description || 'No description'}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            Settings
-          </Button>
-          <Button>
-            Publish
+          <ScriptSettingsModal 
+            script={currentScript}
+            onScriptUpdated={handleScriptUpdated}
+          />
+          <Button 
+            onClick={handlePublish}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Publishing...' : (isPublished ? 'Unpublish' : 'Publish')}
           </Button>
         </div>
       </div>
@@ -78,8 +125,8 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
             <CardTitle className="text-sm font-medium">Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${script.isPublished ? 'text-green-600' : 'text-yellow-600'}`}>
-              {script.isPublished ? 'Published' : 'Draft'}
+            <div className={`text-2xl font-bold ${isPublished ? 'text-green-600' : 'text-yellow-600'}`}>
+              {isPublished ? 'Published' : 'Draft'}
             </div>
           </CardContent>
         </Card>

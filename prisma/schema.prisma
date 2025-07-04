@@ -69,8 +69,23 @@ model User {
   chapters      Chapter[]
   pages         Page[]
   pageVersions  PageVersion[]
+  customDomains CustomDomain[]
   
   @@map("users")
+}
+
+model CustomDomain {
+  id        String   @id @default(cuid())
+  domain    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("custom_domains")
 }
 
 model Script {
