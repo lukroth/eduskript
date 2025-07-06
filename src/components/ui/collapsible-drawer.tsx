@@ -4,7 +4,7 @@ import { useState, ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 interface CollapsibleDrawerProps {
-  title: string
+  title: string | ReactNode
   icon?: ReactNode
   children: ReactNode
   defaultOpen?: boolean

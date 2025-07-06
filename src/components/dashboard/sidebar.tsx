@@ -21,7 +21,7 @@ export function DashboardSidebar() {
   return (
     <div className={cn(
       "bg-card border-r border-border min-h-screen transition-all duration-300 flex flex-col",
-      isCollapsed ? "w-16" : "w-64"
+      isCollapsed ? "w-16 min-w-16" : "w-64"
     )}>
       <div className="p-4 flex-1 flex flex-col">
         {/* Toggle Button */}
@@ -33,9 +33,9 @@ export function DashboardSidebar() {
             className="p-2"
           >
             {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-5 h-5" />
             ) : (
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             )}
           </Button>
         </div>
@@ -44,9 +44,9 @@ export function DashboardSidebar() {
         <Link href="/dashboard/scripts/new">
           <div className={cn(
             "flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg mb-6 cursor-pointer transition-all",
-            isCollapsed ? "justify-center" : ""
+            isCollapsed ? "justify-center px-2" : ""
           )}>
-            <Plus size={16} />
+            <Plus className="w-5 h-5" />
             {!isCollapsed && <span>New Script</span>}
           </div>
         </Link>
@@ -66,11 +66,11 @@ export function DashboardSidebar() {
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  isCollapsed ? 'justify-center' : ''
+                  isCollapsed ? 'justify-center px-2' : ''
                 )}
                 title={isCollapsed ? item.name : undefined}
               >
-                <Icon size={16} />
+                <Icon className="w-5 h-5" />
                 {!isCollapsed && <span>{item.name}</span>}
               </Link>
             )

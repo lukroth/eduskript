@@ -63,7 +63,7 @@ export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
         className={`${isCollapsed ? 'w-10 h-10 p-0' : 'w-full justify-start'}`}
         disabled
       >
-        <Sun className="w-4 h-4" />
+        <Sun className="w-5 h-5" />
         {!isCollapsed && <span className="ml-2">Theme</span>}
       </Button>
     )
@@ -76,7 +76,7 @@ export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
   }
 
   const getThemeIcon = () => {
-    return theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />
+    return theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />
   }
 
   const getThemeLabel = () => {

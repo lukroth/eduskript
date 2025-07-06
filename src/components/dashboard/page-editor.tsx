@@ -10,13 +10,41 @@ import { FileBrowser } from '@/components/dashboard/file-browser'
 import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { EditModal } from '@/components/dashboard/edit-modal'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
-import { ArrowLeft, Save, Clock, History, Files } from 'lucide-react'
+import { VersionHistory } from '@/components/dashboard/version-history'
+import { ArrowLeft, Save, History, Files } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
+interface PageVersion {
+  id: string
+  content: string
+  version: number
+  changeLog?: string
+  createdAt: string
+  author: {
+    name?: string
+    email: string
+  }
+}
+
 interface PageEditorProps {
-  script: any
-  chapter: any
-  page: any
+  script: {
+    id: string
+    slug: string
+    title: string
+  }
+  chapter: {
+    id: string
+    slug: string
+    title: string
+  }
+  page: {
+    id: string
+    title: string
+    slug: string
+    content: string
+    isPublished: boolean
+    currentVersion?: number
+  }
 }
 
 export function PageEditor({ script, chapter, page }: PageEditorProps) {
@@ -27,6 +55,8 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [versions, setVersions] = useState<PageVersion[]>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
   const router = useRouter()
   const { data: session } = useSession()
 
@@ -55,7 +85,11 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     window.location.reload()
   }
 
-  const handleFileInsert = (file: any) => {
+  const handleFileInsert = (file: {
+    filename: string
+    url: string
+    originalName?: string
+  }) => {
     let insertText = ''
     
     // Determine the type of insert based on file extension
@@ -102,6 +136,8 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
       if (response.ok) {
         setLastSaved(new Date())
         setHasUnsavedChanges(false)
+        // Reload versions to show the new version
+        loadVersions()
         // Update URL if slug changed
         if (slug !== page.slug) {
           router.replace(`/dashboard/scripts/${script.slug}/chapters/${chapter.slug}/pages/${slug}/edit`)
@@ -120,6 +156,50 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
   const handlePublishToggle = () => {
     setIsPublished(!isPublished)
     setHasUnsavedChanges(true)
+  }
+
+  // Load version history
+  const loadVersions = async () => {
+    setLoadingVersions(true)
+    try {
+      const response = await fetch(`/api/pages/${page.id}/versions`)
+      if (response.ok) {
+        const data = await response.json()
+        setVersions(data.versions || [])
+      } else {
+        console.error('Failed to load versions')
+      }
+    } catch (error) {
+      console.error('Error loading versions:', error)
+    }
+    setLoadingVersions(false)
+  }
+
+  // Handle version restoration
+  const handleRestoreVersion = async (versionId: string, versionContent: string) => {
+    try {
+      const response = await fetch(`/api/pages/${page.id}/versions/${versionId}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Update the editor content with restored content
+        setContent(versionContent)
+        setHasUnsavedChanges(false)
+        setLastSaved(new Date())
+        // Reload versions to show the new restoration entry
+        loadVersions()
+        alert(`Successfully restored to version ${data.restoredFromVersion}`)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Failed to restore version')
+      }
+    } catch (error) {
+      console.error('Error restoring version:', error)
+      alert('Failed to restore version')
+    }
   }
 
   // Auto-save every 30 seconds if there are unsaved changes
@@ -143,6 +223,11 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Load version history on mount
+  useEffect(() => {
+    loadVersions()
+  }, [page.id])
 
   return (
     <div className="space-y-6">
@@ -188,26 +273,6 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         </div>
       </div>
 
-      {/* Status Bar */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isPublished ? 'bg-success' : 'bg-warning'}`} />
-            <span>{isPublished ? 'Published' : 'Draft'}</span>
-          </div>
-          {lastSaved && (
-            <div className="flex items-center gap-2">
-              <Clock className="w-3 h-3" />
-              <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <History className="w-3 h-3" />
-          <span>Version {page.currentVersion || 1}</span>
-        </div>
-      </div>
-
       {/* Files - Collapsible Drawer */}
       <CollapsibleDrawer 
         title="Files" 
@@ -239,6 +304,29 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
           />
         </CardContent>
       </Card>
+
+      {/* Version History - Collapsible Drawer */}
+      <CollapsibleDrawer 
+        title={
+          <div className="flex items-center gap-2">
+            <span>History</span>
+            {lastSaved && (
+              <span className="text-xs text-muted-foreground font-normal">
+                Last saved {lastSaved.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        }
+        icon={<History className="w-5 h-5" />}
+        defaultOpen={false}
+      >
+        <VersionHistory
+          pageId={page.id}
+          versions={versions}
+          currentContent={content}
+          onRestoreVersion={handleRestoreVersion}
+        />
+      </CollapsibleDrawer>
     </div>
   )
 }
