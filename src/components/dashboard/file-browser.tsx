@@ -151,7 +151,7 @@ export function FileBrowser({ chapterId, onFileSelect, onFileInsert, className =
 
   const handleFileDragStart = (e: React.DragEvent, file: FileItem) => {
     // Set data for drag-and-drop to editor
-    e.dataTransfer.setData('application/edugarden-file', JSON.stringify(file))
+    e.dataTransfer.setData('application/Eduscript-file', JSON.stringify(file))
     e.dataTransfer.effectAllowed = 'copy'
   }
 

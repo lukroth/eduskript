@@ -70,7 +70,7 @@ export function ExportPDF({ title, content, author }: ExportPDFProps) {
           </div>
           
           <div class="footer">
-            <p>This document was generated from EduGarden</p>
+            <p>This document was generated from Eduscript</p>
           </div>
         </body>
         </html>

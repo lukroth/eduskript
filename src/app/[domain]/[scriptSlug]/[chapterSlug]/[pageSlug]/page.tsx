@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       }
     }
 
-    const title = `${page.title} | ${teacher.name || 'EduGarden'}`
+    const title = `${page.title} | ${teacher.name || 'Eduscript'}`
     const description = chapter.description || script.description || `${page.title} by ${teacher.name}`
 
     return {
@@ -74,7 +74,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         title,
         description,
         type: 'article',
-        siteName: teacher.name || 'EduGarden',
+        siteName: teacher.name || 'Eduscript',
         url: `https://${domain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
       },
       twitter: {
@@ -86,7 +86,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   } catch (error) {
     console.error('Error generating metadata:', error)
     return {
-      title: 'EduGarden',
+      title: 'Eduscript',
       description: 'Educational content platform'
     }
   }

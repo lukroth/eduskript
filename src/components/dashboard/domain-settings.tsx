@@ -194,7 +194,7 @@ export function DomainSettings() {
             <div className="space-y-2 font-mono text-sm">
               <div>Type: <span className="font-semibold">CNAME</span></div>
               <div>Name: <span className="font-semibold">@</span> (or your domain)</div>
-              <div>Value: <span className="font-semibold">your-subdomain.edugarden.com</span></div>
+              <div>Value: <span className="font-semibold">your-subdomain.Eduscript.com</span></div>
             </div>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">

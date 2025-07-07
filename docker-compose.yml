@@ -4,20 +4,20 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: edugarden
-      POSTGRES_USER: edugarden
-      POSTGRES_PASSWORD: edugarden_password
+      POSTGRES_DB: Eduscript
+      POSTGRES_USER: Eduscript
+      POSTGRES_PASSWORD: Eduscript_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     networks:
-      - edugarden-network
+      - Eduscript-network
 
   app:
     build: .
     environment:
-      DATABASE_URL: "postgresql://edugarden:edugarden_password@db:5432/edugarden"
+      DATABASE_URL: "postgresql://Eduscript:Eduscript_password@db:5432/Eduscript"
       NEXTAUTH_SECRET: "change-this-secret-in-production"
       NEXTAUTH_URL: "http://localhost:3000"
     ports:
@@ -25,7 +25,7 @@ services:
     depends_on:
       - db
     networks:
-      - edugarden-network
+      - Eduscript-network
     volumes:
       - ./public/uploads:/app/public/uploads
 
@@ -33,5 +33,5 @@ volumes:
   postgres_data:
 
 networks:
-  edugarden-network:
+  Eduscript-network:
     driver: bridge

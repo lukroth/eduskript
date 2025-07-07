@@ -1,6 +1,6 @@
-# EduGarden - Modern Education Platform
+# Eduscript - Modern Education Platform
 
-A comprehensive, multi-tenant education platform built with Next.js, TypeScript, Prisma, and NextAuth. EduGarden allows teachers to create and manage educational content using markdown with advanced features like versioning, LaTeX math, and syntax highlighting.
+A comprehensive, multi-tenant education platform built with Next.js, TypeScript, Prisma, and NextAuth. Eduscript allows teachers to create and manage educational content using markdown with advanced features like versioning, LaTeX math, and syntax highlighting.
 
 ## 🚀 Features
 
@@ -53,7 +53,7 @@ A comprehensive, multi-tenant education platform built with Next.js, TypeScript,
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd edugarden
+   cd Eduscript
    ```
 
 2. **Install dependencies**
@@ -72,7 +72,7 @@ A comprehensive, multi-tenant education platform built with Next.js, TypeScript,
    DATABASE_URL="file:./prisma/dev.db"
    
    # For production (PostgreSQL)
-   # DATABASE_URL="postgresql://username:password@localhost:5432/edugarden"
+   # DATABASE_URL="postgresql://username:password@localhost:5432/Eduscript"
    
    NEXTAUTH_SECRET="your-secret-key"
    NEXTAUTH_URL="http://localhost:3000"
@@ -145,7 +145,7 @@ The platform uses a multi-tenant database design:
 
 1. **Build the Docker image**
    ```bash
-   docker build -t edugarden .
+   docker build -t Eduscript .
    ```
 
 2. **Run with docker-compose**

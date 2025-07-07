@@ -23,7 +23,7 @@ if (typeof window === 'undefined') {
 }
 
 /**
- * Remark plugin to automatically find and correct image paths in EduGarden
+ * Remark plugin to automatically find and correct image paths in Eduscript
  * 
  * For images with just filenames (e.g., ![alt](image.jpg) or ![[image.jpg]]):
  * 1. First searches in the chapter-specific upload directory

@@ -4,7 +4,7 @@ import { visit } from 'unist-util-visit'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 
 /**
- * Remark plugin to transform wiki links to markdown links in EduGarden
+ * Remark plugin to transform wiki links to markdown links in Eduscript
  * Handles wiki links that span across multiple nodes and node types
  * 
  * Transforms:
