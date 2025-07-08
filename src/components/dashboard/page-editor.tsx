@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -56,8 +56,14 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [versions, setVersions] = useState<PageVersion[]>([])
+  const contentRef = useRef(content)
   const router = useRouter()
   const { data: session } = useSession()
+
+  // Update ref when content changes
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
@@ -98,7 +104,22 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     setHasUnsavedChanges(true)
   }
 
-  const handleSave = async () => {
+  // Load version history
+  const loadVersions = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/pages/${page.id}/versions`)
+      if (response.ok) {
+        const data = await response.json()
+        setVersions(data.versions || [])
+      } else {
+        console.error('Failed to load versions')
+      }
+    } catch (error) {
+      console.error('Error loading versions:', error)
+    }
+  }, [page.id])
+
+  const handleSave = useCallback(async () => {
     if (!title.trim() || !slug.trim()) {
       alert('Title and slug are required')
       return
@@ -112,7 +133,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         body: JSON.stringify({
           title: title.trim(),
           slug: slug.trim(),
-          content,
+          content: contentRef.current,
           isPublished
         })
       })
@@ -135,22 +156,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
       alert('Failed to save page')
     }
     setIsSaving(false)
-  }
-
-  // Load version history
-  const loadVersions = async () => {
-    try {
-      const response = await fetch(`/api/pages/${page.id}/versions`)
-      if (response.ok) {
-        const data = await response.json()
-        setVersions(data.versions || [])
-      } else {
-        console.error('Failed to load versions')
-      }
-    } catch (error) {
-      console.error('Error loading versions:', error)
-    }
-  }
+  }, [title, slug, isPublished, page.id, page.slug, script.slug, chapter.slug, router, loadVersions])
 
   // Handle version restoration
   const handleRestoreVersion = async (versionId: string, versionContent: string) => {
@@ -187,7 +193,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
       }, 30000)
       return () => clearTimeout(timer)
     }
-  }, [hasUnsavedChanges, content, handleSave])
+  }, [hasUnsavedChanges, handleSave])
 
   // Save with Ctrl+S
   useEffect(() => {

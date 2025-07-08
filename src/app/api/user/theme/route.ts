@@ -18,10 +18,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid theme value' }, { status: 400 })
     }
 
-    // Update user's theme preference using raw query for now
-    await prisma.$executeRaw`
-      UPDATE users SET themePreference = ${theme} WHERE email = ${session.user.email}
-    `
+    // Update user's theme preference using Prisma client
+    await prisma.user.update({
+      where: { email: session.user.email },
+      data: { themePreference: theme }
+    })
 
     return NextResponse.json({ 
       message: 'Theme preference updated successfully',
@@ -45,12 +46,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's theme preference using raw query for now
-    const result = await prisma.$queryRaw`
-      SELECT themePreference FROM users WHERE email = ${session.user.email}
-    ` as Array<{ themePreference: string | null }>
+    // Get user's theme preference using Prisma client
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { themePreference: true }
+    })
 
-    const themePreference = result[0]?.themePreference || 'system'
+    const themePreference = user?.themePreference || 'system'
 
     return NextResponse.json({ 
       themePreference

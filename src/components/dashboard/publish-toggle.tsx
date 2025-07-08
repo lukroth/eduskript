@@ -38,7 +38,8 @@ export function PublishToggle({
       if (response.ok) {
         onToggle()
       } else {
-        console.error(`Failed to toggle ${type} publish status`)
+        const errorData = await response.text()
+        console.error(`Failed to toggle ${type} publish status:`, response.status, errorData)
       }
     } catch (error) {
       console.error(`Error toggling ${type} publish status:`, error)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react'
 import { ReadingProgress } from './reading-progress'
@@ -50,7 +50,7 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Get initial expanded state from localStorage or defaults
-  const getInitialExpandedScripts = () => {
+  const getInitialExpandedScripts = useCallback(() => {
     if (typeof window === 'undefined') return siteStructure.map(script => script.id)
     
     const stored = localStorage.getItem(EXPANDED_SCRIPTS_KEY)
@@ -63,9 +63,9 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
     }
     // Default: all scripts expanded
     return siteStructure.map(script => script.id)
-  }
+  }, [siteStructure, EXPANDED_SCRIPTS_KEY])
 
-  const getInitialExpandedChapters = () => {
+  const getInitialExpandedChapters = useCallback(() => {
     if (typeof window === 'undefined') return []
     
     const stored = localStorage.getItem(EXPANDED_CHAPTERS_KEY)
@@ -95,14 +95,14 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
     }
     
     return [...expandedFromStorage, ...expandedFromCurrentPath]
-  }
+  }, [siteStructure, currentPath, EXPANDED_CHAPTERS_KEY])
 
   // Initialize state from localStorage on client side
   useEffect(() => {
     setExpandedScripts(getInitialExpandedScripts())
     setExpandedChapters(getInitialExpandedChapters())
     setIsInitialized(true)
-  }, [])
+  }, [getInitialExpandedScripts, getInitialExpandedChapters])
 
   // Update expanded chapters when current path changes
   useEffect(() => {
@@ -126,19 +126,19 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
     if (hasChanges) {
       setExpandedChapters(newExpandedChapters)
     }
-  }, [currentPath, isInitialized])
+  }, [currentPath, isInitialized, expandedChapters, siteStructure])
 
   // Persist expanded scripts to localStorage
   useEffect(() => {
     if (!isInitialized) return
     localStorage.setItem(EXPANDED_SCRIPTS_KEY, JSON.stringify(expandedScripts))
-  }, [expandedScripts, isInitialized])
+  }, [expandedScripts, isInitialized, EXPANDED_SCRIPTS_KEY])
 
   // Persist expanded chapters to localStorage
   useEffect(() => {
     if (!isInitialized) return
     localStorage.setItem(EXPANDED_CHAPTERS_KEY, JSON.stringify(expandedChapters))
-  }, [expandedChapters, isInitialized])
+  }, [expandedChapters, isInitialized, EXPANDED_CHAPTERS_KEY])
 
   const toggleScript = (scriptId: string) => {
     setExpandedScripts(prev => 

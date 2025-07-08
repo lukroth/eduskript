@@ -18,10 +18,11 @@ export async function PATCH(
     const body = await request.json()
     const { title, slug, content, isPublished } = body
 
-    // For content-only updates, title and slug are not required
+    // For content-only updates or publish-only updates, title and slug are not required
     const isContentOnlyUpdate = content !== undefined && title === undefined && slug === undefined && isPublished === undefined
+    const isPublishOnlyUpdate = isPublished !== undefined && title === undefined && slug === undefined && content === undefined
     
-    if (!isContentOnlyUpdate && (!title?.trim() || !slug?.trim())) {
+    if (!isContentOnlyUpdate && !isPublishOnlyUpdate && (!title?.trim() || !slug?.trim())) {
       return NextResponse.json(
         { error: 'Title and slug are required' },
         { status: 400 }
@@ -56,7 +57,7 @@ export async function PATCH(
 
     // Check if slug is already used in the same chapter (but not this page)
     // Only check slug conflict if slug is being updated
-    if (!isContentOnlyUpdate) {
+    if (!isContentOnlyUpdate && !isPublishOnlyUpdate && slug) {
       const slugExists = await prisma.page.findFirst({
         where: {
           slug: slug.trim(),

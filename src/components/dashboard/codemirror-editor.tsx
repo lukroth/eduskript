@@ -33,6 +33,7 @@ export default function CodeMirrorEditor({
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
+  const onChangeRef = useRef(onChange)
   const [showPreview, setShowPreview] = useState(true)
   const [previewContent, setPreviewContent] = useState('')
   const [isMounted, setIsMounted] = useState(false)
@@ -41,6 +42,11 @@ export default function CodeMirrorEditor({
   const [dragOver, setDragOver] = useState(false)
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+
+  // Update the onChange ref when it changes
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   // Handle file drag and drop
   const handleDragOver = (e: React.DragEvent) => {
@@ -250,7 +256,8 @@ export default function CodeMirrorEditor({
         editorViewRef.current = null
       }
     }
-  }, [isMounted, isDark, editorContent, onChange]) // Re-initialize when theme changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, isDark]) // Only re-initialize when mounted state or theme changes
 
   // Update editor content when prop changes
   useEffect(() => {

@@ -18,7 +18,10 @@ export async function PATCH(
     const body = await request.json()
     const { title, description, slug, isPublished } = body
 
-    if (!title?.trim() || !slug?.trim()) {
+    // For publish-only updates, title and slug are not required
+    const isPublishOnlyUpdate = isPublished !== undefined && title === undefined && slug === undefined
+    
+    if (!isPublishOnlyUpdate && (!title?.trim() || !slug?.trim())) {
       return NextResponse.json(
         { error: 'Title and slug are required' },
         { status: 400 }
@@ -41,30 +44,43 @@ export async function PATCH(
     }
 
     // Check if slug is already used in the same script (but not this chapter)
-    const slugExists = await prisma.chapter.findFirst({
-      where: {
-        slug,
-        scriptId: existingChapter.scriptId,
-        id: { not: id }
-      }
-    })
+    // Only check slug conflict if slug is being updated
+    if (!isPublishOnlyUpdate && slug) {
+      const slugExists = await prisma.chapter.findFirst({
+        where: {
+          slug,
+          scriptId: existingChapter.scriptId,
+          id: { not: id }
+        }
+      })
 
-    if (slugExists) {
-      return NextResponse.json(
-        { error: 'Slug already exists in this script' },
-        { status: 400 }
-      )
+      if (slugExists) {
+        return NextResponse.json(
+          { error: 'Slug already exists in this script' },
+          { status: 400 }
+        )
+      }
     }
+
+    // Prepare update data - only include fields that are provided
+    const updateData: {
+      updatedAt: Date
+      title?: string
+      description?: string | null
+      slug?: string
+      isPublished?: boolean
+    } = {
+      updatedAt: new Date()
+    }
+
+    if (title !== undefined) updateData.title = title.trim()
+    if (description !== undefined) updateData.description = description?.trim() || null
+    if (slug !== undefined) updateData.slug = slug.trim()
+    if (isPublished !== undefined) updateData.isPublished = isPublished
 
     const chapter = await prisma.chapter.update({
       where: { id },
-      data: {
-        title: title.trim(),
-        description: description?.trim() || null,
-        slug: slug.trim(),
-        isPublished: isPublished !== undefined ? isPublished : existingChapter.isPublished,
-        updatedAt: new Date()
-      },
+      data: updateData,
       include: {
         pages: {
           orderBy: { order: 'asc' }

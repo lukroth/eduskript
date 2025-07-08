@@ -64,6 +64,7 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
     
     switch (extension) {
       case 'jpg': case 'jpeg': case 'png': case 'gif': case 'webp': case 'svg':
+        {/* eslint-disable-next-line jsx-a11y/alt-text */}
         return <Image className="w-5 h-5 text-blue-500" />
       case 'mp4': case 'avi': case 'mov': case 'wmv':
         return <Video className="w-5 h-5 text-purple-500" />
