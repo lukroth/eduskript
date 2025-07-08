@@ -1,0 +1,8 @@
+{
+  "deploy": {
+    "runtimes": ["node"]
+  },
+  "hooks": {
+    "postDeploy": "pnpm run db:push"
+  }
+}
