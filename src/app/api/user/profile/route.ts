@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { withDatabaseConnection } from '@/lib/db-connection'
 import { z } from 'zod'
 
 const updateProfileSchema = z.object({
@@ -26,46 +27,52 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const validatedData = updateProfileSchema.parse(body)
 
-    // Check if subdomain is already taken by another user
-    if (validatedData.subdomain) {
-      const existingUser = await prisma.user.findUnique({
-        where: { subdomain: validatedData.subdomain }
+    const result = await withDatabaseConnection(async () => {
+      // Check if subdomain is already taken by another user
+      if (validatedData.subdomain) {
+        const existingUser = await prisma.user.findUnique({
+          where: { subdomain: validatedData.subdomain }
+        })
+
+        if (existingUser && existingUser.id !== session.user.id) {
+          throw new Error('This subdomain is already taken')
+        }
+      }
+
+      // Update the user profile
+      return await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          name: validatedData.name,
+          subdomain: validatedData.subdomain,
+          title: validatedData.title || null,
+          bio: validatedData.bio || null
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          subdomain: true,
+          title: true,
+          bio: true
+        }
       })
-
-      if (existingUser && existingUser.id !== session.user.id) {
-        return NextResponse.json(
-          { error: 'This subdomain is already taken' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Update the user profile
-    const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        name: validatedData.name,
-        subdomain: validatedData.subdomain,
-        title: validatedData.title || null,
-        bio: validatedData.bio || null
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        subdomain: true,
-        title: true,
-        bio: true
-      }
     })
 
-    return NextResponse.json(updatedUser)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error updating profile:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    if (error instanceof Error && error.message === 'This subdomain is already taken') {
+      return NextResponse.json(
+        { error: 'This subdomain is already taken' },
         { status: 400 }
       )
     }

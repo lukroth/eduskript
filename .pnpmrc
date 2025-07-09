@@ -1,0 +1,15 @@
+# Store configuration
+store-dir=/home/bas/cache/pnpm
+cache-dir=/home/bas/cache/pnpm-cache
+state-dir=/home/bas/cache/pnpm-state
+
+# Performance optimizations
+prefer-frozen-lockfile=true
+strict-peer-dependencies=false
+auto-install-peers=true
+
+# Registry configuration
+registry=https://registry.npmjs.org/
+
+# Build optimizations
+package-import-method=clone-or-copy
