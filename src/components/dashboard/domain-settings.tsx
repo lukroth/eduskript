@@ -126,7 +126,7 @@ export function DomainSettings() {
           {isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-12 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                <div key={i} className="h-12 bg-muted rounded animate-pulse" />
               ))}
             </div>
           ) : domains.length > 0 ? (
@@ -134,14 +134,14 @@ export function DomainSettings() {
               {domains.map((domain) => (
                 <div
                   key={domain.id}
-                  className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="font-medium text-gray-900 dark:text-white">
+                      <div className="font-medium">
                         {domain.domain}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-muted-foreground">
                         Added {new Date(domain.createdAt).toLocaleDateString()}
                       </div>
                     </div>
@@ -174,7 +174,7 @@ export function DomainSettings() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-muted-foreground">
               No custom domains added yet.
             </div>
           )}
@@ -190,14 +190,14 @@ export function DomainSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="bg-muted p-4 rounded-lg">
             <div className="space-y-2 font-mono text-sm">
               <div>Type: <span className="font-semibold">CNAME</span></div>
               <div>Name: <span className="font-semibold">@</span> (or your domain)</div>
               <div>Value: <span className="font-semibold">your-subdomain.Eduscript.com</span></div>
             </div>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
+          <p className="text-sm text-muted-foreground mt-3">
             Replace &quot;your-subdomain&quot; with your actual subdomain. DNS changes may take up to 24 hours to propagate.
           </p>
         </CardContent>

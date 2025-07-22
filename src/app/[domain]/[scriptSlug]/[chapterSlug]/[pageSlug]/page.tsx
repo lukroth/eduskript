@@ -259,8 +259,11 @@ export default async function PublicPage({ params }: PageProps) {
       notFound()
     }
 
-    // Process the markdown content
-    const processedMarkdown = await processMarkdown(page.content)
+    // Process the markdown content with proper context for image resolution
+    const processedMarkdown = await processMarkdown(page.content, {
+      domain: domain,
+      chapterId: chapter.id
+    })
     const processedContent = processedMarkdown.content
 
     // Build site structure for navigation
@@ -338,7 +341,7 @@ export default async function PublicPage({ params }: PageProps) {
               Edit
             </a></Breadcrumb>
 
-          <article className="prose prose-lg dark:prose-invert max-w-none">
+          <article className="prose-theme">
             <div dangerouslySetInnerHTML={{ __html: processedContent }} />
           </article>
 

@@ -302,6 +302,25 @@ html.dark {
   @apply text-xl mt-6 mb-2;
 }
 
+/* Heading links should look like headings, not links */
+.prose-theme h1 a,
+.prose-theme h2 a,
+.prose-theme h3 a,
+.prose-theme h4 a,
+.prose-theme h5 a,
+.prose-theme h6 a {
+  @apply text-foreground no-underline font-semibold;
+}
+
+.prose-theme h1 a:hover,
+.prose-theme h2 a:hover,
+.prose-theme h3 a:hover,
+.prose-theme h4 a:hover,
+.prose-theme h5 a:hover,
+.prose-theme h6 a:hover {
+  @apply text-foreground opacity-80;
+}
+
 .prose-theme p {
   @apply my-5 text-foreground;
 }

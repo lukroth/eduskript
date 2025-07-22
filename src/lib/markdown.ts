@@ -9,6 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import matter from 'gray-matter'
 import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
+import { remarkImageResolver } from './remark-plugins/image-resolver-safe'
 
 export interface ProcessedMarkdown {
   content: string
@@ -21,12 +22,13 @@ export interface MarkdownContext {
   domain?: string
   /** The chapter ID for chapter-specific file searches */
   chapterId?: string
+  /** Pre-fetched file list for client-side image resolution */
+  fileList?: Array<{filename: string, url: string, relativePath: string}>
 }
 
 export async function processMarkdown(
   markdown: string, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  context?: MarkdownContext // Reserved for future use (e.g., image path resolution)
+  context?: MarkdownContext // Now properly used for image path resolution
 ): Promise<ProcessedMarkdown> {
   // Parse frontmatter
   const { content, data: frontmatter } = matter(markdown)
@@ -34,6 +36,12 @@ export async function processMarkdown(
   // Process markdown to HTML
   const processor = unified()
     .use(remarkParse)
+    .use(remarkImageResolver, { 
+      domain: context?.domain, 
+      chapterId: context?.chapterId,
+      isClient: false, // This runs server-side, so file system access is available
+      fileList: context?.fileList
+    })
     .use(remarkMath)
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })

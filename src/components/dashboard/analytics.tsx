@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart3, Eye, Users, Clock, TrendingUp } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface AnalyticsData {
   totalViews: number
@@ -35,64 +36,74 @@ export function AnalyticsDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Total Views</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {mockAnalytics.totalViews.toLocaleString()}
-              </p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Total Views</p>
+                <p className="text-2xl font-bold">
+                  {mockAnalytics.totalViews.toLocaleString()}
+                </p>
+              </div>
+              <Eye className="w-8 h-8 text-blue-500" />
             </div>
-            <Eye className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Unique Visitors</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {mockAnalytics.uniqueVisitors.toLocaleString()}
-              </p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Unique Visitors</p>
+                <p className="text-2xl font-bold">
+                  {mockAnalytics.uniqueVisitors.toLocaleString()}
+                </p>
+              </div>
+              <Users className="w-8 h-8 text-green-500" />
             </div>
-            <Users className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Avg. Time on Page</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {mockAnalytics.avgTimeOnPage}
-              </p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Avg. Time on Page</p>
+                <p className="text-2xl font-bold">
+                  {mockAnalytics.avgTimeOnPage}
+                </p>
+              </div>
+              <Clock className="w-8 h-8 text-purple-500" />
             </div>
-            <Clock className="w-8 h-8 text-purple-500" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Popular Pages */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5" />
-          <h3 className="text-lg font-semibold">Most Popular Pages</h3>
-        </div>
-        <div className="space-y-3">
-          {mockAnalytics.popularPages.map((page, index) => (
-            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">{page.title}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{page.path}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Most Popular Pages
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {mockAnalytics.popularPages.map((page, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-muted rounded">
+                <div>
+                  <p className="font-medium">{page.title}</p>
+                  <p className="text-sm text-muted-foreground">{page.path}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">{page.views}</p>
+                  <p className="text-sm text-muted-foreground">views</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900 dark:text-white">{page.views}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">views</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

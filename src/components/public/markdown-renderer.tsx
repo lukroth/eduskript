@@ -8,12 +8,15 @@ import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeStringify from 'rehype-stringify'
 import { useEffect, useState } from 'react'
+import { remarkImageResolver } from '@/lib/remark-plugins/image-resolver-safe'
 
 interface MarkdownRendererProps {
   content: string
+  domain?: string
+  chapterId?: string
 }
 
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, domain, chapterId }: MarkdownRendererProps) {
   const [html, setHtml] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
@@ -21,6 +24,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     const processMarkdown = async () => {
       try {
         const result = await remark()
+          .use(remarkImageResolver, { domain, chapterId, isClient: true })
           .use(remarkGfm)
           .use(remarkMath)
           .use(remarkRehype)
@@ -39,7 +43,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     processMarkdown()
-  }, [content])
+  }, [content, domain, chapterId])
 
   if (isLoading) {
     return (

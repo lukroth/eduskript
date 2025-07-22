@@ -40,6 +40,7 @@ export default function CodeMirrorEditor({
   const [useSimpleEditor, setUseSimpleEditor] = useState(false)
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
+  const [fileList, setFileList] = useState<Array<{filename: string, url: string, relativePath: string}>>([])
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
@@ -110,6 +111,32 @@ export default function CodeMirrorEditor({
     console.log('CodeMirrorEditor mounting...')
   }, [])
 
+  // Fetch file list for image resolution
+  useEffect(() => {
+    if (!domain || !chapterId) return
+
+    const fetchFileList = async () => {
+      try {
+        const response = await fetch(`/api/upload?chapterId=${chapterId}`)
+        if (response.ok) {
+          const data = await response.json()
+          // Transform API response to match our FileInfo interface
+          const transformedFiles = data.files.map((file: any) => ({
+            filename: file.filename,
+            url: file.url,
+            relativePath: file.url // url is already the relative path we need
+          }))
+          setFileList(transformedFiles)
+          console.log('📁 Fetched file list:', transformedFiles.length, 'files')
+        }
+      } catch (error) {
+        console.error('Error fetching file list:', error)
+      }
+    }
+
+    fetchFileList()
+  }, [domain, chapterId])
+
   // Process markdown for preview
   useEffect(() => {
     if (!isMounted) return
@@ -118,7 +145,7 @@ export default function CodeMirrorEditor({
       try {
         const processed = await processMarkdown(
           useSimpleEditor ? textareaContent : editorContent, 
-          { domain, chapterId }
+          { domain, chapterId, fileList }
         )
         setPreviewContent(processed.content)
       } catch (error) {
@@ -128,7 +155,7 @@ export default function CodeMirrorEditor({
     }
     
     updatePreview()
-  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, chapterId])  // Initialize CodeMirror with dynamic imports
+  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, chapterId, fileList])  // Initialize CodeMirror with dynamic imports
   useEffect(() => {
     if (!isMounted || !editorRef.current) return
 

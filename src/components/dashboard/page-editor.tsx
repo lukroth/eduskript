@@ -106,8 +106,9 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     const extension = file.filename.split('.').pop()?.toLowerCase()
     
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
-      // Image - use wiki-style format with just filename for path correction
-      insertText = `![[${file.filename}]]`
+      // Image - use regular markdown syntax with just filename for path resolution
+      const altText = file.originalName ? file.originalName.replace(/\.[^/.]+$/, '') : file.filename.replace(/\.[^/.]+$/, '')
+      insertText = `![${altText}](${file.filename})`
     } else if (['mp4', 'avi', 'mov', 'wmv'].includes(extension || '')) {
       // Video - use full URL for non-image files
       insertText = `<video controls>\n  <source src="${file.url}" type="video/${extension}">\n  Your browser does not support the video tag.\n</video>`
@@ -271,7 +272,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
             type="page"
             item={page}
             onItemUpdated={handlePageUpdated}
-            buttonText="Edit Pa ge Details"
+            buttonText="Edit Page Details"
           />
           <Link 
             href={`/${(session?.user as { subdomain?: string })?.subdomain}/${script.slug}/${chapter.slug}/${page.slug}`}
