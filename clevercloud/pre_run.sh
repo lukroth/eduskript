@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# CleverCloud post-deploy hook for Eduskript
-# This script runs after the application is deployed
+# CleverCloud pre-run hook for Eduskript
+# This script runs before the application starts, after build cache generation
+# Handles database migrations, schema setup, and other preparation tasks
 
 set -e
 
-echo "🚀 Starting post-deploy setup..."
+echo "🚀 Starting pre-run setup..."
 
 # Check if POSTGRESQL_ADDON_URI is available
 if [ -z "$POSTGRESQL_ADDON_URI" ]; then
@@ -59,5 +60,5 @@ if [ -f "prisma/seed.ts" ] || [ -f "prisma/seed.js" ]; then
     fi
 fi
 
-echo "🎉 Post-deploy setup completed successfully!"
-echo "🌐 Application should be available at: $NEXTAUTH_URL"
+echo "🎉 Pre-run setup completed successfully!"
+echo "🌐 Application ready to start at: $NEXTAUTH_URL"
