@@ -20,15 +20,7 @@ fi
 
 # Construct DATABASE_URL with connection parameters for Prisma
 export DATABASE_URL="${POSTGRESQL_ADDON_URI}?connection_limit=1&pool_timeout=20"
-
 echo "✅ Database URL configured with connection parameters"
-
-# Generate Prisma client (should already be done in build, but ensure it's available)
-echo "🔧 Ensuring Prisma client is generated..."
-pnpm prisma generate
-
-# Check database state and handle accordingly
-echo "🗄️  Checking database state..."
 
 # First, try to run migrate deploy (safe for existing schemas)
 echo "🔄 Attempting to apply migrations..."
@@ -51,6 +43,15 @@ else
     else
         echo "✅ Database already initialized with $TABLES_COUNT tables"
     fi
+fi
+
+# Generate Prisma client after migrations
+echo "🔧 Ensuring Prisma client is generated..."
+if pnpm prisma generate; then
+    echo "✅ Prisma client generated"
+else
+    echo "❌ ERROR: Prisma client generation failed"
+    exit 1
 fi
 
 # Optional: Run database seeding if seed file exists
