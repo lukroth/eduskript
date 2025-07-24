@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DomainSettings } from '@/components/dashboard/domain-settings'
+import { CustomDomains } from '@/components/dashboard/custom-domains'
 import { ProfileSettings } from '@/components/dashboard/profile-settings'
 
 export default async function SettingsPage() {
@@ -40,7 +40,7 @@ export default async function SettingsPage() {
         </Card>
       </div>
 
-      <DomainSettings />
+      <CustomDomains />
     </div>
   )
 }
