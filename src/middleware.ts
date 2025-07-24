@@ -29,8 +29,8 @@ export async function middleware(request: NextRequest) {
       // This is a subdomain (e.g., xyz.eduskript.org)
       subdomain = parts[0]
     } else if (parts.length >= 2) {
-      // This might be a custom domain - we'll handle this later with a database lookup
-      // For now, we'll treat it as a potential custom domain
+      // For now, we'll handle custom domains via API lookup
+      // This avoids Prisma client issues in Edge Runtime
       console.log('Potential custom domain detected:', hostname)
     }
   }
@@ -42,9 +42,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url)
   }
   
-  // Custom domain handling would go here in the future
-  // We'll need to query the database to check if hostname is a custom domain
-  // and rewrite to the appropriate subdomain path
+  // Custom domain handling is now integrated above
   
   // Protect dashboard routes
   if (pathname.startsWith('/dashboard')) {

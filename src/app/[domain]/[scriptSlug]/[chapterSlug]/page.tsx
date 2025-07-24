@@ -98,23 +98,9 @@ interface TopicPage {
   isPublished: boolean
 }
 
-interface TopicChapter {
-  id: string
-  title: string
-  slug: string
-  order: number
-  isPublished: boolean
-  pages: TopicPage[]
-}
 
-interface TopicWithChapters {
-  id: string
-  title: string
-  slug: string
-  description: string | null
-  isPublished: boolean
-  chapters: TopicChapter[]
-}
+
+
 
 export default async function ChapterPreviewPage({ params }: ChapterPreviewProps) {
   const { domain, scriptSlug, chapterSlug } = await params
