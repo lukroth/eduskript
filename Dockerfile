@@ -7,7 +7,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+COPY prisma ./prisma
 RUN corepack enable pnpm && pnpm i --frozen-lockfile
 
 # Rebuild the source code only when needed
@@ -16,11 +17,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client
-RUN corepack enable pnpm && pnpm db:generate
+# Set a dummy database URL for build time (SQLite)
+ENV DATABASE_URL="file:./dev.db" 
 
-# Build the application
-RUN pnpm build
+# Build the application (includes prisma generate from package.json script)
+RUN corepack enable pnpm && pnpm build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -40,6 +41,9 @@ COPY --from=builder /app/public ./public
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
+# Create data directory for SQLite and set ownership
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -47,7 +51,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy Prisma files
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 USER nextjs
@@ -56,8 +59,5 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-
-# Create data directory for SQLite
-RUN mkdir -p /app/data
 
 CMD ["node", "server.js"]
