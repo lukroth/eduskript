@@ -13,6 +13,8 @@ echo "Debug: Contents of /app/prisma:"
 ls -la /app/prisma/
 echo "Debug: Contents of /app/prisma/migrations:"
 ls -la /app/prisma/migrations/ || echo "migrations directory not found"
+echo "Debug: Contents of /app/prisma/migrations/0_init:"
+ls -la /app/prisma/migrations/0_init/ || echo "0_init directory not found"
 
 # Use su with explicit shell and change to nextjs user
 su nextjs -s /bin/sh -c "cd /app && npx prisma migrate deploy"
