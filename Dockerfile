@@ -31,6 +31,9 @@ ENV NODE_ENV=production
 # Disable telemetry during runtime
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl libc6-compat
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
@@ -49,11 +52,22 @@ RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma files and CLI
+# Copy Prisma files and all dependencies
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
+
+# Copy all required Prisma engine dependencies
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy package.json and install only Prisma for migrations
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+
+# Install pnpm and only Prisma for migrations
+RUN corepack enable pnpm && \
+    pnpm add prisma @prisma/client --save-dev
 
 # Copy startup script
 COPY start.sh /app/start.sh
