@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Plus, BookOpen, Eye, Edit } from 'lucide-react'
+import { Plus, BookOpen, Eye } from 'lucide-react'
 
 interface Topic {
   id: string

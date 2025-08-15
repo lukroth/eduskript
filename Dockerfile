@@ -49,9 +49,15 @@ RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma files
+# Copy Prisma files and CLI
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
+
+# Copy startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh && chown nextjs:nodejs /app/start.sh
 
 USER nextjs
 
@@ -59,5 +65,6 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_URL="file:/app/data/prod.db"
 
-CMD ["node", "server.js"]
+CMD ["/app/start.sh"]
