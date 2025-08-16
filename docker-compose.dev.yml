@@ -1,0 +1,22 @@
+services:
+  eduskript:
+    image: eduskript:latest
+    container_name: eduskript-dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-key}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - UPLOAD_DIR=/app/uploads
+      - MAX_FILE_SIZE=10485760
+      - ALLOWED_FILE_TYPES=jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav
+    volumes:
+      - dev_data:/app/data        # SQLite volume (persistent)
+      - dev_uploads:/app/uploads  # Uploads
+    ports:
+      - "3000:3000"
+
+volumes:
+  dev_data:
+  dev_uploads:

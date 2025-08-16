@@ -1,60 +1,72 @@
-# Use the official Node.js 22 image
+# ----------------------------
+# Base stage: Node.js setup
+# ----------------------------
 FROM node:22-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# Install runtime deps for Prisma / SQLite
+RUN apk add --no-cache libc6-compat openssl
+
+# ----------------------------
+# Deps stage: install dependencies
+# ----------------------------
+FROM base AS deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY prisma ./prisma
-RUN corepack enable pnpm && pnpm i --frozen-lockfile
+RUN corepack enable pnpm && pnpm install --frozen-lockfile
 
-# Rebuild the source code only when needed
+# ----------------------------
+# Builder stage: build app & generate Prisma client
+# ----------------------------
 FROM base AS builder
 WORKDIR /app
+
+# Copy deps
 COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source
 COPY . .
 
-# Set a dummy database URL for build time (SQLite)
-ENV DATABASE_URL="file:./dev.db" 
+# Dummy DATABASE_URL at build time for Prisma
+ENV DATABASE_URL="file:/app/data/dummy.db"
 
-# Build the application (includes prisma generate from package.json script)
-RUN corepack enable pnpm && pnpm build
+# Generate Prisma client first
+RUN corepack enable pnpm && pnpm prisma generate
 
-# Production image, copy all the files and run next
-FROM base AS runner
+# Build app
+RUN pnpm build
+
+# ----------------------------
+# Runner stage: production image
+# ----------------------------
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Disable telemetry during runtime
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl libc6-compat
+# Install sudo for permission fixes
+RUN apk add --no-cache sudo
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    echo "nextjs ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod" >> /etc/sudoers
 
-# Copy the public folder
-COPY --from=builder /app/public ./public
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Create data directory for SQLite and set ownership  
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data && chmod -R 755 /app/data
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
+# Copy Next.js standalone output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy the full node_modules for Prisma to work properly
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
+# Copy generated Prisma client and schema (pnpm structure)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+# Create persistent directories (uploads + SQLite)
+RUN mkdir -p /app/data /app/uploads && \
+    chown -R nextjs:nodejs /app/data /app/uploads && \
+    chmod -R 755 /app/data /app/uploads
 
 # Copy startup script
 COPY start.sh /app/start.sh
@@ -62,8 +74,7 @@ RUN chmod +x /app/start.sh && chown nextjs:nodejs /app/start.sh
 
 EXPOSE 3000
 
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+# Switch to non-root user
+USER nextjs
 
-# Start as root to fix permissions, then switch to nextjs user
 CMD ["/app/start.sh"]

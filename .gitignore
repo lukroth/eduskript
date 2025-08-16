@@ -48,3 +48,4 @@ next-env.d.ts
 
 # Image cache
 /public/cache/
+data/
