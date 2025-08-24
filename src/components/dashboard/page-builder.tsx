@@ -1,11 +1,9 @@
 'use client'
 
-import { useDroppable } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { Droppable, Draggable } from '@hello-pangea/dnd'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Layout, Trash2, Eye, BookOpen, FileText, Plus, Edit, GripVertical, ChevronDown, ChevronRight } from 'lucide-react'
+import { Layout, Trash2, Eye, BookOpen, FileText, Plus, Edit, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -28,10 +26,20 @@ interface PageItem {
 
 interface PageBuilderProps {
   items: PageItem[]
-  onItemsChange?: (items: PageItem[]) => void
+  onItemsChange?: (items: PageItem[], changedCollectionIds?: Set<string>) => void
   onPreview?: () => void
   expandedCollections?: string[]
   onToggleCollection?: (collectionId: string) => void
+  hoveredElement?: {
+    id: string | null
+    type: 'collection' | 'skript' | 'empty-placeholder' | null
+  }
+  draggedItem?: {
+    type: 'collection' | 'skript'
+    id: string
+    title: string
+    description?: string
+  } | null
 }
 
 export function PageBuilder({ 
@@ -39,12 +47,11 @@ export function PageBuilder({
   onItemsChange,
   onPreview,
   expandedCollections = [],
-  onToggleCollection
+  onToggleCollection,
+  hoveredElement,
+  draggedItem
 }: PageBuilderProps) {
 
-  const { isOver, setNodeRef } = useDroppable({
-    id: 'page-builder'
-  })
 
   const handleRemoveItem = (id: string, parentId?: string) => {
     if (parentId) {
@@ -60,7 +67,8 @@ export function PageBuilder({
         }
         return item
       })
-      onItemsChange?.(updatedItems)
+      const changedCollectionIds = new Set([parentId])
+      onItemsChange?.(updatedItems, changedCollectionIds)
     } else {
       // Remove root level item
       const updatedItems = items
@@ -72,7 +80,7 @@ export function PageBuilder({
 
 
   return (
-    <Card className="h-full">
+    <Card className="min-h-[400px]">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -102,15 +110,14 @@ export function PageBuilder({
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Drag content from the library to build your public page
+          Drag collections from the library to build your page. Add skripts inside collections.
         </p>
       </CardHeader>
       <CardContent>
         <div
-          ref={setNodeRef}
           className={cn(
             "min-h-[400px] border-2 border-dashed rounded-lg p-4 transition-colors",
-            isOver ? "border-primary bg-primary/5" : "border-muted-foreground/25",
+            "border-muted-foreground/25",
             items.length === 0 && "flex items-center justify-center"
           )}
         >
@@ -121,33 +128,45 @@ export function PageBuilder({
                 Start building your page
               </h3>
               <p className="text-sm text-muted-foreground">
-                Drag collections and skripts from the content library to organize your public page
+                Drag collections from the content library to organize your public page
               </p>
             </div>
           ) : (
-            <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-3">
-                {items
-                  .sort((a, b) => a.order - b.order)
-                  .map((item, index) => (
-                    <SortablePageBuilderItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      onRemove={handleRemoveItem}
-                      expandedCollections={expandedCollections}
-                      onToggleCollection={onToggleCollection}
-                    />
-                  ))}
-              </div>
-            </SortableContext>
+            <Droppable 
+              droppableId="page-builder" 
+              isDropDisabled={draggedItem?.type === 'skript'}
+            >
+              {(provided) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-3"
+                >
+                  {items
+                    .sort((a, b) => a.order - b.order)
+                    .map((item, index) => (
+                      <PageBuilderItem
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        onRemove={handleRemoveItem}
+                        expandedCollections={expandedCollections}
+                        onToggleCollection={onToggleCollection}
+                        hoveredElement={hoveredElement}
+                        draggedItem={draggedItem}
+                      />
+                    ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           )}
         </div>
         
         {items.length > 0 && (
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">
-              💡 <strong>Tip:</strong> You can reorder items by using the arrow buttons or remove items you no longer want on your page.
+              💡 <strong>Tip:</strong> You can reorder items by dragging them.
             </p>
           </div>
         )}
@@ -156,55 +175,50 @@ export function PageBuilder({
   )
 }
 
-interface SortablePageBuilderItemProps {
+interface PageBuilderItemProps {
   item: PageItem
   index: number
   onRemove: (id: string, parentId?: string) => void
   expandedCollections: string[]
   onToggleCollection?: (collectionId: string) => void
+  hoveredElement?: {
+    id: string | null
+    type: 'collection' | 'skript' | 'empty-placeholder' | null
+  }
+  draggedItem?: {
+    type: 'collection' | 'skript'
+    id: string
+    title: string
+    description?: string
+  } | null
 }
 
-function SortablePageBuilderItem({ item, index, onRemove, expandedCollections, onToggleCollection }: SortablePageBuilderItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
+function PageBuilderItem({ item, index, onRemove, expandedCollections, onToggleCollection, hoveredElement, draggedItem }: PageBuilderItemProps) {
   const Icon = item.type === 'collection' ? BookOpen : FileText
 
-  const collectionDropZone = item.type === 'collection' ? (
-    <CollectionDropZone collectionId={item.id} canEdit={item.permissions?.canEdit || false}>
-      <div className={cn(
-        "bg-card border border-border rounded-lg hover:shadow-sm transition-shadow",
-        !item.permissions?.canEdit && "opacity-60 bg-muted/50"
-      )}>
-        {/* Main content row */}
-        <div className="flex items-center gap-3 p-3">
-          <div 
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-            title="Drag to reorder"
-          >
-            <GripVertical className="w-4 h-4 text-muted-foreground" />
-          </div>
-          
+
+  return (
+    <Draggable draggableId={`collection-${item.id}`} index={index}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          className={cn(
+            "bg-card border border-border rounded-lg hover:shadow-sm transition-shadow",
+            !item.permissions?.canEdit && "opacity-60 bg-muted/50",
+            snapshot.isDragging && "opacity-50"
+          )}
+        >
+          {/* Main content row */}
+          <div className="flex items-center gap-3 p-3">
           <span className="text-xs text-muted-foreground font-mono w-6">
             {index + 1}
           </span>
           
           <div className="flex items-center gap-2">
             <Icon className="w-5 h-5 text-primary flex-shrink-0" />
-            {(item.skripts && item.skripts.length > 0) || !item.skripts ? (
+            {item.type === 'collection' && (
               <button
                 onClick={() => onToggleCollection?.(item.id)}
                 className="hover:bg-muted rounded p-1"
@@ -216,7 +230,7 @@ function SortablePageBuilderItem({ item, index, onRemove, expandedCollections, o
                   <ChevronRight className="w-3 h-3 text-muted-foreground" />
                 )}
               </button>
-            ) : null}
+            )}
           </div>
           
           <div className="flex-1 min-w-0">
@@ -228,16 +242,18 @@ function SortablePageBuilderItem({ item, index, onRemove, expandedCollections, o
               <span className="text-xs text-muted-foreground capitalize">
                 {item.type}
               </span>
-              <span className="text-xs text-muted-foreground">
-                • {item.skripts?.length || 0} skripts
-              </span>
+              {item.type === 'collection' && (
+                <span className="text-xs text-muted-foreground">
+                  • {item.skripts?.length || 0} skripts
+                </span>
+              )}
             </div>
           </div>
           
           <div className="flex gap-1 flex-shrink-0">
             {item.permissions?.canEdit ? (
               item.slug && (
-                <Link href={`/dashboard/collections/${item.slug}`}>
+                <Link href={item.type === 'collection' ? `/dashboard/collections/${item.slug}` : `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`}>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -272,262 +288,151 @@ function SortablePageBuilderItem({ item, index, onRemove, expandedCollections, o
         </div>
 
         {/* Nested skripts for collections - only show when expanded */}
-        {expandedCollections.includes(item.id) && (
+        {item.type === 'collection' && expandedCollections.includes(item.id) && (
           <div className="px-3 pb-3">
             <div className="ml-6 space-y-2 border-l-2 border-muted pl-4 min-h-[60px]">
               {item.skripts && item.skripts.length > 0 ? (
-                <>
-                  {/* All skripts in this collection */}
-                  <SortableContext items={item.skripts.map(s => `${item.id}-${s.id}`)} strategy={verticalListSortingStrategy}>
-                    {item.skripts
-                      .sort((a, b) => a.order - b.order)
-                      .map((skript) => (
-                        <NestedSkriptItem
-                          key={`${item.id}-${skript.id}`}
-                          item={skript}
-                          parentId={item.id}
-                          onRemove={onRemove}
-                        />
-                      ))}
-                  </SortableContext>
-                </>
-              ) : item.permissions?.canEdit ? (
-                <div className="py-8 text-center text-xs text-muted-foreground border-2 border-dashed border-muted rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="w-6 h-6 text-muted-foreground/50" />
-                    <p>Drop skripts here</p>
-                    <p className="text-xs opacity-75">This collection is empty</p>
-                  </div>
-                </div>
+                <Droppable 
+                  droppableId={`skript-${item.id}`}
+                  isDropDisabled={draggedItem?.type === 'collection'}
+                >
+                  {(provided) => (
+                    <div 
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-2"
+                    >
+                      {item.skripts!
+                        .sort((a, b) => a.order - b.order)
+                        .map((skript, skriptIndex) => (
+                          <SimpleSkriptItem
+                            key={skript.id}
+                            item={skript}
+                            index={skriptIndex}
+                            parentId={item.id}
+                            onRemove={onRemove}
+                            hoveredElement={hoveredElement}
+                            draggedItem={draggedItem}
+                          />
+                        ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               ) : (
-                <div className="py-8 text-center text-xs text-muted-foreground border-2 border-dashed border-muted-foreground/20 rounded-lg bg-muted/10">
-                  <div className="flex flex-col items-center gap-2">
-                    <Eye className="w-6 h-6 text-muted-foreground/40" />
-                    <p className="text-muted-foreground/60">View only</p>
-                  </div>
-                </div>
+                <Droppable 
+                  droppableId={`empty-${item.id}`}
+                  isDropDisabled={draggedItem?.type === 'collection'}
+                >
+                  {(provided) => (
+                    <div 
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="text-center py-4 text-muted-foreground text-xs"
+                    >
+                      <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                      <p>No skripts in this collection</p>
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               )}
             </div>
           </div>
         )}
-        
-        {/* Empty collections that aren't expanded - show drop area hint */}
-        {!expandedCollections.includes(item.id) && 
-         (!item.skripts || item.skripts.length === 0) && (
-          <div className="px-3 pb-2">
-            <div className="ml-6 text-xs text-muted-foreground/75 italic">
-              Empty collection - expand to add skripts
-            </div>
-          </div>
-        )}
-      </div>
-    </CollectionDropZone>
-  ) : (
-    // Regular skript item (not wrapped in drop zone)
-    <div className={cn(
-      "bg-card border border-border rounded-lg hover:shadow-sm transition-shadow",
-      !item.permissions?.canEdit && "opacity-60 bg-muted/50"
-    )}>
-      <div className="flex items-center gap-3 p-3">
-        <div 
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-          title="Drag to reorder"
-        >
-          <GripVertical className="w-4 h-4 text-muted-foreground" />
         </div>
-        
-        <span className="text-xs text-muted-foreground font-mono w-6">
-          {index + 1}
-        </span>
-        
-        <Icon className="w-5 h-5 text-primary flex-shrink-0" />
-        
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-sm truncate">{item.title}</h4>
-          {item.description && (
-            <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-          )}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground capitalize">
-              {item.type}
-            </span>
-          </div>
-        </div>
-        
-        <div className="flex gap-1 flex-shrink-0">
-          {item.permissions?.canEdit ? (
-            item.slug && (
-              <Link href={
-                item.collectionSlug 
-                  ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
-                  : `/dashboard/collections/${item.id}` // fallback
-              }>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0 text-primary hover:text-primary"
-                  title={`Edit ${item.type}`}
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-              </Link>
-            )
-          ) : (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              disabled
-              className="h-8 w-8 p-0 text-muted-foreground/50"
-              title="View only - no edit permissions"
-            >
-              <Eye className="w-4 h-4" />
-            </Button>
-          )}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => onRemove(item.id)}
-            className="text-destructive hover:text-destructive h-8 w-8 p-0"
-            title="Remove from page"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        isDragging && "opacity-50"
       )}
-    >
-      {collectionDropZone}
-    </div>
+    </Draggable>
   )
 }
 
-interface NestedSkriptItemProps {
+interface SimpleSkriptItemProps {
   item: PageItem
+  index: number
   parentId: string
   onRemove: (id: string, parentId?: string) => void
+  hoveredElement?: {
+    id: string | null
+    type: 'collection' | 'skript' | 'empty-placeholder' | null
+  }
+  draggedItem?: {
+    type: 'collection' | 'skript'
+    id: string
+    title: string
+    description?: string
+  } | null
 }
 
-function NestedSkriptItem({ item, parentId, onRemove }: NestedSkriptItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `${parentId}-${item.id}` })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
+function SimpleSkriptItem({ item, index, parentId, onRemove, hoveredElement, draggedItem }: SimpleSkriptItemProps) {
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "bg-muted/30 border border-border rounded-lg hover:shadow-sm transition-shadow",
-        isDragging && "opacity-50",
-        !item.permissions?.canEdit && "opacity-60 bg-muted/20"
-      )}
-    >
-      <div className="flex items-center gap-3 p-2">
+    <Draggable draggableId={`${parentId}-skript-${item.id}`} index={index}>
+      {(provided, snapshot) => (
         <div 
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-          title="Drag to reorder"
-        >
-          <GripVertical className="w-3 h-3 text-muted-foreground" />
-        </div>
-        
-        <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-        
-        <div className="flex-1 min-w-0">
-          <h5 className="font-medium text-xs truncate">{item.title}</h5>
-          {item.description && (
-            <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          className={cn(
+            "bg-muted/30 border border-border rounded-lg hover:shadow-sm transition-shadow cursor-grab",
+            snapshot.isDragging && "opacity-50"
           )}
-        </div>
-        
-        <div className="flex gap-1 flex-shrink-0">
-          {item.permissions?.canEdit ? (
-            item.slug && (
-              <Link href={
-                item.collectionSlug 
-                  ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
-                  : `/dashboard/collections/${item.id}` // fallback
-              }>
+        >
+          <div className="flex items-center gap-3 p-2">
+            <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+            
+            <div className="flex-1 min-w-0">
+              <h5 className="font-medium text-xs truncate">{item.title}</h5>
+              {item.description && (
+                <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+              )}
+            </div>
+            
+            <div className="flex gap-1 flex-shrink-0">
+              {item.permissions?.canEdit ? (
+                item.slug && (
+                  <Link href={
+                    item.collectionSlug 
+                      ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
+                      : `/dashboard/collections/${item.id}` // fallback
+                  }>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0 text-primary hover:text-primary"
+                      title="Edit skript"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                )
+              ) : (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0 text-primary hover:text-primary"
-                  title="Edit skript"
+                  disabled
+                  className="h-6 w-6 p-0 text-muted-foreground/50"
+                  title="View only - no edit permissions"
                 >
-                  <Edit className="w-3 h-3" />
+                  <Eye className="w-3 h-3" />
                 </Button>
-              </Link>
-            )
-          ) : (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              disabled
-              className="h-6 w-6 p-0 text-muted-foreground/50"
-              title="View only - no edit permissions"
-            >
-              <Eye className="w-3 h-3" />
-            </Button>
-          )}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => onRemove(item.id, parentId)}
-            className="text-destructive hover:text-destructive h-6 w-6 p-0"
-            title="Remove from collection"
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => onRemove(item.id, parentId)}
+                className="text-destructive hover:text-destructive h-6 w-6 p-0"
+                title="Remove from collection"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-interface CollectionDropZoneProps {
-  collectionId: string
-  canEdit: boolean
-  children: React.ReactNode
-}
-
-function CollectionDropZone({ collectionId, canEdit, children }: CollectionDropZoneProps) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: `collection-${collectionId}`,
-    disabled: !canEdit
-  })
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "transition-colors rounded-lg",
-        canEdit && isOver && "bg-primary/10 border-2 border-primary/20",
-        !canEdit && "opacity-75"
       )}
-    >
-      {children}
-    </div>
+    </Draggable>
   )
 }
+
+
+
+

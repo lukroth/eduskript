@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { Droppable } from '@hello-pangea/dnd'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { DraggableCollection, DraggableSkript } from './draggable-content'
@@ -26,7 +27,11 @@ interface SkriptWithAuthors extends Skript {
   pages: Array<{ id: string }>
 }
 
-export function ContentLibrary() {
+interface ContentLibraryProps {
+  onDataLoad?: (data: { collections: any[], skripts: any[] }) => void
+}
+
+export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
   const { data: session } = useSession()
   const [collections, setCollections] = useState<CollectionWithAuthors[]>([])
   const [skripts, setSkripts] = useState<SkriptWithAuthors[]>([])
@@ -40,17 +45,24 @@ export function ContentLibrary() {
       try {
         // Fetch collections with author information
         const collectionsResponse = await fetch('/api/collections?includeShared=true')
+        let collectionsData: any[] = []
         if (collectionsResponse.ok) {
-          const collectionsData = await collectionsResponse.json()
-          setCollections(collectionsData.data || [])
+          const response = await collectionsResponse.json()
+          collectionsData = response.data || []
+          setCollections(collectionsData)
         }
 
         // Fetch skripts with author information
         const skriptsResponse = await fetch('/api/skripts?includeShared=true')
+        let skriptsData: any[] = []
         if (skriptsResponse.ok) {
-          const skriptsData = await skriptsResponse.json()
-          setSkripts(skriptsData.data || [])
+          const response = await skriptsResponse.json()
+          skriptsData = response.data || []
+          setSkripts(skriptsData)
         }
+
+        // Share data with parent component
+        onDataLoad?.({ collections: collectionsData, skripts: skriptsData })
       } catch (error) {
         console.error('Error fetching content:', error)
       } finally {
@@ -93,7 +105,7 @@ export function ContentLibrary() {
   }
 
   return (
-    <Card className="h-full">
+    <Card className="min-h-[400px]">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BookOpen className="w-5 h-5" />
@@ -109,7 +121,7 @@ export function ContentLibrary() {
           />
         </div>
       </CardHeader>
-      <CardContent className="space-y-6 overflow-auto max-h-[calc(100vh-200px)]">
+      <CardContent className="space-y-6">
         {/* Collections Section */}
         {filteredCollections.length > 0 && (
           <div>
@@ -117,26 +129,36 @@ export function ContentLibrary() {
               <BookOpen className="w-4 h-4" />
               Collections ({filteredCollections.length})
             </h3>
-            <div className="space-y-2">
-              {filteredCollections.map((collection) => {
-                const permissions = checkCollectionPermissions(session.user.id, collection.authors)
-                const isViewOnly = !permissions.canEdit
+            <Droppable droppableId="library-collections" isDropDisabled={true}>
+              {(provided) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-2"
+                >
+                  {filteredCollections.map((collection, index) => {
+                    const permissions = checkCollectionPermissions(session.user.id, collection.authors)
+                    const isViewOnly = !permissions.canEdit
 
-                return (
-                  <DraggableCollection
-                    key={collection.id}
-                    type="collection"
-                    id={collection.id}
-                    title={collection.title}
-                    description={collection.description || undefined}
-                    skriptCount={collection.collectionSkripts.length}
-                    authors={collection.authors}
-                    currentUserId={session.user.id}
-                    isViewOnly={isViewOnly}
-                  />
-                )
-              })}
-            </div>
+                    return (
+                      <DraggableCollection
+                        key={collection.id}
+                        type="collection"
+                        id={collection.id}
+                        title={collection.title}
+                        description={collection.description || undefined}
+                        skriptCount={collection.collectionSkripts.length}
+                        authors={collection.authors}
+                        currentUserId={session.user.id}
+                        isViewOnly={isViewOnly}
+                        index={index}
+                      />
+                    )
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
         )}
 
@@ -147,31 +169,41 @@ export function ContentLibrary() {
               <FileText className="w-4 h-4" />
               Skripts ({filteredSkripts.length})
             </h3>
-            <div className="space-y-2">
-              {filteredSkripts.map((skript) => {
-                // For now, just check skript permissions without collection permissions
-                // since the skripts API needs to be updated to include collectionSkripts properly
-                const permissions = checkSkriptPermissions(
-                  session.user.id,
-                  skript.authors
-                )
-                const isViewOnly = !permissions.canEdit
+            <Droppable droppableId="library-skripts" isDropDisabled={true}>
+              {(provided) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-2"
+                >
+                  {filteredSkripts.map((skript, index) => {
+                    // For now, just check skript permissions without collection permissions
+                    // since the skripts API needs to be updated to include collectionSkripts properly
+                    const permissions = checkSkriptPermissions(
+                      session.user.id,
+                      skript.authors
+                    )
+                    const isViewOnly = !permissions.canEdit
 
-                return (
-                  <DraggableSkript
-                    key={skript.id}
-                    type="skript"
-                    id={skript.id}
-                    title={skript.title}
-                    description={skript.description || undefined}
-                    pageCount={skript.pages.length}
-                    authors={skript.authors}
-                    currentUserId={session.user.id}
-                    isViewOnly={isViewOnly}
-                  />
-                )
-              })}
-            </div>
+                    return (
+                      <DraggableSkript
+                        key={skript.id}
+                        type="skript"
+                        id={skript.id}
+                        title={skript.title}
+                        description={skript.description || undefined}
+                        pageCount={skript.pages.length}
+                        authors={skript.authors}
+                        currentUserId={session.user.id}
+                        isViewOnly={isViewOnly}
+                        index={index}
+                      />
+                    )
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
         )}
 

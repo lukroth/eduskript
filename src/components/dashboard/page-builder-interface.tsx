@@ -1,12 +1,9 @@
 'use client'
 
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
+import { DragDropContext, DropResult, DragStart } from '@hello-pangea/dnd'
 import { useState, useEffect } from 'react'
 import { ContentLibrary } from './content-library'
 import { PageBuilder } from './page-builder'
-import { Card, CardContent } from '@/components/ui/card'
-import { BookOpen, FileText } from 'lucide-react'
 
 interface PageItem {
   id: string
@@ -19,6 +16,7 @@ interface PageItem {
   parentId?: string // For nested skripts under collections
   skripts?: PageItem[] // For collections containing skripts
   isInLayout?: boolean // For skripts: whether they're explicitly in the page layout
+  isFromLibrary?: boolean // For skripts: whether they were just added from library (skip move API)
   permissions?: {
     canEdit: boolean
     canView: boolean
@@ -30,6 +28,8 @@ interface DragData {
   id: string
   title: string
   description?: string
+  fromLibrary?: boolean
+  parentId?: string
 }
 
 export function PageBuilderInterface() {
@@ -37,6 +37,7 @@ export function PageBuilderInterface() {
   const [activeItem, setActiveItem] = useState<DragData | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedCollections, setExpandedCollections] = useState<string[]>([])
+  const [libraryData, setLibraryData] = useState<{ collections: any[], skripts: any[] }>({ collections: [], skripts: [] })
 
   // Load existing page layout on component mount
   useEffect(() => {
@@ -145,9 +146,9 @@ export function PageBuilderInterface() {
             
             setPageItems(allItems)
             
-            // Auto-expand collections that have skripts
+            // Auto-expand all collections by default
             const collectionsToExpand = allItems
-              .filter(item => item.type === 'collection' && item.skripts && item.skripts.length > 0)
+              .filter(item => item.type === 'collection')
               .map(item => item.id)
             setExpandedCollections(collectionsToExpand)
           }
@@ -162,477 +163,409 @@ export function PageBuilderInterface() {
     loadPageLayout()
   }, [])
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const dragData = event.active.data.current as DragData
-    setActiveItem(dragData)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    
-    setActiveItem(null)
-    
-    const { active, over } = event
-    
-    if (!over) return
-
-    // Handle adding new items from content library to root level
-    if (over.id === 'page-builder' && active.data.current) {
-      const dragData = active.data.current as DragData
-      
-      
-      // Check if item is already in the page
-      if (pageItems.some(item => item.id === dragData.id && item.type === dragData.type)) {
-        console.log('Item already exists in page')
-        return
-      }
-
-      const newItem: PageItem = {
-        id: dragData.id,
-        type: dragData.type,
-        title: dragData.title,
-        description: dragData.description,
-        order: pageItems.length
-      }
-
-      console.log('Adding new item:', newItem)
-      const updated = [...pageItems, newItem]
-      setPageItems(updated)
-      
-      // Save to backend
-      handleItemsChange(updated)
-      return
-    }
-
-    // Parse IDs to understand the context (root items vs nested items)
-    const activeId = active.id.toString()
-    const overId = over.id.toString()
-    
-    // Handle complex drag and drop operations
-    let updatedItems = [...pageItems]
-    let hasChanges = false
-
-    // Helper function to find an item and its location
-    const findItemLocation = (itemId: string) => {
-      // Handle compound IDs (collection-skript format)
-      const realItemId = itemId.includes('-') ? itemId.split('-').pop()! : itemId
-
-      // Check root level items  
-      const rootIndex = updatedItems.findIndex(item => item.id === realItemId)
-      if (rootIndex !== -1) {
-        return { 
-          item: updatedItems[rootIndex], 
-          location: 'root' as const,
-          collectionIndex: rootIndex,
-          skriptIndex: -1
-        }
-      }
-
-      // Check nested items in collections
-      for (let collectionIndex = 0; collectionIndex < updatedItems.length; collectionIndex++) {
-        const collection = updatedItems[collectionIndex]
-        if (collection.skripts) {
-          const skriptIndex = collection.skripts.findIndex(skript => skript.id === realItemId)
-          if (skriptIndex !== -1) {
-            return { 
-              item: collection.skripts[skriptIndex], 
-              location: 'nested' as const,
-              collectionIndex,
-              skriptIndex
-            }
-          }
-        }
-      }
-
-      return null
-    }
-
-    const activeInfo = findItemLocation(activeId)
-    
-    if (!activeInfo) {
-      console.log('Could not find active item:', activeId)
-      return
-    }
-
-    console.log('Dragging:', activeInfo.item.title, 'from:', activeInfo.location)
-
-    // Determine the drop target and handle different drop scenarios
-    if (overId === 'page-builder') {
-      // DROP TO ROOT LEVEL
-      console.log('Dropping to root level')
-      
-      if (activeInfo.location === 'nested') {
-        // Move skript from collection to root
-        const sourceCollection = updatedItems[activeInfo.collectionIndex]
-        const skriptToMove = sourceCollection.skripts![activeInfo.skriptIndex]
-        
-        // Remove from collection
-        sourceCollection.skripts!.splice(activeInfo.skriptIndex, 1)
-        
-        // Add to root with proper order
-        const newRootItem = {
-          ...skriptToMove,
-          order: updatedItems.length,
-          parentId: undefined
-        }
-        
-        updatedItems.push(newRootItem)
-        hasChanges = true
-        
-        console.log('Moved skript to root:', skriptToMove.title)
-      } else {
-        console.log('Item is already at root level')
-      }
-      
-    } else if (overId.startsWith('collection-')) {
-      // DROP INTO COLLECTION
-      const targetCollectionId = overId.replace('collection-', '')
-      const targetCollectionIndex = updatedItems.findIndex(item => item.id === targetCollectionId)
-      
-      if (targetCollectionIndex === -1) {
-        console.log('Target collection not found:', targetCollectionId)
-        return
-      }
-      
-      const targetCollection = updatedItems[targetCollectionIndex]
-      console.log('Dropping into collection:', targetCollection.title)
-      
-      // Check if user has permission to edit the target collection
-      if (!targetCollection.permissions?.canEdit) {
-        console.log('No permission to edit target collection:', targetCollection.title)
-        return
-      }
-      
-      if (activeInfo.location === 'root') {
-        // Move root item into collection
-        const itemToMove = activeInfo.item
-        
-        if (itemToMove.type === 'skript') {
-          // Remove from root
-          updatedItems.splice(activeInfo.collectionIndex, 1)
-          
-          // Add to target collection
-          if (!targetCollection.skripts) {
-            targetCollection.skripts = []
-          }
-          
-          const newNestedItem = {
-            ...itemToMove,
-            order: targetCollection.skripts.length,
-            parentId: targetCollectionId
-          }
-          
-          targetCollection.skripts.push(newNestedItem)
-          hasChanges = true
-          
-          console.log('Moved root skript into collection:', itemToMove.title)
-        } else {
-          console.log('Cannot move collection into collection')
-        }
-        
-      } else if (activeInfo.location === 'nested') {
-        // Move skript from one collection to another
-        const sourceCollection = updatedItems[activeInfo.collectionIndex]
-        const skriptToMove = sourceCollection.skripts![activeInfo.skriptIndex]
-        
-        if (activeInfo.collectionIndex !== targetCollectionIndex) {
-          // Remove from source collection
-          sourceCollection.skripts!.splice(activeInfo.skriptIndex, 1)
-          
-          // Add to target collection
-          if (!targetCollection.skripts) {
-            targetCollection.skripts = []
-          }
-          
-          const newNestedItem = {
-            ...skriptToMove,
-            order: targetCollection.skripts.length,
-            parentId: targetCollectionId
-          }
-          
-          targetCollection.skripts.push(newNestedItem)
-          hasChanges = true
-          
-          console.log('Moved skript between collections:', skriptToMove.title)
-        } else {
-          console.log('Skript is already in this collection')
-        }
-      }
-      
-    } else {
-      // REORDERING WITHIN SAME CONTEXT
-      const overInfo = findItemLocation(overId)
-      
-      if (!overInfo) {
-        console.log('Could not find drop target:', overId)
-        return
-      }
-      
-      // Only allow reordering within the same context
-      if (activeInfo.location === overInfo.location) {
-        if (activeInfo.location === 'root') {
-          // Reorder root level items
-          const oldIndex = activeInfo.collectionIndex
-          const newIndex = overInfo.collectionIndex
-          
-          if (oldIndex !== newIndex) {
-            updatedItems = arrayMove(updatedItems, oldIndex, newIndex)
-              .map((item, index) => ({ ...item, order: index }))
-            hasChanges = true
-            
-            console.log('Reordered root items')
-          }
-          
-        } else if (activeInfo.location === 'nested' && 
-                   activeInfo.collectionIndex === overInfo.collectionIndex) {
-          // Reorder within same collection
-          const collection = updatedItems[activeInfo.collectionIndex]
-          const oldIndex = activeInfo.skriptIndex
-          const newIndex = overInfo.skriptIndex
-          
-          if (oldIndex !== newIndex && collection.skripts) {
-            collection.skripts = arrayMove(collection.skripts, oldIndex, newIndex)
-              .map((item, index) => ({ ...item, order: index }))
-            hasChanges = true
-            
-            console.log('Reordered within collection')
-          }
-        }
-      }
-    }
-
-    // Update order numbers for all items
-    if (hasChanges) {
-      // Fix root level orders
-      let rootOrder = 0
-      updatedItems.forEach(item => {
-        if (!item.parentId) {
-          item.order = rootOrder++
-        }
-      })
-      
-      // Fix collection skript orders and track move operations
-      const moveOperations: Array<{ skriptId: string; targetCollectionId?: string; order: number }> = []
-      
-      updatedItems.forEach(collection => {
-        if (collection.skripts) {
-          collection.skripts.forEach((skript, index) => {
-            const newOrder = index
-            
-            // Find the original skript to get its old order and collection
-            const originalCollection = pageItems.find(item => 
-              item.type === 'collection' && item.skripts?.some(s => s.id === skript.id)
-            )
-            const originalSkript = originalCollection?.skripts?.find(s => s.id === skript.id)
-            const originalOrder = originalSkript?.order ?? -1
-            const originalCollectionId = originalCollection?.id
-            
-            // Check if collection assignment or order has changed
-            const collectionChanged = originalCollectionId !== collection.id
-            const orderChanged = originalOrder !== newOrder
-            
-            console.log(`Skript ${skript.id} (${skript.title}):`, {
-              originalCollectionId,
-              newCollectionId: collection.id,
-              originalOrder,
-              newOrder,
-              collectionChanged,
-              orderChanged,
-              'originalSkript found': !!originalSkript,
-              'originalCollection found': !!originalCollection
-            })
-            
-            if (collectionChanged || orderChanged) {
-              // Skript moved to a different collection or reordered within collection
-              console.log(`Adding move operation for skript ${skript.id}`)
-              moveOperations.push({
-                skriptId: skript.id,
-                targetCollectionId: collection.id,
-                order: newOrder
-              })
-            }
-            
-            // Update the skript order after comparison
-            skript.order = newOrder
-          })
-        }
-      })
-      
-      // Check for skripts moved to root level
-      updatedItems.forEach(item => {
-        if (item.type === 'skript' && !item.parentId) {
-          // Check if this was previously in a collection
-          const wasInCollection = pageItems.some(pageItem => 
-            pageItem.type === 'collection' && pageItem.skripts?.some(s => s.id === item.id)
-          )
-          
-          if (wasInCollection) {
-            moveOperations.push({
-              skriptId: item.id,
-              targetCollectionId: undefined, // Moving to root level
-              order: item.order
-            })
-          }
-        }
-      })
-      
-      setPageItems(updatedItems)
-      handleItemsChange(updatedItems, moveOperations.length > 0 ? moveOperations : undefined)
-      console.log('Updated page items successfully', { moveOperations })
-    }
-  }
-
-  const handleItemsChange = async (items: PageItem[], moveOperations?: Array<{ skriptId: string; targetCollectionId?: string; order: number }>) => {
+  const handleItemsChange = async (items: PageItem[], changedCollectionIds?: Set<string>) => {
+    // Update UI state immediately
     setPageItems(items)
     
     try {
-      // Handle skript moves
-      if (moveOperations && moveOperations.length > 0) {
-        console.log('Processing move operations:', moveOperations)
-        
-        // Group operations by type
-        const collectionReorders = new Map<string, string[]>() // collectionId -> ordered skript IDs
-        const crossCollectionMoves: typeof moveOperations = []
-        const rootLevelMoves: typeof moveOperations = []
-        
-        // Categorize move operations
-        for (const move of moveOperations) {
-          // Find the original collection for this skript
-          const originalCollection = pageItems.find(item => 
-            item.type === 'collection' && item.skripts?.some(s => s.id === move.skriptId)
-          )
-          
-          if (move.targetCollectionId && move.targetCollectionId === originalCollection?.id) {
-            // Same collection reorder - use bulk collection API
-            if (!collectionReorders.has(move.targetCollectionId)) {
-              // Get the full ordered list for this collection from the updated items
-              const targetCollection = items.find(item => item.id === move.targetCollectionId)
-              if (targetCollection?.skripts) {
-                const orderedSkriptIds = targetCollection.skripts
-                  .sort((a, b) => a.order - b.order)
-                  .map(s => s.id)
-                collectionReorders.set(move.targetCollectionId, orderedSkriptIds)
-              }
-            }
-          } else if (move.targetCollectionId && move.targetCollectionId !== originalCollection?.id) {
-            // Cross-collection move - use individual move API
-            crossCollectionMoves.push(move)
-          } else {
-            // Root level move - use individual move API
-            rootLevelMoves.push(move)
-          }
-        }
-        
-        // Process collection reorders using bulk API
-        for (const [collectionId, skriptIds] of collectionReorders) {
-          console.log(`Reordering collection ${collectionId}:`, skriptIds)
-          try {
-            const response = await fetch(`/api/collections/${collectionId}/reorder-skripts`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                skriptIds: skriptIds
-              }),
-            })
-            
-            console.log(`Collection reorder response status: ${response.status}`)
-            
-            if (!response.ok) {
-              const errorText = await response.text()
-              console.error(`Failed to reorder collection skripts (${response.status}):`, errorText)
-              return // Don't continue if reorder fails
-            } else {
-              const responseData = await response.json()
-              console.log(`Collection reorder succeeded:`, responseData)
-            }
-          } catch (error) {
-            console.error(`Network error reordering collection ${collectionId}:`, error)
-            return // Don't continue if network fails
-          }
-        }
-        
-        // Process individual moves using move API
-        const individualMoves = [...crossCollectionMoves, ...rootLevelMoves]
-        for (const move of individualMoves) {
-          console.log('Individual move:', move)
-          try {
-            const response = await fetch('/api/skripts/move', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                skriptId: move.skriptId,
-                targetCollectionId: move.targetCollectionId,
-                order: move.order
-              }),
-            })
-            
-            console.log(`Individual move response status: ${response.status}`)
-            
-            if (!response.ok) {
-              const errorText = await response.text()
-              console.error(`Failed to move skript (${response.status}):`, errorText)
-              return // Don't continue if moves fail
-            } else {
-              const responseData = await response.json()
-              console.log(`Individual move succeeded:`, responseData)
-            }
-          } catch (error) {
-            console.error(`Network error moving skript:`, error)
-            return // Don't continue if network fails
-          }
-        }
-      }
-
-      // Prepare page layout items (only top-level items: collections and root skripts)
-      const pageLayoutItems: Array<{ id: string; type: string; order: number }> = []
+      // Save page layout  
+      const pageLayoutItems = items
+        .filter(item => item.type === 'collection' || !item.parentId)
+        .map((item, index) => ({
+          id: item.id,
+          type: item.type,
+          order: index
+        }))
       
-      items.forEach((item, index) => {
-        if (item.type === 'collection') {
-          // Add the collection itself
-          pageLayoutItems.push({
-            id: item.id,
-            type: item.type,
-            order: index
-          })
-        } else if (!item.parentId) {
-          // Root-level skript (not nested in any collection)
-          pageLayoutItems.push({
-            id: item.id,
-            type: item.type,
-            order: index
-          })
-        }
-        // Skip nested skripts - they're handled by collection membership
+      await fetch('/api/page-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: pageLayoutItems }),
       })
+
+      // Save collection memberships using batch update
+      // Only update collections that changed (if we know which ones)
+      const collectionsToUpdate = changedCollectionIds 
+        ? items.filter(item => item.type === 'collection' && changedCollectionIds.has(item.id))
+        : items.filter(item => item.type === 'collection')
       
-      // Save page layout
-      console.log('Saving page layout with items:', pageLayoutItems)
-      try {
-        const response = await fetch('/api/page-layout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ items: pageLayoutItems }),
+      for (const collection of collectionsToUpdate) {
+        console.log(`Collection ${collection.id}:`, {
+          title: collection.title,
+          permissions: collection.permissions,
+          skriptsCount: collection.skripts?.length || 0
         })
         
-        console.log(`Page layout response status: ${response.status}`)
-        
-        if (response.ok) {
-          const responseData = await response.json()
-          console.log('Page layout saved successfully:', responseData)
-        } else {
-          const errorText = await response.text()
-          console.error(`Failed to save page layout (${response.status}):`, errorText)
+        // Skip collections without edit permissions
+        if (!collection.permissions?.canEdit) {
+          console.log(`Skipping collection ${collection.id} - no edit permissions`)
+          continue
         }
-      } catch (error) {
-        console.error('Network error saving page layout:', error)
+        
+        // Prepare skripts data for batch update
+        const skriptsData = collection.skripts?.map((skript, index) => ({
+          id: skript.id,
+          order: index
+        })) || []
+        
+        console.log(`Updating collection ${collection.id} with ${skriptsData.length} skripts`)
+        
+        // Use batch update endpoint
+        const response = await fetch(`/api/collections/${collection.id}/skripts/batch`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skripts: skriptsData }),
+        })
+        
+        if (!response.ok) {
+          console.error(`Failed to update collection ${collection.id}:`, await response.text())
+        } else {
+          console.log(`Successfully updated collection ${collection.id}`)
+        }
       }
     } catch (error) {
-      console.error('Error saving page layout:', error)
+      console.error('Error saving:', error)
+    }
+  }
+
+  const handleDragStart = (start: DragStart) => {
+    // Parse the draggable ID to get drag data
+    const draggableId = start.draggableId
+    
+    let dragData: DragData | null = null
+    
+    if (draggableId.startsWith('library-collection-')) {
+      const collectionId = draggableId.replace('library-collection-', '')
+      // Find collection data from library
+      const collection = libraryData.collections.find(c => c.id === collectionId)
+      dragData = { 
+        type: 'collection', 
+        id: collectionId, 
+        title: collection?.title || '', 
+        description: collection?.description,
+        fromLibrary: true 
+      }
+    } else if (draggableId.startsWith('library-skript-')) {
+      const skriptId = draggableId.replace('library-skript-', '')
+      // Find skript data from library
+      const skript = libraryData.skripts.find(s => s.id === skriptId)
+      dragData = { 
+        type: 'skript', 
+        id: skriptId, 
+        title: skript?.title || '', 
+        description: skript?.description,
+        fromLibrary: true 
+      }
+    } else if (draggableId.startsWith('collection-')) {
+      const collectionId = draggableId.replace('collection-', '')
+      const collection = pageItems.find(item => item.id === collectionId)
+      if (collection) {
+        dragData = { type: 'collection', id: collectionId, title: collection.title, description: collection.description }
+      }
+    } else if (draggableId.includes('-skript-')) {
+      // Handle skript dragging: parentId-skript-skriptId
+      const [parentId, , skriptId] = draggableId.split('-')
+      const collection = pageItems.find(item => item.id === parentId)
+      const skript = collection?.skripts?.find(s => s.id === skriptId)
+      if (skript) {
+        dragData = { 
+          type: 'skript', 
+          id: skriptId, 
+          title: skript.title, 
+          description: skript.description,
+          parentId 
+        }
+      }
+    }
+    
+    setActiveItem(dragData)
+    
+    // Auto-expand editable collections when dragging skripts
+    if (dragData?.type === 'skript') {
+      const editableCollections = pageItems
+        .filter(item => item.type === 'collection' && item.permissions?.canEdit)
+        .map(c => c.id)
+      setExpandedCollections(prev => [...new Set([...prev, ...editableCollections])])
+    }
+  }
+
+
+  const handleDragEnd = (result: DropResult) => {
+    setActiveItem(null)
+    
+    console.log('Drag ended:', result)
+    
+    const { destination, draggableId } = result
+    if (!destination) {
+      console.log('No destination - drag cancelled')
+      return
+    }
+
+    // Parse draggable data from draggableId
+    let dragData: (DragData & { parentId?: string }) | null = null
+    
+    if (draggableId.startsWith('library-collection-')) {
+      const collectionId = draggableId.replace('library-collection-', '')
+      // Find collection in library data
+      const collection = libraryData.collections.find(c => c.id === collectionId)
+      dragData = { 
+        type: 'collection', 
+        id: collectionId, 
+        title: collection?.title || `Collection ${collectionId}`, 
+        description: collection?.description,
+        fromLibrary: true 
+      }
+    } else if (draggableId.startsWith('library-skript-')) {
+      const skriptId = draggableId.replace('library-skript-', '')
+      // Find skript in library data  
+      const skript = libraryData.skripts.find(s => s.id === skriptId)
+      dragData = { 
+        type: 'skript', 
+        id: skriptId, 
+        title: skript?.title || `Skript ${skriptId}`, 
+        description: skript?.description,
+        fromLibrary: true 
+      }
+    } else if (draggableId.startsWith('collection-')) {
+      const collectionId = draggableId.replace('collection-', '')
+      const collection = pageItems.find(item => item.id === collectionId)
+      if (collection) {
+        dragData = { type: 'collection', id: collectionId, title: collection.title, description: collection.description }
+      }
+    } else if (draggableId.includes('-skript-')) {
+      const [parentId, , skriptId] = draggableId.split('-')
+      const collection = pageItems.find(item => item.id === parentId)
+      const skript = collection?.skripts?.find(s => s.id === skriptId)
+      if (skript) {
+        dragData = { 
+          type: 'skript', 
+          id: skriptId, 
+          title: skript.title, 
+          description: skript.description,
+          parentId 
+        }
+      }
+    }
+    
+    if (!dragData) {
+      console.log('No drag data found for:', draggableId)
+      return
+    }
+    
+    const destinationId = destination.droppableId
+    console.log('Drag data:', dragData, 'Destination:', destinationId)
+
+    // Check if trying to drop a skript at root level (not allowed)
+    if (destinationId === 'page-builder' && dragData?.type === 'skript') {
+      console.log('Cannot drop skripts at root level - only collections allowed')
+      return // Exit early without making any changes
+    }
+
+    // Simple insertion logic based on drop target
+    let updatedItems = [...pageItems]
+    let hasChanges = false
+    const changedCollectionIds = new Set<string>()
+
+    // Track whether this is a move operation (not from library AND has a parent)
+    const isMovingExistingSkript = !dragData?.fromLibrary && dragData?.type === 'skript' && dragData?.parentId
+
+    if (destinationId === 'page-builder') {
+      // Drop to root level
+      if (dragData?.type === 'collection') {
+        if (dragData.fromLibrary && !pageItems.some(item => item.id === dragData.id && item.type === dragData.type)) {
+          // Add new collection from library
+          const newItem: PageItem = {
+            id: dragData.id,
+            type: dragData.type,
+            title: dragData.title,
+            description: dragData.description,
+            order: pageItems.length
+          }
+          updatedItems.push(newItem)
+          hasChanges = true
+        } else if (!dragData.fromLibrary) {
+          // Reorder existing collection within page builder
+          const sourceIndex = updatedItems.findIndex(item => item.id === dragData.id)
+          if (sourceIndex !== -1 && sourceIndex !== destination.index) {
+            // Remove from current position
+            const [movedItem] = updatedItems.splice(sourceIndex, 1)
+            // Insert at new position
+            updatedItems.splice(destination.index, 0, movedItem)
+            // Update order for all items
+            updatedItems.forEach((item, index) => {
+              item.order = index
+            })
+            hasChanges = true
+          }
+        }
+      }
+    } else if (destinationId.startsWith('collection-')) {
+      // Drop into collection header
+      const collectionId = destinationId.replace('collection-', '')
+      const collectionIndex = updatedItems.findIndex(item => item.id === collectionId)
+      
+      if (collectionIndex !== -1) {
+        // Only allow skripts to be dropped on collection headers, not other collections
+        if (dragData?.type === 'collection') {
+          console.log('Cannot drop collections into other collections')
+          return // Exit early without making any changes
+        }
+        
+        if (dragData?.type === 'skript') {
+          const targetCollection = updatedItems[collectionIndex]
+          
+          // Check target collection permissions FIRST
+          if (!targetCollection.permissions?.canEdit) {
+            console.log(`Cannot drop skript into collection ${collectionId} - no edit permissions`)
+            return // Exit early without making any changes
+          }
+          
+          // Remove from source if moving
+          if (isMovingExistingSkript) {
+            const sourceCollectionIndex = updatedItems.findIndex(item => item.id === dragData.parentId)
+            if (sourceCollectionIndex !== -1) {
+              const sourceCollection = updatedItems[sourceCollectionIndex]
+              if (sourceCollection.skripts) {
+                sourceCollection.skripts = sourceCollection.skripts.filter(s => s.id !== dragData.id)
+                sourceCollection.skripts = sourceCollection.skripts.map((s, idx) => ({
+                  ...s,
+                  order: idx
+                }))
+                if (dragData.parentId) changedCollectionIds.add(dragData.parentId)
+              }
+            }
+          }
+          
+          // Add/move skript to collection header (above collection)
+          if (!targetCollection.skripts) targetCollection.skripts = []
+          
+          // Check if already exists
+          if (!targetCollection.skripts.some(s => s.id === dragData.id)) {
+            const newSkript = {
+              id: dragData.id,
+              type: 'skript' as const,
+              title: dragData.title,
+              description: dragData.description,
+              order: 0, // Place at beginning when dropping on header
+              parentId: collectionId
+            }
+            targetCollection.skripts.unshift(newSkript) // Add at beginning
+            changedCollectionIds.add(collectionId)
+            hasChanges = true
+          }
+        }
+      }
+    } else if (destinationId.startsWith('empty-')) {
+      // Drop into empty collection
+      const collectionId = destinationId.replace('empty-', '')
+      const collectionIndex = updatedItems.findIndex(item => item.id === collectionId)
+      
+      if (collectionIndex !== -1 && dragData?.type === 'skript') {
+        const targetCollection = updatedItems[collectionIndex]
+        
+        // Check target collection permissions FIRST
+        if (!targetCollection.permissions?.canEdit) {
+          console.log(`Cannot drop skript into empty collection ${collectionId} - no edit permissions`)
+          return // Exit early without making any changes
+        }
+        
+        // Remove from source if moving
+        if (isMovingExistingSkript) {
+          const sourceCollectionIndex = updatedItems.findIndex(item => item.id === dragData.parentId)
+          if (sourceCollectionIndex !== -1) {
+            const sourceCollection = updatedItems[sourceCollectionIndex]
+            if (sourceCollection.skripts) {
+              sourceCollection.skripts = sourceCollection.skripts.filter(s => s.id !== dragData.id)
+              sourceCollection.skripts = sourceCollection.skripts.map((s, idx) => ({
+                ...s,
+                order: idx
+              }))
+              if (dragData.parentId) changedCollectionIds.add(dragData.parentId)
+            }
+          }
+        }
+        
+        if (!targetCollection.skripts) targetCollection.skripts = []
+        
+        const newSkript = {
+          id: dragData.id,
+          type: 'skript' as const,
+          title: dragData.title,
+          description: dragData.description,
+          order: 0,
+          parentId: collectionId
+        }
+        targetCollection.skripts.push(newSkript)
+        changedCollectionIds.add(collectionId)
+        hasChanges = true
+      }
+    } else if (destinationId.startsWith('skript-')) {
+      // Drop before another skript - use destination.index for position
+      const collectionId = destinationId.replace('skript-', '')
+      
+      const collectionIndex = updatedItems.findIndex(item => item.id === collectionId)
+      
+      if (collectionIndex !== -1 && dragData?.type === 'skript') {
+        const targetCollection = updatedItems[collectionIndex]
+        
+        // Check target collection permissions FIRST
+        if (!targetCollection.permissions?.canEdit) {
+          console.log(`Cannot drop skript into collection ${collectionId} - no edit permissions`)
+          return // Exit early without making any changes
+        }
+        
+        if (!targetCollection.skripts) targetCollection.skripts = []
+        
+        // Remove from source if moving
+        if (isMovingExistingSkript) {
+          const sourceCollectionIndex = updatedItems.findIndex(item => item.id === dragData.parentId)
+          if (sourceCollectionIndex !== -1) {
+            const sourceCollection = updatedItems[sourceCollectionIndex]
+            if (sourceCollection.skripts) {
+              sourceCollection.skripts = sourceCollection.skripts.filter(s => s.id !== dragData.id)
+              sourceCollection.skripts = sourceCollection.skripts.map((s, idx) => ({
+                ...s,
+                order: idx
+              }))
+              if (dragData.parentId) changedCollectionIds.add(dragData.parentId)
+            }
+          }
+        }
+        
+        const newSkript = {
+          id: dragData.id,
+          type: 'skript' as const,
+          title: dragData.title,
+          description: dragData.description,
+          order: destination.index,
+          parentId: collectionId
+        }
+        
+        // Insert at the specified position
+        targetCollection.skripts.splice(destination.index, 0, newSkript)
+        
+        // Reorder all skripts in the collection
+        targetCollection.skripts = targetCollection.skripts.map((s, idx) => ({
+          ...s,
+          order: idx
+        }))
+        
+        changedCollectionIds.add(collectionId)
+        hasChanges = true
+      }
+    }
+
+    if (hasChanges) {
+      console.log('Drag ended with changes, updating items:', {
+        sourceCollection: dragData?.parentId,
+        targetLocation: destinationId,
+        skriptId: dragData?.id,
+        changedCollections: Array.from(changedCollectionIds)
+      })
+      setPageItems(updatedItems)
+      handleItemsChange(updatedItems, changedCollectionIds)
+    } else {
+      console.log('Drag ended with no changes')
     }
   }
 
@@ -649,15 +582,18 @@ export function PageBuilderInterface() {
           <p className="text-muted-foreground">Loading page builder...</p>
         </div>
         <div className="w-80 flex-shrink-0">
-          <ContentLibrary />
+          <ContentLibrary onDataLoad={setLibraryData} />
         </div>
       </div>
     )
   }
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex gap-6 h-[calc(100vh-120px)]">
+    <DragDropContext 
+      onDragStart={handleDragStart} 
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex gap-6 min-h-[400px]">
         {/* Page Builder - Left Side */}
         <div className="flex-1">
           <PageBuilder
@@ -672,50 +608,16 @@ export function PageBuilderInterface() {
                   : [...prev, collectionId]
               )
             }}
+            draggedItem={activeItem}
           />
         </div>
 
         {/* Content Library - Right Side */}
         <div className="w-80 flex-shrink-0">
-          <ContentLibrary />
+          <ContentLibrary onDataLoad={setLibraryData} />
         </div>
       </div>
-
-      {/* Drag Overlay */}
-      <DragOverlay>
-        {activeItem ? (
-          <DragPreview item={activeItem} />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+    </DragDropContext>
   )
 }
 
-interface DragPreviewProps {
-  item: DragData
-}
-
-function DragPreview({ item }: DragPreviewProps) {
-  const Icon = item.type === 'collection' ? BookOpen : FileText
-
-  return (
-    <Card className="w-64 opacity-90 rotate-2 shadow-lg">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <Icon className="w-5 h-5 mt-0.5 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm truncate">{item.title}</h3>
-            {item.description && (
-              <p className="text-xs text-muted-foreground truncate mt-1">
-                {item.description}
-              </p>
-            )}
-            <span className="text-xs text-muted-foreground capitalize mt-1 block">
-              {item.type}
-            </span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
