@@ -4,6 +4,7 @@ import { DragDropContext, DropResult, DragStart } from '@hello-pangea/dnd'
 import { useState, useEffect } from 'react'
 import { ContentLibrary } from './content-library'
 import { PageBuilder } from './page-builder'
+import { useSession } from 'next-auth/react'
 
 interface PageItem {
   id: string
@@ -37,6 +38,7 @@ interface DragData {
 }
 
 export function PageBuilderInterface() {
+  const { data: session } = useSession()
   const [pageItems, setPageItems] = useState<PageItem[]>([])
   const [activeItem, setActiveItem] = useState<DragData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -618,9 +620,24 @@ export function PageBuilderInterface() {
   }
 
   const handlePreview = () => {
-    // Navigate to preview page or open in new tab
-    console.log('Opening preview with items:', pageItems)
-    // Could use router.push to a preview route
+    // Open teacher's public page in a new tab
+    if (session?.user?.subdomain) {
+      const protocol = window.location.protocol
+      const host = window.location.host
+      
+      // For localhost development, navigate to the subdomain route
+      if (host.includes('localhost')) {
+        const url = `${protocol}//${host}/${session.user.subdomain}`
+        window.open(url, '_blank')
+      } else {
+        // For production with actual subdomains
+        const baseHost = host.replace(/^[^.]+\./, '') // Remove any existing subdomain
+        const url = `${protocol}//${session.user.subdomain}.${baseHost}`
+        window.open(url, '_blank')
+      }
+    } else {
+      console.error('No subdomain found for current user')
+    }
   }
 
   if (loading) {

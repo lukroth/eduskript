@@ -9,7 +9,7 @@ import { ExportPDF } from '@/components/public/export-pdf'
 import { Comments } from '@/components/public/comments'
 import { Edit } from 'lucide-react'
 import type { Metadata } from 'next'
-import { listFiles } from '@/lib/file-storage'
+// import { listFiles } from '@/lib/file-storage' // TODO: Re-enable when file permissions are fixed
 import { headers } from 'next/headers'
 
 interface PageProps {
@@ -90,21 +90,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       }
     }
 
-    // Find the skript
-    const skript = await prisma.skript.findUnique({
+    // Find the skript through the collection
+    const collectionSkript = await prisma.collectionSkript.findFirst({
       where: {
-        collectionId_slug: {
-          collectionId: collection.id,
+        collectionId: collection.id,
+        skript: {
           slug: skriptSlug
         }
       },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        isPublished: true
+      include: {
+        skript: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            isPublished: true
+          }
+        }
       }
     })
+    
+    const skript = collectionSkript?.skript
 
     if (!skript) {
       return {
@@ -122,12 +128,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 
     // Find the page
-    const page = await prisma.page.findUnique({
+    const page = await prisma.page.findFirst({
       where: {
-        skriptId_slug: {
-          skriptId: skript.id,
-          slug: pageSlug
-        }
+        skriptId: skript.id,
+        slug: pageSlug
       },
       select: {
         id: true,
@@ -233,17 +237,21 @@ export default async function PublicPage({ params }: PageProps) {
         }
       },
       include: {
-        skripts: {
+        collectionSkripts: {
           include: {
-            pages: {
-              orderBy: { order: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                slug: true,
-                content: true,
-                order: true,
-                isPublished: true
+            skript: {
+              include: {
+                pages: {
+                  orderBy: { order: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    slug: true,
+                    content: true,
+                    order: true,
+                    isPublished: true
+                  }
+                }
               }
             }
           },
@@ -261,10 +269,12 @@ export default async function PublicPage({ params }: PageProps) {
       notFound()
     }
 
-    const skript = collection.skripts.find(ch => ch.slug === skriptSlug)
-    if (!skript) {
+    const collectionSkript = collection.collectionSkripts.find(cs => cs.skript.slug === skriptSlug)
+    if (!collectionSkript) {
       notFound()
     }
+    
+    const skript = collectionSkript.skript
 
     // Authorization check for skript
     if (!skript.isPublished && !isAuthor) {
@@ -288,20 +298,22 @@ export default async function PublicPage({ params }: PageProps) {
       url?: string;
       isDirectory?: boolean;
     }> = []
-    if (isAuthor) {
-      try {
-        const files = await listFiles({
-          skriptId: skript.id,
-          parentId: null, // Root level files
-          userId: teacher.id
-        })
-        
-        fileList = files.filter(file => !file.isDirectory) // Only include files, not directories
-      } catch (error) {
-        console.error('Error fetching files:', error)
-        // Continue with empty file list if there's an error
-      }
-    }
+    // TODO: Fix file listing - currently disabled due to permission check issues
+    // The listFiles function checks SkriptAuthor table but teacher might only have access through CollectionAuthor
+    // if (isAuthor) {
+    //   try {
+    //     const files = await listFiles({
+    //       skriptId: skript.id,
+    //       parentId: null, // Root level files
+    //       userId: teacher.id
+    //     })
+    //     
+    //     fileList = files.filter(file => !file.isDirectory) // Only include files, not directories
+    //   } catch (error) {
+    //     console.error('Error fetching files:', error)
+    //     // Continue with empty file list if there's an error
+    //   }
+    // }
 
     // Process the markdown content with proper context for image resolution
     const processedMarkdown = await processMarkdown(page.content, {
@@ -316,7 +328,8 @@ export default async function PublicPage({ params }: PageProps) {
       id: collection.id,
       title: collection.title,
       slug: collection.slug,
-      skripts: collection.skripts
+      skripts: collection.collectionSkripts
+        .map(cs => cs.skript)
         .filter(ch => isAuthor || ch.isPublished) // Show all skripts to author, only published to others
         .map(ch => ({
           id: ch.id,
