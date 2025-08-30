@@ -150,11 +150,20 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - Test database operations using `pnpm db:studio` for inspection
 
 ## Current Development Focus
-Page builder with drag-and-drop functionality is now complete. Features include:
-- Full drag-and-drop interface for organizing collections and skripts
-- Permission-aware UI with visual indicators (eye icons) for view-only content
-- Proper permission preservation during reordering operations
-- Individual skript editing pages with dedicated routes
-- Seamless integration with existing permission system
+**COMPLETED**: Page builder and dashboard experience are fully implemented and production-ready:
 
-Next focus areas: Enhanced collaboration features and public page customization.
+### ✅ Page Builder & Dashboard Features:
+- **Advanced Page Builder** (`/dashboard/page-builder`) - Full drag-and-drop interface with permission-aware constraints
+- **Sidebar Navigation Control** - User-configurable contextual vs. full navigation modes
+- **Settings Organization** - Moved subdomain to "Page Settings", streamlined UX
+- **Dashboard Flow** - Direct redirect to page-builder as primary dashboard view
+- **Permission-Aware UI** - Visual indicators (eye icons) for view-only content, drag constraints
+- **Home Button** - Smart navigation button for returning to root level in contextual mode
+- **Public Page Routing** - Fixed routing with sidebarBehavior support
+
+### 🎯 Ready for Next Phase:
+**Phase 1: Enhanced Permission UX & Collaboration Dashboard**
+- Access management dashboard for existing collaborators
+- Bulk permission assignment tools
+- Visual permission matrix showing users vs. content permissions
+- "Share with Collaborators" quick actions and workflows

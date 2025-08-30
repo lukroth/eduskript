@@ -6,9 +6,9 @@
 - ✅ API endpoints for managing collection/skript authors
 - ✅ **No-access-by-default model**: Collaborators only see explicitly shared content
 
-## ✅ COMPLETED: Advanced Page Builder with Permission-Aware Drag-and-Drop
+## ✅ COMPLETED: Advanced Page Builder with Permission-Aware Drag-and-Drop + Dashboard UX
 
-**Status**: ✅ FULLY COMPLETE - Page builder is now production-ready with all features implemented and bugs fixed.
+**Status**: ✅ FULLY COMPLETE - Page builder and dashboard experience are now production-ready with all features implemented.
 
 ### What Was Built:
 - **Advanced Page Builder** (`/dashboard/page-builder`) - Full drag-and-drop interface for organizing public pages
@@ -35,6 +35,9 @@
 - **Drag-and-drop reordering**: All reordering persists correctly with proper permission preservation
 - **Permission-based UX**: ✅ COMPLETE - Eye icon indicators, proper styling for view-only content
 - **Ghost Preview System**: Blue ghost previews for precise visual feedback
+- **Dashboard UX Improvements**: ✅ COMPLETE - Streamlined navigation and settings organization
+- **Sidebar Behavior Controls**: ✅ COMPLETE - Contextual vs. full navigation modes with user preference
+- **Settings Reorganization**: ✅ COMPLETE - Moved subdomain to "Page Settings", improved UX flow
 - **Bug Fixes Applied**:
   - Fixed permission data loading on page refresh
   - Fixed permission state preservation during skript swapping
@@ -42,6 +45,8 @@
   - Created dedicated skript editing pages
   - Removed redundant UI elements (duplicate eye icons)
   - Proper 403 error handling for API calls
+  - Fixed public page routing with sidebarBehavior support
+  - Added Home button for contextual navigation mode
 
 ### 🎨 Drag-and-Drop UX Vocabulary & Implementation
 **Essential concepts for maintaining consistent drag-and-drop behavior:**
@@ -174,5 +179,5 @@ Future:  collaborator | customer | subscriber
 4. **Future**: Advanced analytics and revenue sharing
 
 ---
-*Last updated: 2025-08-23*
-*Current Focus: Advanced page builder with permission-aware drag-and-drop complete. Ready for Phase 1 permission UX enhancements.*
+*Last updated: 2025-08-30*
+*Current Status: Page builder and dashboard UX are complete and production-ready. Ready for Phase 1 permission UX enhancements and collaboration dashboard features.*
