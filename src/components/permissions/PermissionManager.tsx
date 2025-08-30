@@ -48,6 +48,16 @@ function UserCard({
   const handlePermissionToggle = async () => {
     if (isDisabled) return
     
+    // Warn when user is demoting themselves
+    if (isCurrentUser && userPermission.permission === 'author') {
+      const confirmed = confirm(
+        'Are you sure you want to remove your own write access?\n\n' +
+        'You will no longer be able to edit this content or manage permissions. ' +
+        'Another author will need to restore your access.'
+      )
+      if (!confirmed) return
+    }
+    
     setIsChanging(true)
     try {
       const newPermission = userPermission.permission === 'author' ? 'viewer' : 'author'
