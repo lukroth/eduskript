@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { DashboardNav } from '@/components/dashboard/nav'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
+import { ErrorProvider } from '@/contexts/error-context'
 
 export default async function DashboardLayout({
   children,
@@ -16,14 +17,16 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardNav />
-      <div className="flex">
-        <DashboardSidebar />
-        <main className="flex-1 p-6">
-          {children}
-        </main>
+    <ErrorProvider>
+      <div className="min-h-screen bg-background">
+        <DashboardNav />
+        <div className="flex">
+          <DashboardSidebar />
+          <main className="flex-1 p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </ErrorProvider>
   )
 }

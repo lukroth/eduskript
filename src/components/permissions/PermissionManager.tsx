@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { Users, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Users, ArrowLeft, ArrowRight, Plus, X, GripVertical } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 
 interface User {
   id: string
@@ -28,52 +31,54 @@ interface PermissionManagerProps {
   permissions: UserPermission[]
   onPermissionChange: (userId: string, newPermission: 'author' | 'viewer') => Promise<void>
   onRemoveUser: (userId: string) => Promise<void>
+  canManageAccess?: boolean
+  onShareClick?: () => void
 }
 
 function UserCard({ 
   userPermission, 
   isCurrentUser, 
   isLastAuthor,
-  onPermissionChange
+  onRemoveUser,
+  isDragging = false,
+  dragHandleProps
 }: { 
   userPermission: UserPermission
   isCurrentUser: boolean
   isLastAuthor: boolean
-  onPermissionChange: (userId: string, newPermission: 'author' | 'viewer') => Promise<void>
+  onRemoveUser: (userId: string) => Promise<void>
+  isDragging?: boolean
+  dragHandleProps?: any
 }) {
-  const [isChanging, setIsChanging] = useState(false)
+  const [isRemoving, setIsRemoving] = useState(false)
   
   const isDisabled = isCurrentUser && isLastAuthor
 
-  const handlePermissionToggle = async () => {
+  const handleRemoveUser = async () => {
     if (isDisabled) return
     
-    // Warn when user is demoting themselves
-    if (isCurrentUser && userPermission.permission === 'author') {
-      const confirmed = confirm(
-        'Are you sure you want to remove your own write access?\n\n' +
-        'You will no longer be able to edit this content or manage permissions. ' +
-        'Another author will need to restore your access.'
-      )
-      if (!confirmed) return
-    }
-    
-    setIsChanging(true)
+    setIsRemoving(true)
     try {
-      const newPermission = userPermission.permission === 'author' ? 'viewer' : 'author'
-      await onPermissionChange(userPermission.user.id, newPermission)
+      await onRemoveUser(userPermission.user.id)
     } catch (error) {
-      console.error('Error changing permission:', error)
+      console.error('Error removing user:', error)
     } finally {
-      setIsChanging(false)
+      setIsRemoving(false)
     }
   }
 
   return (
-    <div className={`flex items-center gap-3 p-3 border rounded-lg ${
-      isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:bg-gray-50'
-    }`}>
-      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+    <div className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
+      isDisabled ? 'bg-muted opacity-60' : 'bg-card hover:bg-muted/50'
+    } ${isDragging ? 'shadow-lg rotate-1' : ''}`}>
+      {/* Drag Handle */}
+      {!isDisabled && (
+        <div {...dragHandleProps} className="opacity-40 hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </div>
+      )}
+      
+      <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
         {userPermission.user.image ? (
           <Image 
             src={userPermission.user.image} 
@@ -83,47 +88,56 @@ function UserCard({
             className="w-8 h-8 rounded-full" 
           />
         ) : (
-          <Users className="w-4 h-4 text-gray-500" />
+          <Users className="w-4 h-4 text-muted-foreground" />
         )}
       </div>
       
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">
           {userPermission.user.name || 'No name'}
-          {isCurrentUser && <span className="text-gray-500 ml-2">(You)</span>}
+          {isCurrentUser && <span className="text-muted-foreground ml-2">(You)</span>}
         </div>
-        <div className="text-sm text-gray-600 truncate">{userPermission.user.email}</div>
+        <div className="text-sm text-muted-foreground truncate">{userPermission.user.email}</div>
         {userPermission.user.title && (
-          <div className="text-xs text-gray-500 truncate">{userPermission.user.title}</div>
+          <div className="text-xs text-muted-foreground truncate">{userPermission.user.title}</div>
         )}
       </div>
 
       {isDisabled ? (
-        <div className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
+        <div className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded">
           Last author
         </div>
       ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handlePermissionToggle}
-          disabled={isChanging}
-          className="flex items-center gap-1"
-        >
-          {isChanging ? (
-            'Changing...'
-          ) : userPermission.permission === 'author' ? (
-            <>
-              <ArrowRight className="w-3 h-3" />
-              Make viewer
-            </>
-          ) : (
-            <>
-              <ArrowLeft className="w-3 h-3" />
-              Make author
-            </>
-          )}
-        </Button>
+        <TooltipProvider>
+          <ConfirmationDialog
+            title="Revoke Access?"
+            description={`Revoke all rights to this collection for ${userPermission.user.name || userPermission.user.email}?${isCurrentUser ? ' You will no longer have access to it.' : ''}`}
+            confirmText="Revoke Access"
+            variant="destructive"
+            onConfirm={handleRemoveUser}
+            trigger={
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={isRemoving}
+                    className="h-8 w-8 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  >
+                    {isRemoving ? (
+                      <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Revoke access</p>
+                </TooltipContent>
+              </Tooltip>
+            }
+          />
+        </TooltipProvider>
       )}
     </div>
   )
@@ -137,7 +151,9 @@ export function PermissionManager({
   currentUserId,
   permissions,
   onPermissionChange,
-  onRemoveUser
+  onRemoveUser,
+  canManageAccess,
+  onShareClick
 }: PermissionManagerProps) {
   const [localPermissions, setLocalPermissions] = useState<UserPermission[]>(permissions)
 
@@ -155,80 +171,214 @@ export function PermissionManager({
   const handlePermissionChange = async (userId: string, newPermission: 'author' | 'viewer') => {
     try {
       await onPermissionChange(userId, newPermission)
-      
-      // Update local state
-      setLocalPermissions(prev => 
-        prev.map(p => 
-          p.user.id === userId 
-            ? { ...p, permission: newPermission }
-            : p
-        )
-      )
+      // Note: Local state is now updated optimistically in the drag handler
+      // The useEffect will sync with the updated permissions from the parent
     } catch (error) {
       console.error('Error updating permission:', error)
       throw error
     }
   }
 
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination) return
+
+    const { draggableId, source, destination } = result
+
+    // Extract user ID from draggable ID
+    const userId = draggableId.replace('user-', '')
+    const userPermission = localPermissions.find(p => p.user.id === userId)
+    
+    if (!userPermission) return
+
+    // Determine new permission based on destination
+    const newPermission: 'author' | 'viewer' = destination.droppableId === 'authors' ? 'author' : 'viewer'
+    
+    // If permission is the same, just reorder within the same section
+    if (userPermission.permission === newPermission) {
+      const currentAuthors = localPermissions.filter(p => p.permission === 'author')
+      const currentViewers = localPermissions.filter(p => p.permission === 'viewer')
+      
+      if (newPermission === 'author') {
+        const [moved] = currentAuthors.splice(source.index, 1)
+        currentAuthors.splice(destination.index, 0, moved)
+        setLocalPermissions([...currentAuthors, ...currentViewers])
+      } else {
+        const [moved] = currentViewers.splice(source.index, 1)
+        currentViewers.splice(destination.index, 0, moved)
+        setLocalPermissions([...currentAuthors, ...currentViewers])
+      }
+      return
+    }
+
+    // Check if this would leave no authors
+    if (userPermission.permission === 'author' && authorsWithWrite.length === 1) {
+      console.log('Cannot remove last author')
+      return
+    }
+
+    // For current user removing their own author access, show confirmation
+    if (userId === currentUserId && userPermission.permission === 'author' && newPermission === 'viewer') {
+      const confirmed = window.confirm(
+        'Remove your write access?\n\nYou will no longer be able to edit this content or manage permissions. Another author will need to restore your access.'
+      )
+      if (!confirmed) return
+    }
+
+    // Store original state for potential rollback
+    const originalPermissions = [...localPermissions]
+    
+    // Create new arrays with the moved user in the correct position
+    const currentAuthors = localPermissions.filter(p => p.permission === 'author' && p.user.id !== userId)
+    const currentViewers = localPermissions.filter(p => p.permission === 'viewer' && p.user.id !== userId)
+    const updatedUser = { ...userPermission, permission: newPermission }
+    
+    if (newPermission === 'author') {
+      currentAuthors.splice(destination.index, 0, updatedUser)
+      setLocalPermissions([...currentAuthors, ...currentViewers])
+    } else {
+      currentViewers.splice(destination.index, 0, updatedUser)
+      setLocalPermissions([...currentAuthors, ...currentViewers])
+    }
+
+    // Update permission via API
+    try {
+      await handlePermissionChange(userId, newPermission)
+    } catch (error) {
+      console.error('Failed to update permission:', error)
+      // Revert optimistic update on error - restore original state
+      setLocalPermissions(originalPermissions)
+    }
+  }
+
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="w-5 h-5" />
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              <CardTitle>{title}</CardTitle>
+            </div>
+            {canManageAccess && onShareClick && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onShareClick}
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="w-4 h-4" />
+                <Users className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
 
-      <CardContent>
-        <div className="space-y-6">
-          {/* Can Read and Write */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-3">
-              Can Read and Write ({authorsWithWrite.length})
-            </h3>
-            <div className="space-y-2">
-              {authorsWithWrite.map((userPermission) => (
-                <UserCard
-                  key={userPermission.user.id}
-                  userPermission={userPermission}
-                  isCurrentUser={userPermission.user.id === currentUserId}
-                  isLastAuthor={isLastAuthor(userPermission.user.id)}
-                  onPermissionChange={handlePermissionChange}
-                />
-              ))}
-              {authorsWithWrite.length === 0 && (
-                <div className="text-center py-6 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
-                  No users with write access
-                </div>
-              )}
+        <CardContent>
+          <div className="space-y-6">
+            {/* Can Read and Write */}
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-3">
+                Can Read and Write ({authorsWithWrite.length})
+              </h3>
+              <Droppable droppableId="authors">
+                {(provided, snapshot) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className={`space-y-2 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-all duration-200 ${
+                      snapshot.isDraggingOver 
+                        ? 'border-primary bg-primary/5 shadow-inner' 
+                        : 'border-muted hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    {authorsWithWrite.map((userPermission, index) => (
+                      <Draggable
+                        key={userPermission.user.id}
+                        draggableId={`user-${userPermission.user.id}`}
+                        index={index}
+                        isDragDisabled={isLastAuthor(userPermission.user.id)}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                          >
+                            <UserCard
+                              userPermission={userPermission}
+                              isCurrentUser={userPermission.user.id === currentUserId}
+                              isLastAuthor={isLastAuthor(userPermission.user.id)}
+                              onRemoveUser={onRemoveUser}
+                              isDragging={snapshot.isDragging}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                    {authorsWithWrite.length === 0 && (
+                      <div className="text-center py-6 text-muted-foreground text-sm">
+                        No users with write access
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Droppable>
+            </div>
+
+            {/* Can Only Read */}
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-3">
+                Can Only Read ({usersWithRead.length})
+              </h3>
+              <Droppable droppableId="viewers">
+                {(provided, snapshot) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className={`space-y-2 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-all duration-200 ${
+                      snapshot.isDraggingOver 
+                        ? 'border-primary bg-primary/5 shadow-inner' 
+                        : 'border-muted hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    {usersWithRead.map((userPermission, index) => (
+                      <Draggable
+                        key={userPermission.user.id}
+                        draggableId={`user-${userPermission.user.id}`}
+                        index={index}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                          >
+                            <UserCard
+                              userPermission={userPermission}
+                              isCurrentUser={userPermission.user.id === currentUserId}
+                              isLastAuthor={false}
+                              onRemoveUser={onRemoveUser}
+                              isDragging={snapshot.isDragging}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                    {usersWithRead.length === 0 && (
+                      <div className="text-center py-6 text-muted-foreground text-sm">
+                        No users with read-only access
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Droppable>
             </div>
           </div>
-
-          {/* Can Only Read */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-3">
-              Can Only Read ({usersWithRead.length})
-            </h3>
-            <div className="space-y-2">
-              {usersWithRead.map((userPermission) => (
-                <UserCard
-                  key={userPermission.user.id}
-                  userPermission={userPermission}
-                  isCurrentUser={userPermission.user.id === currentUserId}
-                  isLastAuthor={false}
-                  onPermissionChange={handlePermissionChange}
-                />
-              ))}
-              {usersWithRead.length === 0 && (
-                <div className="text-center py-6 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
-                  No users with read-only access
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </DragDropContext>
   )
 }

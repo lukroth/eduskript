@@ -9,6 +9,7 @@ import { DraggableCollection, DraggableSkript } from './draggable-content'
 import { Search, BookOpen, FileText } from 'lucide-react'
 import { CollectionAuthor, SkriptAuthor, User, Collection, Skript } from '@prisma/client'
 import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
+import { api, handleJsonResponse } from '@/lib/api-error-handler'
 
 interface CollectionWithAuthors extends Collection {
   authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
@@ -44,27 +45,23 @@ export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
 
       try {
         // Fetch collections with author information
-        const collectionsResponse = await fetch('/api/collections?includeShared=true')
-        let collectionsData: any[] = []
-        if (collectionsResponse.ok) {
-          const response = await collectionsResponse.json()
-          collectionsData = response.data || []
-          setCollections(collectionsData)
-        }
+        const collectionsResponse = await api.get('/api/collections?includeShared=true')
+        const collectionsJson = await handleJsonResponse(collectionsResponse)
+        const collectionsData = collectionsJson.data || []
+        setCollections(collectionsData)
 
         // Fetch skripts with author information
-        const skriptsResponse = await fetch('/api/skripts?includeShared=true')
-        let skriptsData: any[] = []
-        if (skriptsResponse.ok) {
-          const response = await skriptsResponse.json()
-          skriptsData = response.data || []
-          setSkripts(skriptsData)
-        }
+        const skriptsResponse = await api.get('/api/skripts?includeShared=true')
+        const skriptsJson = await handleJsonResponse(skriptsResponse)
+        const skriptsData = skriptsJson.data || []
+        setSkripts(skriptsData)
 
         // Share data with parent component
         onDataLoad?.({ collections: collectionsData, skripts: skriptsData })
       } catch (error) {
         console.error('Error fetching content:', error)
+        // API errors will be handled by the global error handler
+        // This catch is for any other unexpected errors
       } finally {
         setLoading(false)
       }
@@ -152,6 +149,7 @@ export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
                         currentUserId={session.user.id}
                         isViewOnly={isViewOnly}
                         index={index}
+                        slug={collection.slug}
                       />
                     )
                   })}
@@ -197,6 +195,7 @@ export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
                         currentUserId={session.user.id}
                         isViewOnly={isViewOnly}
                         index={index}
+                        slug={skript.slug}
                       />
                     )
                   })}

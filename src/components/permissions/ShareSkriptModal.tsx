@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Users, Share2, BookOpen, Eye, Edit } from 'lucide-react'
+import { Users, Share2, FileText, Eye, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,17 +13,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CollectionWithAuthors, Permission } from '@/types'
+import { Permission } from '@/types'
 
-interface ShareContentModalProps {
-  collection: CollectionWithAuthors
+interface ShareSkriptModalProps {
+  skript: {
+    id: string
+    title: string
+  }
   collaborators: Array<{
     id: string
     name: string | null
     email: string
     image: string | null
     hasCollectionAccess: boolean
-    collectionPermission?: string
     skriptAccess: {
       skriptId: string
       skriptTitle: string
@@ -31,21 +33,23 @@ interface ShareContentModalProps {
     }[]
   }>
   onClose: () => void
-  onShare: (userId: string, permission: Permission) => void
+  onShare: (userId: string, permission: Permission) => Promise<void>
 }
 
-export function ShareContentModal({ 
-  collection, 
+export function ShareSkriptModal({ 
+  skript, 
   collaborators, 
   onClose, 
   onShare 
-}: ShareContentModalProps) {
+}: ShareSkriptModalProps) {
   const [selectedCollaborator, setSelectedCollaborator] = useState<string>('')
   const [selectedPermission, setSelectedPermission] = useState<Permission>('viewer')
   const [isSharing, setIsSharing] = useState(false)
 
-  // Filter collaborators who don't already have collection access
-  const availableCollaborators = collaborators.filter(c => !c.hasCollectionAccess)
+  // Filter collaborators who don't already have skript access
+  const availableCollaborators = collaborators.filter(c => 
+    !c.skriptAccess.some(access => access.skriptId === skript.id)
+  )
 
   const selectedCollaboratorData = availableCollaborators.find(c => c.id === selectedCollaborator)
 
@@ -54,29 +58,44 @@ export function ShareContentModal({
 
     setIsSharing(true)
     try {
-      // Share the collection with selected permission
-      const response = await fetch(`/api/collections/${collection.id}/authors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: selectedCollaborator, 
-          permission: selectedPermission 
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to share collection')
-      }
-
-      onShare(selectedCollaborator, selectedPermission)
+      await onShare(selectedCollaborator, selectedPermission)
       onClose()
     } catch (error) {
-      console.error('Error sharing collection:', error)
+      console.error('Error sharing skript:', error)
       // TODO: Add toast notification
     }
     setIsSharing(false)
   }
 
+  if (availableCollaborators.length === 0) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Share Skript
+            </DialogTitle>
+            <DialogDescription>
+              Share &quot;{skript.title}&quot; with collaborators
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="text-center py-8">
+            <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-2">No collaborators available</p>
+            <p className="text-sm text-muted-foreground">
+              All your collaborators already have access to this skript.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -84,10 +103,10 @@ export function ShareContentModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="w-5 h-5" />
-            Share Collection
+            Share Skript
           </DialogTitle>
           <DialogDescription>
-            Give a collaborator access to &quot;{collection.title}&quot;
+            Give a collaborator access to &quot;{skript.title}&quot;
           </DialogDescription>
         </DialogHeader>
 
@@ -119,12 +138,6 @@ export function ShareContentModal({
                 ))}
               </SelectContent>
             </Select>
-
-            {availableCollaborators.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-2">
-                No collaborators available to share with. All your collaborators already have access to this collection.
-              </p>
-            )}
           </div>
 
           {/* Select Permission */}
@@ -158,7 +171,7 @@ export function ShareContentModal({
           </div>
 
           {/* Selected Collaborator Preview */}
-          {selectedCollaborator && selectedCollaboratorData && (
+          {selectedCollaboratorData && (
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center gap-3">
@@ -190,10 +203,10 @@ export function ShareContentModal({
               Cancel
             </Button>
             <Button 
-              onClick={handleShare}
+              onClick={handleShare} 
               disabled={!selectedCollaborator || isSharing}
             >
-              {isSharing ? 'Sharing...' : 'Share Collection'}
+              {isSharing ? 'Sharing...' : 'Share Skript'}
             </Button>
           </div>
         </div>

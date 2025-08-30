@@ -1,20 +1,24 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { CollectionWithAuthors, UserPermissions } from '@/types'
+import { UserPermissions } from '@/types'
 import { PermissionManager } from './PermissionManager'
-import { ShareContentModal } from './ShareContentModal'
+import { ShareSkriptModal } from './ShareSkriptModal'
+import { Skript, SkriptAuthor, User, Collection, CollectionSkript } from '@prisma/client'
 
-interface CollectionAccessManagerProps {
-  collection: CollectionWithAuthors
+interface SkriptWithData extends Skript {
+  authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email' | 'image' | 'title'> })[]
+  collectionSkripts: (CollectionSkript & { collection: Collection | null })[]
+}
+
+interface SkriptAccessManagerProps {
+  skript: SkriptWithData
   userPermissions: UserPermissions
   currentUserId: string
   onPermissionChange?: () => void
 }
 
-interface User {
+interface UserForPermissionManager {
   id: string
   name: string | null
   email: string
@@ -23,7 +27,7 @@ interface User {
 }
 
 interface UserPermission {
-  user: User
+  user: UserForPermissionManager
   permission: 'author' | 'viewer'
 }
 
@@ -58,12 +62,12 @@ interface CollaboratorForSharing {
   }[]
 }
 
-export function CollectionAccessManager({ 
-  collection, 
+export function SkriptAccessManager({ 
+  skript, 
   userPermissions,
   currentUserId, 
   onPermissionChange 
-}: CollectionAccessManagerProps) {
+}: SkriptAccessManagerProps) {
   const [permissions, setPermissions] = useState<UserPermission[]>([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -85,20 +89,21 @@ export function CollectionAccessManager({
           // The collaborator is the other person (not current user)
           const collaborator = collab.requester.id === currentUserId ? collab.receiver : collab.requester
           
-          // Check if this collaborator has access to the current collection
-          const hasCollectionAccess = collection.authors.some(author => author.user.id === collaborator.id)
-          const collectionAuthor = collection.authors.find(author => author.user.id === collaborator.id)
+          // Check if this collaborator has access to the current skript
+          const hasSkriptAccess = skript.authors.some(author => author.user.id === collaborator.id)
+          const skriptAuthor = skript.authors.find(author => author.user.id === collaborator.id)
           
-          // For now, we'll just track collection access. 
-          // Individual skript access would need additional queries
           return {
             id: collaborator.id,
             name: collaborator.name,
             email: collaborator.email,
             image: collaborator.image,
-            hasCollectionAccess,
-            collectionPermission: collectionAuthor?.permission,
-            skriptAccess: [] // We could enhance this later to check individual skript permissions
+            hasCollectionAccess: false, // Not relevant for skript modal
+            skriptAccess: hasSkriptAccess ? [{
+              skriptId: skript.id,
+              skriptTitle: skript.title,
+              permission: skriptAuthor?.permission || 'none'
+            }] : []
           }
         })
         
@@ -107,13 +112,13 @@ export function CollectionAccessManager({
     } catch (error) {
       console.error('Error loading collaborators:', error)
     }
-  }, [collection.authors, currentUserId])
+  }, [skript.authors, currentUserId, skript.id, skript.title])
 
   const loadPermissions = useCallback(async () => {
     setIsLoading(true)
     try {
-      // Convert collection authors to UserPermission format
-      const userPermissions: UserPermission[] = collection.authors.map(author => ({
+      // Convert skript authors to UserPermission format
+      const userPermissions: UserPermission[] = skript.authors.map(author => ({
         user: {
           id: author.user.id,
           name: author.user.name,
@@ -132,7 +137,7 @@ export function CollectionAccessManager({
       console.error('Error loading permissions:', error)
     }
     setIsLoading(false)
-  }, [collection.authors, loadCollaborators])
+  }, [skript.authors, loadCollaborators])
 
   useEffect(() => {
     loadPermissions()
@@ -140,7 +145,7 @@ export function CollectionAccessManager({
 
   const handlePermissionChange = async (userId: string, newPermission: 'author' | 'viewer') => {
     try {
-      const response = await fetch(`/api/collections/${collection.id}/authors/${userId}`, {
+      const response = await fetch(`/api/skripts/${skript.id}/authors/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permission: newPermission })
@@ -170,7 +175,7 @@ export function CollectionAccessManager({
 
   const handleRemoveUser = async (userId: string) => {
     try {
-      const response = await fetch(`/api/collections/${collection.id}/authors/${userId}`, {
+      const response = await fetch(`/api/skripts/${skript.id}/authors/${userId}`, {
         method: 'DELETE'
       })
 
@@ -186,7 +191,7 @@ export function CollectionAccessManager({
       setCollaborators(prev => 
         prev.map(c => 
           c.id === userId 
-            ? { ...c, hasCollectionAccess: false, collectionPermission: undefined }
+            ? { ...c, skriptAccess: [] }
             : c
         )
       )
@@ -199,6 +204,48 @@ export function CollectionAccessManager({
     }
   }
 
+  const handleShare = async (newUserId: string, permission: 'author' | 'viewer') => {
+    // Add the user to the skript
+    const response = await fetch(`/api/skripts/${skript.id}/authors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: newUserId, permission })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to add user')
+    }
+
+    // Find the collaborator that was just added
+    const newCollaborator = collaborators.find(c => c.id === newUserId)
+    if (newCollaborator) {
+      // Add them to the permissions list immediately
+      const newPermission: UserPermission = {
+        user: {
+          id: newCollaborator.id,
+          name: newCollaborator.name,
+          email: newCollaborator.email,
+          image: newCollaborator.image,
+          title: null // collaborators don't have title in their type
+        },
+        permission
+      }
+      setPermissions(prev => [...prev, newPermission])
+      
+      // Update collaborators to reflect the new access
+      setCollaborators(prev => 
+        prev.map(c => 
+          c.id === newUserId 
+            ? { ...c, skriptAccess: [{ skriptId: skript.id, skriptTitle: skript.title, permission }] }
+            : c
+        )
+      )
+    }
+    setShowShareModal(false)
+    onPermissionChange?.()
+  }
+
   if (isLoading) {
     return <div className="text-center py-8">Loading permissions...</div>
   }
@@ -208,9 +255,9 @@ export function CollectionAccessManager({
       {/* Permission Manager */}
       <PermissionManager
         title="Access Management"
-        description={`Manage who can access "${collection.title}"`}
-        contentId={collection.id}
-        contentType="collection"
+        description={`Manage who can access "${skript.title}"`}
+        contentId={skript.id}
+        contentType="skript"
         currentUserId={currentUserId}
         permissions={permissions}
         onPermissionChange={handlePermissionChange}
@@ -219,40 +266,13 @@ export function CollectionAccessManager({
         onShareClick={() => setShowShareModal(true)}
       />
 
-      {/* Share Content Modal */}
+      {/* Share Content Modal - Modified to handle skripts */}
       {showShareModal && (
-        <ShareContentModal
-          collection={collection}
+        <ShareSkriptModal
+          skript={skript}
           collaborators={collaborators}
           onClose={() => setShowShareModal(false)}
-          onShare={async (newUserId: string, permission: 'author' | 'viewer') => {
-            // Find the collaborator that was just added
-            const newCollaborator = collaborators.find(c => c.id === newUserId)
-            if (newCollaborator) {
-              // Add them to the permissions list immediately
-              const newPermission: UserPermission = {
-                user: {
-                  id: newCollaborator.id,
-                  name: newCollaborator.name,
-                  email: newCollaborator.email,
-                  image: newCollaborator.image,
-                  title: null // collaborators don't have title in their type
-                },
-                permission
-              }
-              setPermissions(prev => [...prev, newPermission])
-              
-              // Update collaborators to reflect the new access
-              setCollaborators(prev => 
-                prev.map(c => 
-                  c.id === newUserId 
-                    ? { ...c, hasCollectionAccess: true, collectionPermission: permission }
-                    : c
-                )
-              )
-            }
-            setShowShareModal(false)
-          }}
+          onShare={handleShare}
         />
       )}
     </div>

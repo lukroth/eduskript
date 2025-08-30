@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { ContentLibrary } from './content-library'
 import { PageBuilder } from './page-builder'
 import { useSession } from 'next-auth/react'
+import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
 
 interface PageItem {
   id: string
@@ -79,8 +80,9 @@ export function PageBuilderInterface() {
                               const skriptData = await skriptResponse.json()
                               skriptPermissions = skriptData.permissions || skriptPermissions
                             } else if (skriptResponse.status === 403) {
-                              // User doesn't have access to this skript - set as view-only
-                              skriptPermissions = { canEdit: false, canView: false }
+                              // User doesn't have direct access to this skript, but they have collection access
+                              // so they inherit view permissions (can't edit, but can view)
+                              skriptPermissions = { canEdit: false, canView: true }
                             } else {
                               console.warn(`Failed to fetch permissions for skript ${cs.skript.id}: ${skriptResponse.status}`)
                             }
@@ -401,15 +403,43 @@ export function PageBuilderInterface() {
       if (dragData?.type === 'collection') {
         if (dragData.fromLibrary && !pageItems.some(item => item.id === dragData.id && item.type === dragData.type)) {
           // Add new collection from library
+          const collection = libraryData.collections.find(c => c.id === dragData.id)
+          const collectionPermissions = collection && session?.user?.id 
+            ? checkCollectionPermissions(session.user.id, collection.authors)
+            : { canEdit: false, canView: false }
+          
           const newItem: PageItem = {
             id: dragData.id,
             type: dragData.type,
             title: dragData.title,
             description: dragData.description,
-            order: pageItems.length
+            order: pageItems.length,
+            permissions: collectionPermissions,
+            slug: collection?.slug,
+            skripts: collection?.collectionSkripts?.map((cs: any, idx: number) => {
+              // Calculate skript permissions
+              const skriptPermissions = session?.user?.id 
+                ? checkSkriptPermissions(session.user.id, cs.skript.authors || [])
+                : { canEdit: false, canView: false }
+              
+              return {
+                id: cs.skript.id,
+                type: 'skript' as const,
+                title: cs.skript.title,
+                description: cs.skript.description,
+                order: idx,
+                parentId: dragData.id,
+                slug: cs.skript.slug,
+                collectionSlug: collection.slug,
+                permissions: skriptPermissions
+              }
+            }) || []
           }
           updatedItems.push(newItem)
           hasChanges = true
+          
+          // Auto-expand the newly added collection to show its skripts
+          setExpandedCollections(prev => [...new Set([...prev, dragData.id])])
         } else if (!dragData.fromLibrary) {
           // Reorder existing collection within page builder
           const sourceIndex = updatedItems.findIndex(item => item.id === dragData.id)
@@ -515,6 +545,13 @@ export function PageBuilderInterface() {
         
         if (!targetCollection.skripts) targetCollection.skripts = []
         
+        // Check if skript is already in this collection to prevent duplicates
+        const isAlreadyInCollection = targetCollection.skripts.some(s => s.id === dragData.id)
+        if (isAlreadyInCollection) {
+          console.log(`Skript ${dragData.id} is already in collection ${collectionId} - ignoring duplicate drop`)
+          return // Exit early without making any changes
+        }
+        
         const newSkript = {
           id: dragData.id,
           type: 'skript' as const,
@@ -578,6 +615,13 @@ export function PageBuilderInterface() {
                 if (dragData.parentId) changedCollectionIds.add(dragData.parentId)
               }
             }
+          }
+          
+          // Check if skript is already in this collection to prevent duplicates
+          const isAlreadyInCollection = targetCollection.skripts.some(s => s.id === dragData.id)
+          if (isAlreadyInCollection && !isMovingExistingSkript) {
+            console.log(`Skript ${dragData.id} is already in collection ${collectionId} - ignoring duplicate drop`)
+            return // Exit early without making any changes
           }
           
           const newSkript = {

@@ -147,13 +147,6 @@ export function CustomDomains() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Custom Domains</h2>
-        <p className="text-muted-foreground">
-          Connect your own domain to your webpage. Your content will be accessible at your custom domain.
-        </p>
-      </div>
-
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
@@ -167,7 +160,7 @@ export function CustomDomains() {
       )}
 
       {/* Add New Domain */}
-      <Card className="p-6">
+      <div className="p-4 border border-border rounded-lg bg-muted/30">
         <h3 className="text-lg font-semibold mb-4">Add Custom Domain</h3>
         <div className="flex gap-3">
           <Input
@@ -187,11 +180,11 @@ export function CustomDomains() {
             Add Domain
           </Button>
         </div>
-      </Card>
+      </div>
 
       {/* DNS Instructions */}
       {dnsInstructions && (
-        <Card className="p-6 border-blue-200 bg-blue-50">
+        <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
           <h3 className="text-lg font-semibold mb-4 text-blue-900">DNS Configuration Required</h3>
           <p className="text-blue-800 mb-4">
             To activate your custom domain, add the following DNS record to your domain registrar:
@@ -246,19 +239,19 @@ export function CustomDomains() {
             After adding the DNS record, it may take up to 24 hours for changes to propagate. 
             You can then activate your domain below.
           </p>
-        </Card>
+        </div>
       )}
 
       {/* Domain List */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Your Domains</h3>
         {domains.length === 0 ? (
-          <Card className="p-6 text-center text-muted-foreground">
+          <div className="p-6 border border-border rounded-lg text-center text-muted-foreground bg-muted/30">
             No custom domains added yet. Add your first domain above.
-          </Card>
+          </div>
         ) : (
           domains.map((domain) => (
-            <Card key={domain.id} className="p-6">
+            <div key={domain.id} className="p-4 border border-border rounded-lg bg-muted/30">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div>
@@ -298,7 +291,7 @@ export function CustomDomains() {
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           ))
         )}
       </div>

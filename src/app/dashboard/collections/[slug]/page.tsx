@@ -39,6 +39,17 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
             include: {
               pages: {
                 orderBy: { order: 'asc' }
+              },
+              authors: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true
+                    }
+                  }
+                }
               }
             }
           }
@@ -88,5 +99,5 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
     }))
   })
 
-  return <CollectionEditor collection={transformedCollection} userPermissions={userPermissions} />
+  return <CollectionEditor collection={transformedCollection} userPermissions={userPermissions} currentUserId={session.user.id} />
 }

@@ -30,20 +30,16 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Account Statistics</CardTitle>
+            <CardTitle>Custom Domains</CardTitle>
             <CardDescription>
-              Overview of your content and usage
+              Connect your own domain to make your content accessible at your custom URL
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-gray-500">
-              Account statistics will be displayed here
-            </div>
+            <CustomDomains />
           </CardContent>
         </Card>
       </div>
-
-      <CustomDomains />
     </div>
   )
 }

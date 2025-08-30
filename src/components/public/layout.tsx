@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Menu, X, Home } from 'lucide-react'
+import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
 
@@ -59,6 +60,7 @@ export function PublicSiteLayout({
 }: PublicSiteLayoutProps) {
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   
   // Storage keys for persistence
   const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.subdomain}`
@@ -211,33 +213,86 @@ export function PublicSiteLayout({
       </div>
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-40 w-80 bg-card shadow-lg transform transition-transform duration-300 ease-in-out ${
+      <div className={`fixed inset-y-0 left-0 z-40 bg-card shadow-lg transform transition-all duration-300 ease-in-out ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0`}>
+      } lg:translate-x-0 ${
+        isSidebarCollapsed ? 'w-16 min-w-16' : 'w-80'
+      }`}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-6 border-b border-border">
-            <div className="flex items-center justify-between mb-2">
-              <h1 className="text-xl font-bold text-foreground">
-                {teacher.name}
-              </h1>
-              <PublicThemeToggle />
+          <div className={`border-b border-border ${isSidebarCollapsed ? 'p-4' : 'p-6'}`}>
+            {/* Collapse button */}
+            <div className="flex justify-end mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="p-2"
+              >
+                {isSidebarCollapsed ? (
+                  <ChevronRight className="w-5 h-5" />
+                ) : (
+                  <ChevronLeft className="w-5 h-5" />
+                )}
+              </Button>
             </div>
-            {teacher.title && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {teacher.title}
-              </p>
-            )}
-            {teacher.bio && (
-              <p className="text-sm text-muted-foreground mt-2">
-                {teacher.bio}
-              </p>
+            
+            {!isSidebarCollapsed && (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <h1 className="text-xl font-bold text-foreground">
+                    {teacher.name}
+                  </h1>
+                  <PublicThemeToggle />
+                </div>
+                {teacher.title && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {teacher.title}
+                  </p>
+                )}
+                {teacher.bio && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {teacher.bio}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto p-4">
-            <nav className="space-y-2">
+            {isSidebarCollapsed ? (
+              /* Simplified navigation when collapsed - just show essential icons */
+              <nav className="space-y-2">
+                {(() => {
+                  const showHomeButton = sidebarBehavior === 'contextual' && siteStructure.length === 1
+                  
+                  return (
+                    <>
+                      {showHomeButton && (
+                        <button
+                          onClick={() => {
+                            const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+                            const isMainDomain = hostname === 'localhost' || hostname === 'eduskript.org' || hostname === 'www.eduskript.org'
+                            const isOnSubdomain = !isMainDomain && (hostname.endsWith('.localhost') || hostname.endsWith('.eduskript.org'))
+                            
+                            const url = isOnSubdomain ? '/' : `/${teacher.subdomain}`
+                            router.push(url)
+                            setIsSidebarOpen(false)
+                          }}
+                          className="flex items-center justify-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground mb-4"
+                          title="Home"
+                        >
+                          <Home className="w-5 h-5" />
+                        </button>
+                      )}
+                    </>
+                  )
+                })()}
+              </nav>
+            ) : (
+              /* Full navigation when expanded */
+              <nav className="space-y-2">
               {/* Determine which structure to show based on sidebarBehavior */}
               {(() => {
                 const displayStructure = sidebarBehavior === 'full' && fullSiteStructure 
@@ -387,7 +442,8 @@ export function PublicSiteLayout({
                   ))}
                 </div>
               )}
-            </nav>
+              </nav>
+            )}
           </div>
         </div>
       </div>
@@ -401,7 +457,9 @@ export function PublicSiteLayout({
       )}
 
       {/* Main content */}
-      <div className="lg:ml-80">
+      <div className={`transition-all duration-300 ${
+        isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-80'
+      }`}>
         <main className="p-6 lg:p-8 bg-background min-h-screen">
           {children}
         </main>

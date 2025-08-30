@@ -1,11 +1,13 @@
 'use client'
 
 import { Draggable } from '@hello-pangea/dnd'
-import { BookOpen, FileText, Eye } from 'lucide-react'
+import { BookOpen, FileText, Eye, Edit, GripVertical } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { PermissionIndicator } from './permission-indicator'
 import { cn } from '@/lib/utils'
 import { CollectionAuthor, SkriptAuthor, User } from '@prisma/client'
+import Link from 'next/link'
 
 interface BaseContentProps {
   id: string
@@ -21,6 +23,7 @@ interface DraggableCollectionProps extends BaseContentProps {
   skriptCount: number
   authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   currentUserId: string
+  slug?: string
 }
 
 interface DraggableSkriptProps extends BaseContentProps {
@@ -28,6 +31,7 @@ interface DraggableSkriptProps extends BaseContentProps {
   pageCount: number
   authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   currentUserId: string
+  slug?: string
 }
 
 export function DraggableCollection({ 
@@ -39,7 +43,8 @@ export function DraggableCollection({
   currentUserId, 
   isViewOnly = false,
   className,
-  index = 0
+  index = 0,
+  slug
 }: DraggableCollectionProps) {
   // Separate authors by permission
   const editableBy = authors.filter(author => 
@@ -56,17 +61,35 @@ export function DraggableCollection({
         <Card
           ref={provided.innerRef}
           {...provided.draggableProps}
-          {...provided.dragHandleProps}
           className={cn(
-            "cursor-grab hover:shadow-md",
+            "hover:shadow-md",
             snapshot.isDragging && "opacity-50 transition-none",
             !snapshot.isDragging && "transition-shadow",
             isViewOnly && "opacity-70 bg-muted/50",
             className
           )}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-4 relative">
+            {!isViewOnly && slug && (
+              <Link href={`/dashboard/collections/${slug}`} className="absolute top-2 right-2 z-10">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
             <div className="flex items-start gap-3">
+              {/* Drag Handle */}
+              <div 
+                {...provided.dragHandleProps}
+                className="opacity-70 hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity mt-0.5"
+              >
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+              </div>
               <div className="relative">
                 <BookOpen className={cn(
                   "w-5 h-5 mt-0.5 flex-shrink-0",
@@ -116,7 +139,8 @@ export function DraggableSkript({
   currentUserId, 
   isViewOnly = false,
   className,
-  index = 0
+  index = 0,
+  slug
 }: DraggableSkriptProps) {
   // Separate authors by permission
   const editableBy = authors.filter(author => 
@@ -136,17 +160,35 @@ export function DraggableSkript({
         <Card
           ref={provided.innerRef}
           {...provided.draggableProps}
-          {...provided.dragHandleProps}
           className={cn(
-            "cursor-grab hover:shadow-md",
+            "hover:shadow-md",
             snapshot.isDragging && "opacity-50 transition-none",
             !snapshot.isDragging && "transition-shadow",
             isViewOnly && "opacity-70 bg-muted/50",
             className
           )}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-4 relative">
+            {!isViewOnly && slug && (
+              <Link href={`/dashboard/skripts/${slug}`} className="absolute top-2 right-2 z-10">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
             <div className="flex items-start gap-3">
+              {/* Drag Handle */}
+              <div 
+                {...provided.dragHandleProps}
+                className="opacity-70 hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity mt-0.5"
+              >
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+              </div>
               <div className="relative">
                 <FileText className={cn(
                   "w-5 h-5 mt-0.5 flex-shrink-0",

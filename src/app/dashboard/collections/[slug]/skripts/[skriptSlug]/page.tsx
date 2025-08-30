@@ -53,7 +53,15 @@ export default async function SkriptPage({ params }: SkriptPageProps) {
     include: {
       authors: {
         include: {
-          user: true
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              title: true
+            }
+          }
         }
       },
       pages: {
@@ -98,6 +106,8 @@ export default async function SkriptPage({ params }: SkriptPageProps) {
       skript={skript}
       collectionSlug={collectionSlug}
       canEdit={permissions.canEdit}
+      userPermissions={permissions}
+      currentUserId={session.user.id}
     />
   )
 }

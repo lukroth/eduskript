@@ -8,7 +8,7 @@ import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
 import { CreatePageModal } from './create-page-modal'
 import { SortablePages } from './sortable-pages'
-import { GripVertical, Trash2 } from 'lucide-react'
+import { GripVertical, Trash2, Eye, Edit } from 'lucide-react'
 
 interface Skript {
   id: string
@@ -25,6 +25,15 @@ interface Skript {
     order: number
     isPublished: boolean
     updatedAt: Date
+  }>
+  authors?: Array<{
+    userId: string
+    permission: string
+    user: {
+      id: string
+      name: string | null
+      email: string
+    }
   }>
 }
 
@@ -43,8 +52,13 @@ function SortableSkriptItem({
   collectionSlug, 
   onSkriptUpdated,
   onSkriptDeleted,
-  canEdit = true
-}: SortableSkriptItemProps) {
+  canEdit = true,
+  currentUserId
+}: SortableSkriptItemProps & { currentUserId?: string }) {
+  // Check if current user can edit this specific skript
+  const canEditSkript = canEdit && (!skript.authors || skript.authors.length === 0 || 
+    skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
+  const isViewOnly = !canEditSkript
   const handleDeleteSkript = async () => {
     if (!confirm(`Are you sure you want to delete the skript "${skript.title}"? This will also delete all pages in this skript.`)) {
       return
@@ -72,7 +86,7 @@ function SortableSkriptItem({
         <div 
           ref={provided.innerRef} 
           {...provided.draggableProps}
-          className="border rounded-lg bg-card"
+          className={`border rounded-lg ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card'}`}
           style={{
             ...provided.draggableProps.style,
             opacity: snapshot.isDragging ? 0.5 : 1,
@@ -85,13 +99,19 @@ function SortableSkriptItem({
                 className="flex items-center gap-2 text-muted-foreground cursor-grab active:cursor-grabbing"
               >
                 <GripVertical className="w-4 h-4" />
-                <div className="w-8 h-8 bg-primary/10 text-primary rounded-full flex items-center justify-center font-medium">
+                <div className={`w-8 h-8 ${isViewOnly ? 'bg-muted' : 'bg-primary/10 text-primary'} rounded-full flex items-center justify-center font-medium relative`}>
                   {index + 1}
+                  {isViewOnly && (
+                    <Eye className="w-3 h-3 text-muted-foreground absolute -bottom-1 -right-1 bg-background rounded-full" />
+                  )}
+                  {!isViewOnly && canEdit && (
+                    <Edit className="w-3 h-3 text-primary absolute -bottom-1 -right-1 bg-background rounded-full" />
+                  )}
                 </div>
               </div>
               <div>
                 <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`}>
-                  <h3 className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors">
+                  <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground hover:text-primary'} cursor-pointer transition-colors`}>
                     {skript.title}
                   </h3>
                 </Link>
@@ -107,7 +127,7 @@ function SortableSkriptItem({
               </div>
             </div>
             <div className="flex gap-2 items-center">
-              {canEdit && (
+              {canEditSkript && (
                 <>
                   <PublishToggle
                     type="skript"
@@ -135,6 +155,12 @@ function SortableSkriptItem({
                   </Button>
                 </>
               )}
+              {isViewOnly && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Eye className="w-4 h-4" />
+                  <span>View only</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -150,7 +176,7 @@ function SortableSkriptItem({
                   skriptSlug={skript.slug}
                   onReorder={onSkriptUpdated}
                   onPageDeleted={onSkriptUpdated}
-                  canEdit={canEdit}
+                  canEdit={canEditSkript}
                 />
               </div>
             </div>
@@ -167,8 +193,14 @@ function StaticSkriptItem({
   collectionSlug, 
   onSkriptUpdated,
   onSkriptDeleted,
-  canEdit = true
-}: SortableSkriptItemProps) {
+  canEdit = true,
+  currentUserId
+}: SortableSkriptItemProps & { currentUserId?: string }) {
+  // Check if current user can edit this specific skript
+  const canEditSkript = canEdit && (!skript.authors || skript.authors.length === 0 || 
+    skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
+  const isViewOnly = !canEditSkript
+  
   const handleDeleteSkript = async () => {
     if (!confirm(`Are you sure you want to delete the skript "${skript.title}"? This will also delete all pages in this skript.`)) {
       return
@@ -191,18 +223,24 @@ function StaticSkriptItem({
   }
 
   return (
-    <div className="border rounded-lg">
+    <div className={`border rounded-lg ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card'}`}>
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             {canEdit && <GripVertical className="w-4 h-4" />}
-            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-medium">
+            <div className={`w-8 h-8 ${isViewOnly ? 'bg-muted' : 'bg-primary/10 text-primary'} rounded-full flex items-center justify-center font-medium relative`}>
               {index + 1}
+              {isViewOnly && (
+                <Eye className="w-3 h-3 text-muted-foreground absolute -bottom-1 -right-1 bg-background rounded-full" />
+              )}
+              {!isViewOnly && canEdit && (
+                <Edit className="w-3 h-3 text-primary absolute -bottom-1 -right-1 bg-background rounded-full" />
+              )}
             </div>
           </div>
           <div>
             <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`}>
-              <h3 className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors">
+              <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground hover:text-primary'} cursor-pointer transition-colors`}>
                 {skript.title}
               </h3>
             </Link>
@@ -218,7 +256,7 @@ function StaticSkriptItem({
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          {canEdit && (
+          {canEditSkript && (
             <>
               <PublishToggle
                 type="skript"
@@ -246,6 +284,12 @@ function StaticSkriptItem({
               </Button>
             </>
           )}
+          {isViewOnly && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Eye className="w-4 h-4" />
+              <span>View only</span>
+            </div>
+          )}
         </div>
       </div>
       
@@ -261,7 +305,7 @@ function StaticSkriptItem({
               skriptSlug={skript.slug}
               onReorder={onSkriptUpdated}
               onPageDeleted={onSkriptUpdated}
-              canEdit={canEdit}
+              canEdit={canEditSkript}
             />
           </div>
         </div>
@@ -275,7 +319,10 @@ interface SortableSkriptsProps {
   collectionId: string
   collectionSlug: string
   onReorder: () => void
+  onSkriptUpdated?: () => void
+  onSkriptDeleted?: () => void
   canEdit?: boolean
+  currentUserId?: string
 }
 
 export function SortableSkripts({ 
@@ -283,7 +330,10 @@ export function SortableSkripts({
   collectionId, 
   collectionSlug, 
   onReorder,
-  canEdit = true
+  onSkriptUpdated,
+  onSkriptDeleted,
+  canEdit = true,
+  currentUserId
 }: SortableSkriptsProps) {
   const [items, setItems] = useState(skripts)
   const [isReordering, setIsReordering] = useState(false)
@@ -363,9 +413,10 @@ export function SortableSkripts({
                     skript={skript}
                     index={index}
                     collectionSlug={collectionSlug}
-                    onSkriptUpdated={onReorder}
-                    onSkriptDeleted={onReorder}
+                    onSkriptUpdated={onSkriptUpdated || onReorder}
+                    onSkriptDeleted={onSkriptDeleted || onReorder}
                     canEdit={canEdit}
+                    currentUserId={currentUserId}
                   />
                 ))}
                 {provided.placeholder}
@@ -382,9 +433,10 @@ export function SortableSkripts({
               skript={skript}
               index={index}
               collectionSlug={collectionSlug}
-              onSkriptUpdated={onReorder}
-              onSkriptDeleted={onReorder}
+              onSkriptUpdated={onSkriptUpdated || onReorder}
+              onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}
+              currentUserId={currentUserId}
             />
           ))}
         </div>
@@ -397,9 +449,10 @@ export function SortableSkripts({
               skript={skript}
               index={index}
               collectionSlug={collectionSlug}
-              onSkriptUpdated={onReorder}
-              onSkriptDeleted={onReorder}
+              onSkriptUpdated={onSkriptUpdated || onReorder}
+              onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}
+              currentUserId={currentUserId}
             />
           ))}
         </div>

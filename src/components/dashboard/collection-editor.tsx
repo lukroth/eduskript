@@ -13,6 +13,7 @@ import { ArrowLeft, BookOpen, FileText } from 'lucide-react'
 import { UserPermissions, CollectionWithAuthors } from '@/types'
 
 interface CollectionEditorProps {
+  currentUserId: string
   collection: {
     id: string
     title: string
@@ -54,7 +55,7 @@ interface CollectionEditorProps {
   userPermissions: UserPermissions
 }
 
-export function CollectionEditor({ collection, userPermissions }: CollectionEditorProps) {
+export function CollectionEditor({ collection, userPermissions, currentUserId }: CollectionEditorProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isPublished, setIsPublished] = useState(collection.isPublished)
   const router = useRouter()
@@ -62,6 +63,11 @@ export function CollectionEditor({ collection, userPermissions }: CollectionEdit
   const handleSkriptCreated = () => {
     // Force a complete page refresh to ensure data is updated
     window.location.reload()
+  }
+
+  const handleSkriptReordered = () => {
+    // For reordering, we don't need to refresh since the UI is already updated optimistically
+    // Only refresh for actual content changes like creating new skripts
   }
 
   const handleCollectionUpdated = (updatedCollection?: {
@@ -184,7 +190,10 @@ export function CollectionEditor({ collection, userPermissions }: CollectionEdit
       <CollectionAccessManager 
         collection={collection as CollectionWithAuthors}
         userPermissions={userPermissions}
-        onPermissionChange={() => window.location.reload()}
+        currentUserId={currentUserId}
+        onPermissionChange={() => {
+          // No need to reload - the CollectionAccessManager handles state updates internally
+        }}
       />
 
       {/* Skripts */}
@@ -209,8 +218,11 @@ export function CollectionEditor({ collection, userPermissions }: CollectionEdit
               skripts={collection.skripts}
               collectionId={collection.id}
               collectionSlug={collection.slug}
-              onReorder={handleSkriptCreated}
+              onReorder={handleSkriptReordered}
+              onSkriptUpdated={handleSkriptCreated}
+              onSkriptDeleted={handleSkriptCreated}
               canEdit={userPermissions.canEdit}
+              currentUserId={currentUserId}
             />
           ) : (
             <div className="text-center py-8">

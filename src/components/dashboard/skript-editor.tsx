@@ -5,28 +5,32 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, FileText, Plus, Settings } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { SortablePages } from './sortable-pages'
 import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
 import { CreatePageModal } from './create-page-modal'
+import { SkriptAccessManager } from '@/components/permissions/SkriptAccessManager'
 import { Skript, Page, SkriptAuthor, PageAuthor, User, Collection, CollectionSkript } from '@prisma/client'
+import { UserPermissions } from '@/types'
 
 interface SkriptWithData extends Skript {
-  authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
+  authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email' | 'image' | 'title'> })[]
   pages: (Page & {
     authors: (PageAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   })[]
-  collectionSkripts: (CollectionSkript & { collection: Collection })[]
+  collectionSkripts: (CollectionSkript & { collection: Collection | null })[]
 }
 
 interface SkriptEditorProps {
   skript: SkriptWithData
   collectionSlug: string
   canEdit: boolean
+  userPermissions: UserPermissions
+  currentUserId: string
 }
 
-export function SkriptEditor({ skript, collectionSlug, canEdit }: SkriptEditorProps) {
+export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions, currentUserId }: SkriptEditorProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -167,6 +171,16 @@ export function SkriptEditor({ skript, collectionSlug, canEdit }: SkriptEditorPr
           )}
         </CardContent>
       </Card>
+
+      {/* Access Management */}
+      {canEdit && userPermissions.canManageAuthors && (
+        <SkriptAccessManager
+          skript={skript}
+          userPermissions={userPermissions}
+          currentUserId={currentUserId}
+          onPermissionChange={handleSkriptUpdated}
+        />
+      )}
     </div>
   )
 }

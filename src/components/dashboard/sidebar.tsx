@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
@@ -39,16 +39,6 @@ export function DashboardSidebar() {
           </Button>
         </div>
 
-        {/* New Collection Button */}
-        <Link href="/dashboard/page-builder">
-          <div className={cn(
-            "flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg mb-6 cursor-pointer transition-all",
-            isCollapsed ? "justify-center px-2" : ""
-          )}>
-            <Plus className="w-5 h-5" />
-            {!isCollapsed && <span>Build Page</span>}
-          </div>
-        </Link>
         
         {/* Navigation */}
         <nav className="space-y-2 flex-1">
