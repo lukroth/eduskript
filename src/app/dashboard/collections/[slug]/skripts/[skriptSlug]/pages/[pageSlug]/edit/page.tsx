@@ -25,9 +25,13 @@ async function getPageData(slug: string, skriptSlug: string, pageSlug: string, u
   if (!collection) return null
 
   const skript = await prisma.skript.findFirst({
-    where: { 
-      slug: skriptSlug, 
-      collectionId: collection.id 
+    where: {
+      slug: skriptSlug,
+      collectionSkripts: {
+        some: {
+          collectionId: collection.id
+        }
+      }
     }
   })
 

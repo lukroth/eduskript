@@ -11,6 +11,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { EditModal } from '@/components/dashboard/edit-modal'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
+import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
 import { ArrowLeft, Save, History, Files, Eye } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
@@ -72,6 +73,17 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     updatedAt: Date
   }>>([])
   const [fileListLoading, setFileListLoading] = useState(false)
+
+  // Excalidraw editor state
+  const [excalidrawEditorOpen, setExcalidrawEditorOpen] = useState(false)
+  const [excalidrawEditFile, setExcalidrawEditFile] = useState<{
+    id: string
+    name: string
+    excalidrawData?: {
+      elements: readonly unknown[]
+      appState?: unknown
+    }
+  } | null>(null)
 
   // Fetch file list from API
   const refreshFileList = useCallback(async () => {
@@ -169,12 +181,12 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     const updatedContent = content
       // Update image references: ![alt](oldname.jpg) -> ![alt](newname.jpg)
       .replace(
-        new RegExp(`!\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), 
+        new RegExp(`!\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
         `![$1](${newFilename})`
       )
       // Update link references: [text](oldname.pdf) -> [text](newname.pdf)
       .replace(
-        new RegExp(`\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), 
+        new RegExp(`\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
         `[$1](${newFilename})`
       )
       // Update video source references
@@ -182,10 +194,71 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         new RegExp(`<source src="${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
         `<source src="${newFilename}"`
       )
-    
+
     if (updatedContent !== content) {
       setContent(updatedContent)
       setHasUnsavedChanges(true)
+    }
+  }
+
+  // Handle opening Excalidraw editor for existing file
+  const handleExcalidrawEdit = async (file: { id: string; name: string; url?: string }) => {
+    try {
+      // Fetch the existing .excalidraw file data with cache busting
+      const baseUrl = file.url || `/api/files/${file.id}`
+      const fileUrl = `${baseUrl}?v=${Date.now()}`
+      const response = await fetch(fileUrl)
+
+      if (response.ok) {
+        const excalidrawData = await response.json()
+        setExcalidrawEditFile({
+          ...file,
+          excalidrawData
+        })
+        setExcalidrawEditorOpen(true)
+      } else {
+        throw new Error('Failed to load drawing')
+      }
+    } catch (error) {
+      console.error('Error loading Excalidraw file:', error)
+      alert('Failed to load drawing for editing')
+    }
+  }
+
+  // Handle saving edited Excalidraw drawing
+  const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
+    try {
+      console.log('[handleExcalidrawSave] Starting save...', { name, skriptId: skript.id })
+
+      // Call the Excalidraw API endpoint
+      const response = await fetch('/api/excalidraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          excalidrawData,
+          lightSvg,
+          darkSvg,
+          skriptId: skript.id
+        })
+      })
+
+      console.log('[handleExcalidrawSave] Response status:', response.status, 'ok:', response.ok)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[handleExcalidrawSave] Success:', result)
+        refreshFileList()
+        setExcalidrawEditorOpen(false)
+        setExcalidrawEditFile(null)
+      } else {
+        const error = await response.json()
+        console.error('[handleExcalidrawSave] Error response:', error)
+        throw new Error(error.error || 'Failed to save drawing')
+      }
+    } catch (error) {
+      console.error('[handleExcalidrawSave] Exception:', error)
+      throw error
     }
   }
 
@@ -364,7 +437,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         icon={<Files className="w-5 h-5" />}
         defaultOpen={false}
       >
-        <FileBrowser 
+        <FileBrowser
           skriptId={skript.id}
           files={fileList}
           loading={fileListLoading}
@@ -374,6 +447,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           }}
           onUploadComplete={refreshFileList}
           onFileRenamed={handleFileRenamed}
+          onExcalidrawEdit={handleExcalidrawEdit}
         />
       </CollapsibleDrawer>
 
@@ -401,7 +475,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       </Card>
 
       {/* Version History - Collapsible Drawer */}
-      <CollapsibleDrawer 
+      <CollapsibleDrawer
         title={
           <div className="flex items-center gap-2">
             <span>History</span>
@@ -422,6 +496,24 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           onRestoreVersion={handleRestoreVersion}
         />
       </CollapsibleDrawer>
+
+      {/* Excalidraw Editor Modal */}
+      {excalidrawEditFile && (
+        <ExcalidrawEditor
+          open={excalidrawEditorOpen}
+          onClose={() => {
+            setExcalidrawEditorOpen(false)
+            setExcalidrawEditFile(null)
+          }}
+          onSave={handleExcalidrawSave}
+          skriptId={skript.id}
+          initialData={{
+            name: excalidrawEditFile.name.replace('.excalidraw', ''),
+            elements: excalidrawEditFile.excalidrawData?.elements || [],
+            appState: excalidrawEditFile.excalidrawData?.appState
+          }}
+        />
+      )}
     </div>
   )
 }

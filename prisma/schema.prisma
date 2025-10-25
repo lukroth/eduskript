@@ -262,7 +262,7 @@ model File {
   parentId    String? @map("parent_id")
   isDirectory Boolean @default(false) @map("is_directory")
   skriptId    String  @map("skript_id")
-  hash        String? @unique
+  hash        String?
   contentType String? @map("content_type")
   size        BigInt?
   createdBy   String  @map("created_by")

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Edit3 } from 'lucide-react'
+import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Paintbrush, TextCursor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -32,9 +32,10 @@ interface FileBrowserProps {
   files: FileItem[]
   loading: boolean
   onFileRenamed?: (oldFilename: string, newFilename: string) => void
+  onExcalidrawEdit?: (file: FileItem) => void
 }
 
-export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadComplete, files, loading, onFileRenamed }: FileBrowserProps) {
+export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadComplete, files, loading, onFileRenamed, onExcalidrawEdit }: FileBrowserProps) {
   const [dragOver, setDragOver] = useState(false)
   const [renameFile, setRenameFile] = useState<FileItem | null>(null)
   const [newFileName, setNewFileName] = useState('')
@@ -43,8 +44,13 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   const [newUploadName, setNewUploadName] = useState('')
 
   const getFileIcon = (filename: string) => {
+    // Check if it's an Excalidraw file
+    if (filename.endsWith('.excalidraw')) {
+      return <Paintbrush className="w-5 h-5 text-orange-500" />
+    }
+
     const extension = filename.split('.').pop()?.toLowerCase()
-    
+
     switch (extension) {
       case 'jpg': case 'jpeg': case 'png': case 'gif': case 'webp': case 'svg':
         return <ImageIcon className="w-5 h-5 text-blue-500" />
@@ -59,6 +65,23 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
       default:
         return <File className="w-5 h-5 text-icon-muted" />
     }
+  }
+
+  const isExcalidrawFile = (filename: string) => {
+    return filename.endsWith('.excalidraw')
+  }
+
+  // Filter out auto-generated SVG files (they're paired with .excalidraw files)
+  const shouldShowFile = (filename: string) => {
+    // Don't show .excalidraw.light.svg or .excalidraw.dark.svg files
+    if (filename.match(/\.excalidraw\.(light|dark)\.svg$/)) {
+      return false
+    }
+    return true
+  }
+
+  const getDisplayFiles = () => {
+    return files.filter(f => !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType) && shouldShowFile(getFileName(f)))
   }
 
   const formatFileSize = (bytes: number) => {
@@ -218,13 +241,13 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, 'skript')}
           >
-            {files.filter(f => !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType)).length === 0 ? (
+            {getDisplayFiles().length === 0 ? (
               <div className="text-center py-2 text-muted-foreground text-sm">
                 No skript files. Drop files here or click upload.
               </div>
             ) : (
               <div className="space-y-1">
-                {files.filter(f => !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType)).map((file) => (
+                {getDisplayFiles().map((file) => (
                   <div
                     key={file.id || file.url}
                     className="flex items-center space-x-2 p-2 rounded hover:bg-muted group"
@@ -276,6 +299,18 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
 
                     {/* Action buttons */}
                     <div className="flex items-center space-x-1">
+                      {isExcalidrawFile(getFileName(file)) && onExcalidrawEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onExcalidrawEdit(file)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-orange-500 hover:text-orange-600 transition-opacity"
+                          title="Edit drawing"
+                        >
+                          <Paintbrush className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -284,7 +319,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                         className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity"
                         title="Rename file"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        <TextCursor className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleFileDelete(file)}

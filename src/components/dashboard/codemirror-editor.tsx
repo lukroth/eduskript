@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { processMarkdown } from '@/lib/markdown'
 import { Button } from '@/components/ui/button'
-import { Save, Eye, EyeOff } from 'lucide-react'
+import { Save, Eye, EyeOff, Pencil } from 'lucide-react'
+import { ExcalidrawEditor } from './excalidraw-editor'
 import type { EditorView } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
 
@@ -40,6 +41,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const [useSimpleEditor, setUseSimpleEditor] = useState(false)
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
+  const [excalidrawOpen, setExcalidrawOpen] = useState(false)
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
@@ -187,12 +189,17 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   // Process markdown for preview
   useEffect(() => {
     if (!isMounted || fileListLoading) return
-    
+
     const updatePreview = async () => {
       try {
         const processed = await processMarkdown(
-          useSimpleEditor ? textareaContent : editorContent, 
-          { domain, skriptId, fileList: fileList || [] }
+          useSimpleEditor ? textareaContent : editorContent,
+          {
+            domain,
+            skriptId,
+            fileList: fileList || [],
+            theme: isDark ? 'dark' : 'light'
+          }
         )
         setPreviewContent(processed.content)
       } catch (error) {
@@ -200,9 +207,9 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         setPreviewContent('<p>Error processing markdown</p>')
       }
     }
-    
+
     updatePreview()
-  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, skriptId, fileList, fileListLoading])
+  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, skriptId, fileList, fileListLoading, isDark])
   useEffect(() => {
     if (!isMounted || !editorRef.current) return
 
@@ -402,6 +409,66 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     onChange(newContent)
   }
 
+  // Handle Excalidraw save
+  const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
+    if (!skriptId) {
+      alert('Skript ID is required to save drawings')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/excalidraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          excalidrawData,
+          lightSvg,
+          darkSvg,
+          skriptId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save drawing')
+      }
+
+      // Insert reference to the drawing in the editor
+      const insertText = `![[${name}.excalidraw]]\n`
+
+      if (editorViewRef.current && !useSimpleEditor) {
+        const view = editorViewRef.current
+        const insertPos = view.state.selection.main.head
+        const transaction = view.state.update({
+          changes: { from: insertPos, insert: insertText },
+          selection: { anchor: insertPos + insertText.length }
+        })
+        view.dispatch(transaction)
+        onChange(view.state.doc.toString())
+      } else if (useSimpleEditor) {
+        const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+        if (textarea) {
+          const start = textarea.selectionStart
+          const newContent = textareaContent.substring(0, start) + insertText + textareaContent.substring(start)
+          setTextareaContent(newContent)
+          onChange(newContent)
+        }
+      }
+
+      // Refresh file list
+      if (onFileUpload) {
+        onFileUpload()
+      }
+
+      alert('Drawing saved successfully!')
+    } catch (error) {
+      console.error('Error saving drawing:', error)
+      alert('Failed to save drawing. Please try again.')
+    }
+  }
+
   return (
     <div 
       className={`border border-border rounded-lg bg-card ${
@@ -423,11 +490,23 @@ const CodeMirrorEditor = function CodeMirrorEditor({
             {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {showPreview ? 'Hide Preview' : 'Show Preview'}
           </Button>
+          {skriptId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExcalidrawOpen(true)}
+              className="flex items-center gap-2"
+              title="Create Drawing"
+            >
+              <Pencil className="w-4 h-4" />
+              Drawing
+            </Button>
+          )}
           <span className="text-xs text-primary">
             {useSimpleEditor ? 'Simple Editor (CodeMirror Failed)' : 'CodeMirror Loaded'}
           </span>
         </div>
-        
+
         {onSave && (
           <Button
             variant="ghost"
@@ -482,6 +561,16 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           </div>
         )}
       </div>
+
+      {/* Excalidraw Modal */}
+      {skriptId && (
+        <ExcalidrawEditor
+          open={excalidrawOpen}
+          onClose={() => setExcalidrawOpen(false)}
+          onSave={handleExcalidrawSave}
+          skriptId={skriptId}
+        />
+      )}
     </div>
   )
 }

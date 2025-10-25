@@ -12,6 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import { remarkFileResolver } from './remark-plugins/file-resolver'
 import { rehypeImageOptimizer } from './remark-plugins/image-optimizer'
+import { remarkExcalidrawResolver } from './remark-plugins/excalidraw-resolver'
 
 export interface ProcessedMarkdown {
   content: string
@@ -26,6 +27,8 @@ export interface MarkdownContext {
   skriptId?: string
   /** Pre-fetched file list for client-side image resolution */
   fileList?: Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>
+  /** Current theme for Excalidraw SVG selection */
+  theme?: 'light' | 'dark'
 }
 
 export async function processMarkdown(
@@ -40,6 +43,10 @@ export async function processMarkdown(
   // Build plugin list
   const remarkPlugins: PluggableList = [
     remarkParse,
+    [remarkExcalidrawResolver, {
+      fileList: context?.fileList,
+      theme: context?.theme || 'light'
+    }],
     [remarkFileResolver, {
       fileList: context?.fileList
     }],

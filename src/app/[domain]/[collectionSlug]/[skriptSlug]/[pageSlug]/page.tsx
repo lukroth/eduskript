@@ -3,13 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { processMarkdown } from '@/lib/markdown'
+import { MarkdownRenderer } from '@/components/public/markdown-renderer'
 import { Breadcrumb } from '@/components/public/breadcrumb'
 import { ExportPDF } from '@/components/public/export-pdf'
 import { Comments } from '@/components/public/comments'
 import { Edit } from 'lucide-react'
 import type { Metadata } from 'next'
-// import { listFiles } from '@/lib/file-storage' // TODO: Re-enable when file permissions are fixed
 import { headers } from 'next/headers'
 
 interface PageProps {
@@ -292,38 +291,6 @@ export default async function PublicPage({ params }: PageProps) {
       notFound()
     }
 
-    // Fetch skript file list from local file system
-    let fileList: Array<{
-      id: string;
-      name: string;
-      url?: string;
-      isDirectory?: boolean;
-    }> = []
-    // TODO: Fix file listing - currently disabled due to permission check issues
-    // The listFiles function checks SkriptAuthor table but teacher might only have access through CollectionAuthor
-    // if (isAuthor) {
-    //   try {
-    //     const files = await listFiles({
-    //       skriptId: skript.id,
-    //       parentId: null, // Root level files
-    //       userId: teacher.id
-    //     })
-    //     
-    //     fileList = files.filter(file => !file.isDirectory) // Only include files, not directories
-    //   } catch (error) {
-    //     console.error('Error fetching files:', error)
-    //     // Continue with empty file list if there's an error
-    //   }
-    // }
-
-    // Process the markdown content with proper context for image resolution
-    const processedMarkdown = await processMarkdown(page.content, {
-      domain: domain,
-      skriptId: skript.id,
-      fileList
-    })
-    const processedContent = processedMarkdown.content
-
     // Build site structure for navigation
     const siteStructure = [{
       id: collection.id,
@@ -455,7 +422,11 @@ export default async function PublicPage({ params }: PageProps) {
             </a></Breadcrumb>
 
           <article className="prose-theme">
-            <div dangerouslySetInnerHTML={{ __html: processedContent }} />
+            <MarkdownRenderer
+              content={page.content}
+              domain={domain}
+              skriptId={skript.id}
+            />
           </article>
 
           <div className="mt-8 pt-8 border-t border-border">

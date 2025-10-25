@@ -203,11 +203,16 @@ export async function saveFile({
   let file
   if (existingFile && overwrite) {
     console.log('[FILE_STORAGE] Updating existing file record:', existingFile.id)
+
+    // Check if hash has changed - if not, just update metadata
+    const hashChanged = existingFile.hash !== hash
+
     // Update existing file
     file = await prisma.file.update({
       where: { id: existingFile.id },
       data: {
-        hash,
+        // Only update hash if it has changed (to avoid unique constraint violation)
+        ...(hashChanged && { hash }),
         contentType,
         size: BigInt(buffer.length),
         updatedAt: new Date()

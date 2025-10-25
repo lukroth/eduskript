@@ -393,3 +393,35 @@ html.dark {
 .prose-theme hr {
   @apply border-border border-t my-12;
 }
+
+/* Excalidraw theme switching */
+.excalidraw-wrapper {
+  @apply block my-6;
+  position: relative;
+}
+
+.excalidraw-wrapper img {
+  @apply w-full h-auto rounded-lg;
+}
+
+/* Show light variant in light mode, hide dark variant */
+.prose-theme .excalidraw-light,
+.excalidraw-light {
+  display: block !important;
+}
+
+.prose-theme .excalidraw-dark,
+.excalidraw-dark {
+  display: none !important;
+}
+
+/* Show dark variant in dark mode, hide light variant */
+.dark .prose-theme .excalidraw-light,
+.dark .excalidraw-light {
+  display: none !important;
+}
+
+.dark .prose-theme .excalidraw-dark,
+.dark .excalidraw-dark {
+  display: block !important;
+}

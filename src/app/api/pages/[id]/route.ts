@@ -42,7 +42,11 @@ export async function PATCH(
       include: {
         skript: {
           include: {
-            collection: true
+            collectionSkripts: {
+              include: {
+                collection: true
+              }
+            }
           }
         },
         versions: {
@@ -123,18 +127,23 @@ export async function PATCH(
     })
 
     if (user?.subdomain) {
-      // Revalidate the specific page
-      revalidatePath(`/${user.subdomain}/${existingPage.skript.collection?.slug}/${existingPage.skript.slug}/${updatedPage.slug}`)
-      
-      // Revalidate the skript page (in case it lists pages)
-      revalidatePath(`/${user.subdomain}/${existingPage.skript.collection?.slug}/${existingPage.skript.slug}`)
-      
-      // Revalidate the collection page (in case it lists skripts/pages)
-      revalidatePath(`/${user.subdomain}/${existingPage.skript.collection?.slug}`)
-      
+      // Get the collection slug from the first collectionSkript relation
+      const collectionSlug = existingPage.skript.collectionSkripts[0]?.collection?.slug
+
+      if (collectionSlug) {
+        // Revalidate the specific page
+        revalidatePath(`/${user.subdomain}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
+
+        // Revalidate the skript page (in case it lists pages)
+        revalidatePath(`/${user.subdomain}/${collectionSlug}/${existingPage.skript.slug}`)
+
+        // Revalidate the collection page (in case it lists skripts/pages)
+        revalidatePath(`/${user.subdomain}/${collectionSlug}`)
+      }
+
       // Revalidate the home page (in case it lists collections)
       revalidatePath(`/${user.subdomain}`)
-      
+
       // Revalidate dashboard pages
       revalidatePath('/dashboard')
     }

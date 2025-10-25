@@ -71,7 +71,7 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
               </span>
             </div>
             <div>
-              <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}`}>
+              <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}/edit`}>
                 <h4 className="text-sm font-medium hover:text-primary cursor-pointer transition-colors">
                   {page.title}
                 </h4>
@@ -145,7 +145,7 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
           </span>
         </div>
         <div>
-          <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}`}>
+          <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}/edit`}>
             <h4 className="text-sm font-medium hover:text-primary cursor-pointer transition-colors">
               {page.title}
             </h4>
