@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkMath from 'remark-math'
@@ -21,19 +21,31 @@ import { visit } from 'unist-util-visit'
 import type { Node, Parent } from 'unist'
 import { useTheme } from 'next-themes'
 
+// Context for passing content and callback down to components
+const MarkdownEditContext = createContext<{
+  content: string
+  onContentChange?: (newContent: string) => void
+}>({ content: '' })
+
 interface MarkdownRendererProps {
   content: string
   context?: MarkdownContext
+  onContentChange?: (newContent: string) => void
 }
 
-export function MarkdownRenderer({ content, context }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, context, onContentChange }: MarkdownRendererProps) {
   const [renderedContent, setRenderedContent] = useState<React.ReactNode>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { resolvedTheme } = useTheme()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const processContent = async () => {
+      // Save scroll position from the actual scroll container (parent)
+      const scrollContainer = document.getElementById('markdown-preview-scroll-container')
+      const savedScrollTop = scrollContainer?.scrollTop || 0
+
       try {
         setIsLoading(true)
         setError(null)
@@ -78,6 +90,13 @@ export function MarkdownRenderer({ content, context }: MarkdownRendererProps) {
 
         const result = await processor.process(content)
         setRenderedContent(result.result)
+
+        // Restore scroll position after rendering
+        setTimeout(() => {
+          if (scrollContainer) {
+            scrollContainer.scrollTop = savedScrollTop
+          }
+        }, 0)
       } catch (err) {
         console.error('Markdown rendering error:', err)
         setError(String(err))
@@ -110,7 +129,11 @@ export function MarkdownRenderer({ content, context }: MarkdownRendererProps) {
     )
   }
 
-  return <div className="markdown-content prose dark:prose-invert max-w-none">{renderedContent}</div>
+  return (
+    <MarkdownEditContext.Provider value={{ content, onContentChange }}>
+      <div ref={containerRef} className="markdown-content prose dark:prose-invert max-w-none">{renderedContent}</div>
+    </MarkdownEditContext.Provider>
+  )
 }
 
 // Component wrappers
@@ -177,6 +200,7 @@ function MathSpanComponent({ className, children, ...props }: React.HTMLAttribut
 
 function DivComponent({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const divProps = props as Record<string, unknown>
+  const { content, onContentChange } = useContext(MarkdownEditContext)
 
   // Handle math blocks
   if (className === 'math math-display') {
@@ -185,17 +209,44 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
 
   // Handle Shiki-highlighted code blocks
   if (divProps['data-highlighted'] === 'true' || divProps['data-highlighted'] === true) {
-    // Shiki-highlighted code - just render the div with its children (the HTML is already there)
-    return (
-      <div className="relative group my-4">
-        <div className={className} {...props}>
-          {children}
-        </div>
-      </div>
-    )
+    const shikiHtml = divProps['data-shiki-html'] as string
+    const language = (divProps['data-language'] as string) || 'text'
+    const rawCode = (divProps['data-raw-code'] as string) || ''
+
+    if (shikiHtml) {
+      // Handler for language change
+      const handleLanguageChange = (newLanguage: string) => {
+        if (!onContentChange) return
+
+        // Simple fallback: just replace the language tag
+        const newContent = content.replace(
+          new RegExp(`\`\`\`${language}\\b`, 'g'),
+          `\`\`\`${newLanguage}`
+        )
+
+        if (newContent !== content) {
+          onContentChange(newContent)
+        }
+      }
+
+      // Use the CodeBlock component with the Shiki HTML
+      return (
+        <CodeBlock
+          language={language}
+          highlighted={shikiHtml}
+          onLanguageChange={onContentChange ? handleLanguageChange : undefined}
+        >
+          {rawCode}
+        </CodeBlock>
+      )
+    }
   }
 
   return <div className={className} {...props}>{children}</div>
+}
+
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 // Helper to process Excalidraw nodes in the AST

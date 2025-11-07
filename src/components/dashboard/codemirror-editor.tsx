@@ -530,7 +530,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
         {/* Preview */}
         {showPreview && (
-          <div className="w-1/2 overflow-auto bg-card">
+          <div className="w-1/2 overflow-auto bg-card" id="markdown-preview-scroll-container">
             <div className="p-4">
               <InteractivePreview
                 markdown={useSimpleEditor ? textareaContent : editorContent}

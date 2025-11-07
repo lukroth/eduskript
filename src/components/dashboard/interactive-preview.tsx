@@ -22,7 +22,7 @@ export function InteractivePreview({
   }
 
   return (
-    <div className="prose-theme">
+    <div className="prose-theme" key="markdown-preview">
       <MarkdownRenderer
         content={markdown}
         context={context}

@@ -45,19 +45,17 @@ export function rehypeShikiHighlight(options: ShikiOptions = {}) {
         try {
           const html = await highlightWithShiki(code, lang, theme)
 
-          // Replace the pre node with highlighted HTML
+          // Replace the pre node with a div that will render the HTML
           node.tagName = 'div'
           node.properties = {
             ...node.properties,
             'data-language': lang,
             'data-highlighted': 'true',
+            'data-shiki-html': html, // Store the HTML in a data attribute
+            'data-raw-code': code, // Store the raw code for copy functionality
           }
-          node.children = [
-            {
-              type: 'raw',
-              value: html,
-            },
-          ]
+          // Remove children since we'll render from data-shiki-html
+          node.children = []
         } catch (error) {
           console.error(`Failed to highlight ${lang}:`, error)
           // Keep original code block on error

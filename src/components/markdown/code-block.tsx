@@ -8,9 +8,10 @@ interface CodeBlockProps {
   className?: string
   language?: string
   highlighted?: string // Shiki pre-rendered HTML
+  onLanguageChange?: (newLanguage: string) => void
 }
 
-export function CodeBlock({ children, className, language: propLanguage, highlighted }: CodeBlockProps) {
+export function CodeBlock({ children, className, language: propLanguage, highlighted, onLanguageChange }: CodeBlockProps) {
   // Extract language from className (e.g., "language-javascript")
   const languageFromClass = className?.replace('language-', '') || 'text'
   const initialLanguage = propLanguage || languageFromClass
@@ -70,6 +71,7 @@ export function CodeBlock({ children, className, language: propLanguage, highlig
                   onClick={() => {
                     setLanguage(lang)
                     setIsOpen(false)
+                    onLanguageChange?.(lang)
                   }}
                   className={`block w-full text-left px-3 py-1.5 text-xs font-mono hover:bg-accent transition-colors ${
                     language === lang ? 'bg-accent text-accent-foreground' : 'text-foreground'
@@ -96,7 +98,7 @@ export function CodeBlock({ children, className, language: propLanguage, highlig
       {highlighted ? (
         <div
           dangerouslySetInnerHTML={{ __html: highlighted }}
-          className="rounded-md overflow-x-auto"
+          className="rounded-md overflow-x-auto [&_pre]:!mt-0 [&_pre]:!rounded-md"
         />
       ) : (
         <pre className="rounded-md bg-muted p-4 overflow-x-auto">
