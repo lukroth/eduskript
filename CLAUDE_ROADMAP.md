@@ -1,5 +1,27 @@
-*Last updated: 2025-10-25*
-*Current Status: Page builder and dashboard UX are complete and beta-ready. Pivoting to enhance lesson editor capabilities and add student analytics.*
+*Last updated: 2025-01-07*
+*Current Status: Migrating markdown rendering to React-based system with Shiki syntax highlighting. Improving editor preview experience with interactive code blocks.*
+
+## 🔄 Current Work: React Markdown Renderer Migration
+
+### What We're Doing
+We're replacing the old HTML-based markdown rendering with a modern React component system that provides better interactivity and maintainability.
+
+**Completed:**
+- ✅ Migrated from Next.js 15 `middleware.ts` to Next.js 16 `proxy.ts` convention
+- ✅ Fixed unified/remark preset configuration errors
+- ✅ Integrated Shiki syntax highlighting with theme awareness (light/dark)
+- ✅ Converted markdown renderer to async processing for Shiki compatibility
+- ✅ Added interactive code block controls (language dropdown, copy button)
+- ✅ Implemented language change with markdown source updates
+- ✅ Preserved scroll position during preview re-renders
+
+**Next Tasks:**
+- 🔨 Fix image resizing controls in markdown preview
+- ⏳ Test and refine math rendering (KaTeX)
+- ⏳ Verify Excalidraw embedding works with new renderer
+- ⏳ Polish interactive preview UX (loading states, error handling)
+
+---
 
 # Lesson Editor Enhancements & Student Analytics Roadmap
 
