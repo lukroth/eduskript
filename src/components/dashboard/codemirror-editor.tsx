@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { processMarkdown } from '@/lib/markdown'
 import { Button } from '@/components/ui/button'
-import { Save, Eye, EyeOff, Pencil } from 'lucide-react'
+import { Eye, EyeOff, Pencil } from 'lucide-react'
 import { ExcalidrawEditor } from './excalidraw-editor'
 import { InteractivePreview } from './interactive-preview'
 import type { EditorView } from '@codemirror/view'
@@ -25,19 +24,16 @@ interface CodeMirrorEditorProps {
 const CodeMirrorEditor = function CodeMirrorEditor({
   content,
   onChange,
-  onSave,
   skriptId,
-  domain,
   isReadOnly = false,
   fileList,
-  fileListLoading = false,
   onFileUpload
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const [showPreview, setShowPreview] = useState(true)
-  const [previewContent, setPreviewContent] = useState('')
+  // Removed previewContent state - React renderer handles markdown directly
   const [isMounted, setIsMounted] = useState(false)
   const [useSimpleEditor, setUseSimpleEditor] = useState(false)
   const [textareaContent, setTextareaContent] = useState(content || '')
@@ -124,7 +120,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               const errorData = await response.json()
               const errorMessage = errorData.error || 'Upload failed'
               alert(`Failed to upload file: ${errorMessage}`)
-            } catch (parseError) {
+            } catch {
               alert(`Failed to upload file (status ${response.status})`)
             }
           }
@@ -203,30 +199,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     console.log('CodeMirrorEditor mounting...')
   }, [])
 
-  // Process markdown for preview
-  useEffect(() => {
-    if (!isMounted || fileListLoading) return
-
-    const updatePreview = async () => {
-      try {
-        const processed = await processMarkdown(
-          useSimpleEditor ? textareaContent : editorContent,
-          {
-            domain,
-            skriptId,
-            fileList: fileList || [],
-            theme: isDark ? 'dark' : 'light'
-          }
-        )
-        setPreviewContent(processed.content)
-      } catch (error) {
-        console.error('Error processing markdown:', error)
-        setPreviewContent('<p>Error processing markdown</p>')
-      }
-    }
-
-    updatePreview()
-  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, skriptId, fileList, fileListLoading, isDark])
+  // No longer need to process markdown for preview - React renderer handles it
+  // Just pass the raw markdown to InteractivePreview
   useEffect(() => {
     if (!isMounted || !editorRef.current) return
 
@@ -559,10 +533,10 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           <div className="w-1/2 overflow-auto bg-card">
             <div className="p-4">
               <InteractivePreview
-                html={previewContent}
+                markdown={useSimpleEditor ? textareaContent : editorContent}
                 onContentChange={onChange}
-                originalMarkdown={useSimpleEditor ? textareaContent : editorContent}
                 fileList={fileList}
+                theme={isDark ? 'dark' : 'light'}
               />
             </div>
           </div>

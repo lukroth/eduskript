@@ -57,11 +57,15 @@ export async function generateMetadata({ params }: SkriptPreviewProps): Promise<
     const skript = await prisma.skript.findFirst({
       where: {
         slug: skriptSlug,
-        collection: {
-          slug: collectionSlug,
-          authors: {
-            some: {
-              userId: teacher.id
+        collectionSkripts: {
+          some: {
+            collection: {
+              slug: collectionSlug,
+              authors: {
+                some: {
+                  userId: teacher.id
+                }
+              }
             }
           }
         }
@@ -138,19 +142,25 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
         }
       },
       include: {
-        skripts: {
+        collectionSkripts: {
           where: {
-            slug: skriptSlug
+            skript: {
+              slug: skriptSlug
+            }
           },
           include: {
-            pages: {
-              orderBy: { order: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                slug: true,
-                order: true,
-                isPublished: true
+            skript: {
+              include: {
+                pages: {
+                  orderBy: { order: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    slug: true,
+                    order: true,
+                    isPublished: true
+                  }
+                }
               }
             }
           }
@@ -167,10 +177,12 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
       notFound()
     }
 
-    const skript = collection.skripts[0]
-    if (!skript) {
+    const collectionSkript = collection.collectionSkripts[0]
+    if (!collectionSkript) {
       notFound()
     }
+
+    const skript = collectionSkript.skript
 
     // Authorization check for skript
     if (!skript.isPublished && !isAuthor) {

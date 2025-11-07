@@ -1,0 +1,230 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "uO4Tq8bVPwm4duC_N9ctu",
+      "type": "diamond",
+      "x": 552.0499877929688,
+      "y": 191.10000610351562,
+      "width": 203,
+      "height": 103,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 651144480,
+      "version": 14,
+      "versionNonce": 516665632,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1761914347784,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "mqviTYHowd4tJjOUqupBK",
+      "type": "text",
+      "x": 611.0499877929688,
+      "y": 227.10000610351562,
+      "width": 136.39999389648438,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a1",
+      "roundness": null,
+      "seed": 1752730912,
+      "version": 16,
+      "versionNonce": 1219850528,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1761914351060,
+      "link": null,
+      "locked": false,
+      "text": "blabllasdpofna",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "blabllasdpofna",
+      "autoResize": true,
+      "lineHeight": 1.25
+    },
+    {
+      "id": "Uxc4UWCe5KhdbZSBm712F",
+      "type": "freedraw",
+      "x": 654.0499877929688,
+      "y": 186.10000610351562,
+      "width": 189,
+      "height": 138,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a2",
+      "roundness": null,
+      "seed": 1766102240,
+      "version": 30,
+      "versionNonce": 1652551904,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1761914354767,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -8,
+          4
+        ],
+        [
+          -17,
+          12
+        ],
+        [
+          -19,
+          14
+        ],
+        [
+          -14,
+          10
+        ],
+        [
+          19,
+          -11
+        ],
+        [
+          62,
+          -31
+        ],
+        [
+          122,
+          -53
+        ],
+        [
+          146,
+          -57
+        ],
+        [
+          170,
+          -52
+        ],
+        [
+          167,
+          -44
+        ],
+        [
+          126,
+          1
+        ],
+        [
+          65,
+          58
+        ],
+        [
+          57,
+          67
+        ],
+        [
+          54,
+          71
+        ],
+        [
+          55,
+          71
+        ],
+        [
+          59,
+          72
+        ],
+        [
+          62,
+          73
+        ],
+        [
+          73,
+          76
+        ],
+        [
+          86,
+          77
+        ],
+        [
+          94,
+          77
+        ],
+        [
+          117,
+          75
+        ],
+        [
+          135,
+          72
+        ],
+        [
+          138,
+          71
+        ],
+        [
+          138,
+          74
+        ],
+        [
+          145,
+          81
+        ],
+        [
+          148,
+          81
+        ],
+        [
+          152,
+          81
+        ],
+        [
+          152,
+          81
+        ]
+      ],
+      "pressures": [],
+      "simulatePressure": true,
+      "lastCommittedPoint": [
+        152,
+        81
+      ]
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": 20
+  }
+}

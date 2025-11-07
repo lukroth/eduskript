@@ -45,7 +45,11 @@ export async function POST(
       include: {
         skript: {
           include: {
-            collection: true
+            collectionSkripts: {
+              include: {
+                collection: true
+              }
+            }
           }
         }
       }
@@ -92,11 +96,15 @@ export async function POST(
       select: { subdomain: true }
     })
 
-    if (user?.subdomain && page.skript.collection) {
-      // Revalidate all relevant paths
-      revalidatePath(`/${user.subdomain}/${page.skript.collection.slug}/${page.skript.slug}/${page.slug}`)
-      revalidatePath(`/${user.subdomain}/${page.skript.collection.slug}/${page.skript.slug}`)
-      revalidatePath(`/${user.subdomain}/${page.skript.collection.slug}`)
+    if (user?.subdomain) {
+      // Revalidate paths for all collections this skript belongs to
+      for (const cs of page.skript.collectionSkripts) {
+        if (cs.collection) {
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${page.skript.slug}/${page.slug}`)
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${page.skript.slug}`)
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+        }
+      }
       revalidatePath(`/${user.subdomain}`)
       revalidatePath('/dashboard/collections')
     }

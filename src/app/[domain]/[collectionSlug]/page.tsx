@@ -89,9 +89,13 @@ interface CollectionSkript {
   id: string
   title: string
   slug: string
-  order: number
   isPublished: boolean
   pages: CollectionPage[]
+}
+
+interface CollectionSkriptJunction {
+  order: number
+  skript: CollectionSkript
 }
 
 interface CollectionWithSkripts {
@@ -100,7 +104,7 @@ interface CollectionWithSkripts {
   slug: string
   description: string | null
   isPublished: boolean
-  skripts: CollectionSkript[]
+  collectionSkripts: CollectionSkriptJunction[]
 }
 
 export default async function CollectionPreviewPage({ params }: CollectionPreviewProps) {
@@ -141,16 +145,25 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
         }
       },
       include: {
-        skripts: {
-          include: {
-            pages: {
-              orderBy: { order: 'asc' },
+        collectionSkripts: {
+          select: {
+            order: true,
+            skript: {
               select: {
                 id: true,
                 title: true,
                 slug: true,
-                order: true,
-                isPublished: true
+                isPublished: true,
+                pages: {
+                  orderBy: { order: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    slug: true,
+                    order: true,
+                    isPublished: true
+                  }
+                }
               }
             }
           },
@@ -194,11 +207,12 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
   }
 
   // Find the first available page to redirect to (outside try/catch to allow redirect to work)
-  const firstSkript = collection.skripts.find((skript: CollectionSkript) => 
-    isAuthor || skript.isPublished
+  const firstCollectionSkript = collection.collectionSkripts.find((cs: CollectionSkriptJunction) =>
+    isAuthor || cs.skript.isPublished
   )
-  
-  const firstPage = firstSkript?.pages.find((page: CollectionPage) => 
+
+  const firstSkript = firstCollectionSkript?.skript
+  const firstPage = firstSkript?.pages.find((page: CollectionPage) =>
     isAuthor || page.isPublished
   )
 
@@ -214,12 +228,12 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
     title: collection.title,
     slug: collection.slug,
     isPublished: collection.isPublished,
-    skripts: collection.skripts.map(skript => ({
-      id: skript.id,
-      title: skript.title,
-      slug: skript.slug,
-      isPublished: skript.isPublished,
-      pages: skript.pages.map((page: CollectionPage) => ({
+    skripts: collection.collectionSkripts.map(cs => ({
+      id: cs.skript.id,
+      title: cs.skript.title,
+      slug: cs.skript.slug,
+      isPublished: cs.skript.isPublished,
+      pages: cs.skript.pages.map((page: CollectionPage) => ({
         id: page.id,
         title: page.title,
         slug: page.slug,
@@ -277,9 +291,10 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
           <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-semibold mb-4">Contents</h2>
-              {collection.skripts.length > 0 ? (
+              {collection.collectionSkripts.length > 0 ? (
                 <div className="space-y-4">
-                  {collection.skripts.map((skript: CollectionSkript, skriptIndex: number) => {
+                  {collection.collectionSkripts.map((cs: CollectionSkriptJunction, skriptIndex: number) => {
+                    const skript = cs.skript
                     const isSkriptVisible = isAuthor || skript.isPublished
                     
                     if (!isSkriptVisible) return null

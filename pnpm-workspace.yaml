@@ -1,6 +1,7 @@
 onlyBuiltDependencies:
   - '@prisma/client'
   - '@prisma/engines'
+  - oniguruma
   - prisma
   - sharp
   - unrs-resolver
