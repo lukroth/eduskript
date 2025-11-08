@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
@@ -16,6 +17,7 @@ const navigation = [
 export function DashboardSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const { data: session } = useSession()
 
   return (
     <div className={cn(
@@ -39,15 +41,15 @@ export function DashboardSidebar() {
           </Button>
         </div>
 
-        
+
         {/* Navigation */}
         <nav className="space-y-2 flex-1">
           {navigation.map((item) => {
             const Icon = item.icon
             // Highlight page-builder for both /dashboard and /dashboard/page-builder
-            const isActive = pathname === item.href || 
+            const isActive = pathname === item.href ||
                            (item.href === '/dashboard/page-builder' && pathname === '/dashboard')
-            
+
             return (
               <Link
                 key={item.name}
@@ -66,6 +68,27 @@ export function DashboardSidebar() {
               </Link>
             )
           })}
+
+          {/* Admin Panel Link (only visible to admins) */}
+          {session?.user?.isAdmin && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <Link
+                href="/dashboard/admin"
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
+                  pathname === '/dashboard/admin'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  isCollapsed ? 'justify-center px-2' : ''
+                )}
+                title={isCollapsed ? 'Admin Panel' : undefined}
+              >
+                <Shield className="w-5 h-5" />
+                {!isCollapsed && <span>Admin Panel</span>}
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </div>
