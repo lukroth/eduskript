@@ -72,7 +72,11 @@ model User {
   // User preferences
   themePreference String? @default("system") // "light", "dark", or "system"
   sidebarBehavior String? @default("contextual") // "contextual" (default - show only current collection) or "full" (always show all)
-  
+
+  // Admin and security
+  isAdmin Boolean @default(false)
+  requirePasswordReset Boolean @default(false)
+
   // Relations
   accounts      Account[]
   sessions      Session[]

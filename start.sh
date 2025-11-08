@@ -10,5 +10,9 @@ echo "Starting database migration..."
 # Run Prisma migrations (apply all pending migration files)
 npx prisma migrate deploy
 
+echo "Seeding admin user if needed..."
+# Create admin user if it doesn't exist
+node prisma/seed-admin.js || echo "Admin seed failed, continuing..."
+
 echo "Starting Next.js application..."
 exec node server.js
