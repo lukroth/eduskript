@@ -66,7 +66,8 @@ export async function GET(
             // User needs explicit skript-level "author" permission to edit
             permissions = {
               canView: true,
-              canEdit: false
+              canEdit: false,
+              canManageAuthors: false
             }
             break
           }
@@ -127,7 +128,11 @@ export async function PATCH(
         }
       },
       include: {
-        collection: true
+        collectionSkripts: {
+          include: {
+            collection: true
+          }
+        }
       }
     })
 
@@ -138,11 +143,10 @@ export async function PATCH(
       )
     }
 
-    // Check if slug is already used in the same collection (but not this skript)
+    // Check if slug is already used (but not by this skript)
     if (slug && slug !== existingSkript.slug) {
       const slugExists = await prisma.skript.findFirst({
         where: {
-          collectionId: existingSkript.collectionId,
           slug,
           NOT: { id }
         }
@@ -150,7 +154,7 @@ export async function PATCH(
 
       if (slugExists) {
         return NextResponse.json(
-          { error: 'Slug already exists in this collection' },
+          { error: 'Slug already exists' },
           { status: 409 }
         )
       }
@@ -184,9 +188,13 @@ export async function PATCH(
     })
 
     if (user?.subdomain) {
-      // Revalidate relevant paths
-      revalidatePath(`/${user.subdomain}/${existingSkript.collection.slug}/${updatedSkript.slug}`)
-      revalidatePath(`/${user.subdomain}/${existingSkript.collection.slug}`)
+      // Revalidate relevant paths for all collections this skript is in
+      for (const cs of existingSkript.collectionSkripts) {
+        if (cs.collection) {
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${updatedSkript.slug}`)
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+        }
+      }
       revalidatePath(`/${user.subdomain}`)
       revalidatePath('/dashboard')
     }
@@ -228,7 +236,11 @@ export async function DELETE(
         }
       },
       include: {
-        collection: true
+        collectionSkripts: {
+          include: {
+            collection: true
+          }
+        }
       }
     })
 
@@ -251,8 +263,12 @@ export async function DELETE(
     })
 
     if (user?.subdomain) {
-      // Revalidate relevant paths
-      revalidatePath(`/${user.subdomain}/${existingSkript.collection.slug}`)
+      // Revalidate relevant paths for all collections this skript was in
+      for (const cs of existingSkript.collectionSkripts) {
+        if (cs.collection) {
+          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+        }
+      }
       revalidatePath(`/${user.subdomain}`)
       revalidatePath('/dashboard')
     }

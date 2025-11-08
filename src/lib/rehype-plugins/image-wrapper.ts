@@ -1,12 +1,12 @@
 import { visit } from 'unist-util-visit'
-import type { Element } from 'hast'
+import type { Element, Root } from 'hast'
 
 /**
  * Rehype plugin that wraps regular images (not Excalidraw) in figure elements
  * with support for alignment, wrapping, and captions
  */
 export function rehypeImageWrapper() {
-  return function transformer(tree: unknown) {
+  return function transformer(tree: Root) {
     visit(tree, 'element', (node: Element, index, parent) => {
       if (node.tagName !== 'img' || !parent || index === null) return
 
@@ -80,7 +80,7 @@ export function rehypeImageWrapper() {
       }
 
       // Replace the original image node with the figure
-      if ('children' in parent && Array.isArray(parent.children)) {
+      if ('children' in parent && Array.isArray(parent.children) && index !== null && index !== undefined) {
         parent.children[index] = figure
       }
     })

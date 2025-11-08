@@ -95,13 +95,13 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
                   type="page"
                   itemId={page.id}
                   isPublished={page.isPublished}
-                  onToggle={onPageUpdated}
+                  onToggle={onPageUpdated || (() => {})}
                   showText={false}
                 />
                 <EditModal
                   type="page"
                   item={page}
-                  onItemUpdated={onPageUpdated}
+                  onItemUpdated={onPageUpdated || (() => {})}
                 />
                 <TooltipProvider>
                   <Tooltip>
@@ -179,13 +179,13 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
               type="page"
               itemId={page.id}
               isPublished={page.isPublished}
-              onToggle={onPageUpdated}
+              onToggle={onPageUpdated || (() => {})}
               showText={false}
             />
             <EditModal
               type="page"
               item={page}
-              onItemUpdated={onPageUpdated}
+              onItemUpdated={onPageUpdated || (() => {})}
             />
             <TooltipProvider>
               <Tooltip>

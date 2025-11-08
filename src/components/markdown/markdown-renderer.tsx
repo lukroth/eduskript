@@ -66,7 +66,6 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(rehypeShikiHighlight, { theme: (resolvedTheme as 'light' | 'dark') || 'light' })
           // Convert to React
           .use(rehypeReact, {
-            // @ts-expect-error - rehype-react types are complex
             jsx: prod.jsx,
             jsxs: prod.jsxs,
             Fragment: prod.Fragment,
@@ -183,7 +182,7 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
 
     // Use original source for pattern matching (the filename in markdown, not the resolved URL)
     const srcForMatching = originalSrc || src
-    if (!srcForMatching) return
+    if (!srcForMatching || typeof srcForMatching !== 'string') return
 
     // Find the image markdown in the content and replace it
     // Look for ![alt](src) or ![alt](src){width=X%}
@@ -214,8 +213,8 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
 
     return (
       <ExcalidrawImage
-        lightSrc={lightSrc || src || ''}
-        darkSrc={darkSrc || src || ''}
+        lightSrc={lightSrc || (typeof src === 'string' ? src : '') || ''}
+        darkSrc={darkSrc || (typeof src === 'string' ? src : '') || ''}
         alt={alt}
         filename={dataExcalidraw}
         style={style}
@@ -238,7 +237,7 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
   // Regular image with resize
   return (
     <ImageWithResize
-      src={src || ''}
+      src={typeof src === 'string' ? src : ''}
       alt={alt}
       title={title}
       style={style}

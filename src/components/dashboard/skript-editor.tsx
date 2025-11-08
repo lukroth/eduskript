@@ -137,11 +137,9 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
               Pages
             </CardTitle>
             {canEdit && (
-              <CreatePageModal 
-                skriptId={skript.id} 
+              <CreatePageModal
+                skriptId={skript.id}
                 onPageCreated={handleSkriptUpdated}
-                buttonVariant="default"
-                buttonText="Add Page"
               />
             )}
           </div>
@@ -150,9 +148,10 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
           {skript.pages.length > 0 ? (
             <SortablePages
               pages={skript.pages}
+              skriptId={skript.id}
               collectionSlug={collectionSlug}
               skriptSlug={skript.slug}
-              onPagesReordered={handleSkriptUpdated}
+              onReorder={handleSkriptUpdated}
               canEdit={canEdit}
             />
           ) : (
@@ -160,11 +159,9 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">No pages yet</p>
               {canEdit && (
-                <CreatePageModal 
-                  skriptId={skript.id} 
+                <CreatePageModal
+                  skriptId={skript.id}
                   onPageCreated={handleSkriptUpdated}
-                  buttonVariant="default"
-                  buttonText="Create First Page"
                 />
               )}
             </div>

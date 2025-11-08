@@ -475,6 +475,8 @@ export async function getFileById(fileId: string, userId: string): Promise<{
   contentType?: string
   size?: number
   physicalPath?: string
+  skriptId: string
+  parentId: string | null
 } | null> {
   const file = await prisma.file.findUnique({
     where: { id: fileId },
@@ -500,7 +502,9 @@ export async function getFileById(fileId: string, userId: string): Promise<{
   if (file.isDirectory) {
     return {
       id: file.id,
-      name: file.name
+      name: file.name,
+      skriptId: file.skriptId,
+      parentId: file.parentId
     }
   }
 
@@ -513,6 +517,8 @@ export async function getFileById(fileId: string, userId: string): Promise<{
     hash: file.hash!,
     contentType: file.contentType || undefined,
     size: file.size ? Number(file.size) : undefined,
-    physicalPath
+    physicalPath,
+    skriptId: file.skriptId,
+    parentId: file.parentId
   }
 }

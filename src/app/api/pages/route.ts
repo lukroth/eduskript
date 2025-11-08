@@ -31,11 +31,6 @@ export async function POST(request: NextRequest) {
             userId: session.user.id
           }
         }
-      },
-      include: {
-        collection: {
-          select: { slug: true }
-        }
       }
     })
 

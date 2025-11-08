@@ -37,8 +37,13 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
 
   // Update width when style prop changes (e.g., when markdown is edited)
   useEffect(() => {
+    if (!style) {
+      setCurrentWidth(100)
+      return
+    }
+
     // Handle style as object (React CSSProperties)
-    if (style && typeof style === 'object' && style.width) {
+    if (typeof style === 'object' && 'width' in style && style.width) {
       const widthStr = String(style.width)
       if (widthStr.includes('%')) {
         setCurrentWidth(parseFloat(widthStr))
@@ -47,20 +52,7 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
         setCurrentWidth(null)
       }
     }
-    // Handle style as string (from markdown processor)
-    else if (typeof style === 'string' && style.includes('width:')) {
-      const widthMatch = style.match(/width:\s*([^;]+)/)
-      if (widthMatch) {
-        const widthValue = widthMatch[1].trim()
-        if (widthValue.includes('%')) {
-          setCurrentWidth(parseFloat(widthValue))
-        } else {
-          // For non-percentage values, set to null so we use style prop directly
-          setCurrentWidth(null)
-        }
-      }
-    }
-    else if (!style || (typeof style === 'object' && !style.width)) {
+    else {
       setCurrentWidth(100)
     }
   }, [style])
@@ -73,6 +65,9 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
   useEffect(() => {
     setCurrentWrap(wrap)
   }, [wrap])
+
+  // Get the effective width for display (convert null to 100 for percentage display)
+  const effectiveWidth = currentWidth ?? 100
 
   // Use dark src if theme is dark, otherwise use light
   const src = resolvedTheme === 'dark' ? darkSrc : lightSrc
@@ -90,12 +85,12 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
     const parentRect = parent.getBoundingClientRect()
     dragStartRef.current = {
       startX: e.clientX,
-      startWidth: currentWidth,
+      startWidth: effectiveWidth,
       parentWidth: parentRect.width
     }
 
     setIsDragging(true)
-  }, [currentWidth])
+  }, [effectiveWidth])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !dragStartRef.current) return
@@ -114,9 +109,6 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
 
     setCurrentWidth(Math.round(newWidthPercent))
   }, [isDragging, currentAlign])
-
-  // Get the effective width for display (convert null to 100 for percentage display)
-  const effectiveWidth = currentWidth ?? 100
 
   const updateMarkdown = useCallback((width: number, alignment: 'left' | 'center' | 'right', wrapEnabled: boolean) => {
     if (!onWidthChange) return

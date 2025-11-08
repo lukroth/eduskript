@@ -78,7 +78,6 @@ async function highlightWithShiki(
     rb: 'ruby',
     sh: 'bash',
     yml: 'yaml',
-    text: 'plaintext',
   }
 
   const mappedLang = (langMap[language] || language) as BundledLanguage

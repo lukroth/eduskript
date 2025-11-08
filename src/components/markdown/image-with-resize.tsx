@@ -34,8 +34,13 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
 
   // Update width when style prop changes (e.g., when markdown is edited)
   useEffect(() => {
+    if (!style) {
+      setCurrentWidth(100)
+      return
+    }
+
     // Handle style as object (React CSSProperties)
-    if (style && typeof style === 'object' && style.width) {
+    if (typeof style === 'object' && 'width' in style && style.width) {
       const widthStr = String(style.width)
       if (widthStr.includes('%')) {
         setCurrentWidth(parseFloat(widthStr))
@@ -44,20 +49,7 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
         setCurrentWidth(null)
       }
     }
-    // Handle style as string (from markdown processor)
-    else if (typeof style === 'string' && style.includes('width:')) {
-      const widthMatch = style.match(/width:\s*([^;]+)/)
-      if (widthMatch) {
-        const widthValue = widthMatch[1].trim()
-        if (widthValue.includes('%')) {
-          setCurrentWidth(parseFloat(widthValue))
-        } else {
-          // For non-percentage values, set to null so we use style prop directly
-          setCurrentWidth(null)
-        }
-      }
-    }
-    else if (!style || (typeof style === 'object' && !style.width)) {
+    else {
       setCurrentWidth(100)
     }
   }, [style])
@@ -85,12 +77,12 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     const parentRect = parent.getBoundingClientRect()
     dragStartRef.current = {
       startX: e.clientX,
-      startWidth: currentWidth,
+      startWidth: effectiveWidth,
       parentWidth: parentRect.width
     }
 
     setIsDragging(true)
-  }, [currentWidth])
+  }, [effectiveWidth])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !dragStartRef.current) return
