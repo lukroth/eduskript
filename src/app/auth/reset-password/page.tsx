@@ -44,8 +44,10 @@ export default function ResetPasswordPage() {
       // Update session to clear requirePasswordReset flag
       await update()
 
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // Wait a moment for session to update, then redirect
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 100)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
