@@ -94,30 +94,47 @@ async function highlightWithShiki(
         {
           name: 'eduskript-line-transforms',
           line(node, line) {
-            // Extract text content from line
-            const lineText = node.children
-              .map((child: any) => ('value' in child ? child.value : ''))
-              .join('')
+            // Extract text content from all children recursively
+            const extractText = (n: any): string => {
+              if (n.type === 'text' || (n.type === 'element' && 'value' in n)) {
+                return n.value || ''
+              }
+              if (n.children) {
+                return n.children.map(extractText).join('')
+              }
+              return ''
+            }
 
-            // Line highlighting: // [!code highlight]
+            const lineText = extractText(node)
+
+            // Line highlighting: [!code highlight]
             if (lineText.includes('[!code highlight]')) {
+              console.log('Found highlight marker in line:', lineText)
               node.properties = node.properties || {}
               node.properties.class = `${node.properties.class || ''} line-highlight`.trim()
+              // Remove the marker from display
+              removeMarker(node, '[!code highlight]')
             }
-            // Line addition: // [!code ++]
+            // Line addition: [!code ++]
             else if (lineText.includes('[!code ++]')) {
+              console.log('Found ++ marker in line:', lineText)
               node.properties = node.properties || {}
               node.properties.class = `${node.properties.class || ''} line-diff line-add`.trim()
+              removeMarker(node, '[!code ++]')
             }
-            // Line deletion: // [!code --]
+            // Line deletion: [!code --]
             else if (lineText.includes('[!code --]')) {
+              console.log('Found -- marker in line:', lineText)
               node.properties = node.properties || {}
               node.properties.class = `${node.properties.class || ''} line-diff line-remove`.trim()
+              removeMarker(node, '[!code --]')
             }
-            // Line focus: // [!code focus]
+            // Line focus: [!code focus]
             else if (lineText.includes('[!code focus]')) {
+              console.log('Found focus marker in line:', lineText)
               node.properties = node.properties || {}
               node.properties.class = `${node.properties.class || ''} line-focus`.trim()
+              removeMarker(node, '[!code focus]')
             }
           },
         },
@@ -150,4 +167,32 @@ function escapeHtml(text: string): string {
     "'": '&#039;',
   }
   return text.replace(/[&<>"']/g, (m) => map[m])
+}
+
+/**
+ * Remove the marker comment from the line node
+ * Also removes common comment prefixes like //, #, etc.
+ */
+function removeMarker(node: any, marker: string) {
+  const removeFromNode = (n: any) => {
+    if (n.type === 'text' && n.value && n.value.includes(marker)) {
+      // Create a regex that matches the entire comment including the marker
+      // Matches: whitespace + (// or # or /* or *) + whitespace + marker
+      const commentRegex = /\s*(\/\/|#|\/\*|\*)\s*\[!code\s+(highlight|\+\+|--|focus)\]/g
+
+      let newValue = n.value.replace(commentRegex, '')
+
+      // Also remove just the marker if it wasn't caught above
+      newValue = newValue.replace(marker, '')
+
+      // Clean up any trailing whitespace
+      newValue = newValue.trimEnd()
+
+      n.value = newValue
+    }
+    if (n.children) {
+      n.children.forEach(removeFromNode)
+    }
+  }
+  removeFromNode(node)
 }

@@ -50,7 +50,7 @@ export function CodeBlock({ children, className, language: propLanguage, highlig
   }
 
   return (
-    <div className="relative group my-4 overflow-auto">
+    <div className="relative group my-4">
       {/* Control bar */}
       <div className="absolute top-0 right-0 flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/50 border border-border rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10">
         {/* Language selector */}
@@ -64,7 +64,7 @@ export function CodeBlock({ children, className, language: propLanguage, highlig
           </button>
 
           {isOpen && (
-            <div className="absolute top-full left-0 mt-1 w-36 max-h-48 overflow-y-auto bg-popover border border-border rounded-md shadow-lg z-20">
+            <div className="absolute top-full right-0 mt-1 w-36 max-h-48 overflow-y-auto bg-popover border border-border rounded-md shadow-lg z-20">
               {languages.map((lang) => (
                 <button
                   key={lang}

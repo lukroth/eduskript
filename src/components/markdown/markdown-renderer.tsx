@@ -83,8 +83,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
               h4: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={4} {...props} />,
               h5: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={5} {...props} />,
               h6: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={6} {...props} />,
-              // Math components
-              span: MathSpanComponent,
+              // Div component for Shiki code blocks (rehypeKatex handles math automatically)
               div: DivComponent,
             },
           })
@@ -252,21 +251,9 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
   )
 }
 
-function MathSpanComponent({ className, children, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  if (className === 'math math-inline') {
-    return <MathBlock inline>{String(children)}</MathBlock>
-  }
-  return <span className={className} {...props}>{children}</span>
-}
-
 function DivComponent({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const divProps = props as Record<string, unknown>
   const { content, onContentChange } = useContext(MarkdownEditContext)
-
-  // Handle math blocks
-  if (className === 'math math-display') {
-    return <MathBlock>{String(children)}</MathBlock>
-  }
 
   // Handle Shiki-highlighted code blocks
   if (divProps['data-highlighted'] === 'true' || divProps['data-highlighted'] === true) {

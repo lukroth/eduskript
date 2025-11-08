@@ -433,7 +433,13 @@ html.dark {
 
 /* Shiki line transform styles */
 .shiki .line-highlight {
-  @apply bg-yellow-100/20 border-l-4 border-yellow-400 pl-2 -ml-4;
+  @apply bg-yellow-100/20 border-l-4 border-yellow-400;
+  display: inline-block;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: calc(1rem - 4px);
+  padding-right: 1rem;
+  width: calc(100% + 2rem);
 }
 
 .dark .shiki .line-highlight {
@@ -441,7 +447,13 @@ html.dark {
 }
 
 .shiki .line-diff.line-add {
-  @apply bg-green-100/20 border-l-4 border-green-500 pl-2 -ml-4;
+  @apply bg-green-100/20 border-l-4 border-green-500;
+  display: inline-block;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: calc(1rem - 4px);
+  padding-right: 1rem;
+  width: calc(100% + 2rem);
 }
 
 .dark .shiki .line-diff.line-add {
@@ -449,17 +461,38 @@ html.dark {
 }
 
 .shiki .line-diff.line-remove {
-  @apply bg-red-100/20 border-l-4 border-red-500 pl-2 -ml-4;
+  @apply bg-red-100/20 border-l-4 border-red-500;
+  display: inline-block;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: calc(1rem - 4px);
+  padding-right: 1rem;
+  width: calc(100% + 2rem);
 }
 
 .dark .shiki .line-diff.line-remove {
   @apply bg-red-900/20 border-red-500;
 }
 
+/* When a code block has focused lines, dim all other lines */
+.shiki:has(.line-focus) .line {
+  filter: blur(2px);
+  opacity: 0.5;
+  transition: filter 200ms, opacity 200ms;
+}
+
+/* Keep focused lines sharp and full opacity */
 .shiki .line-focus {
-  @apply bg-blue-100/10 border-l-4 border-blue-400 pl-2 -ml-4;
+  filter: none !important;
+  opacity: 1 !important;
+  display: inline-block;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  width: calc(100% + 2rem);
 }
 
 .dark .shiki .line-focus {
-  @apply bg-blue-900/10 border-blue-500;
+  /* No additional dark mode styling needed */
 }
