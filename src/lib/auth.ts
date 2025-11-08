@@ -84,15 +84,19 @@ export const authOptions: NextAuthOptions = {
             image: true,
             subdomain: true,
             title: true,
+            isAdmin: true,
+            requirePasswordReset: true,
           }
         })
-        
+
         if (dbUser) {
           token.subdomain = dbUser.subdomain
           token.title = dbUser.title
           token.name = dbUser.name
           token.email = dbUser.email
           token.image = dbUser.image
+          token.isAdmin = dbUser.isAdmin
+          token.requirePasswordReset = dbUser.requirePasswordReset
         }
       }
       
@@ -107,18 +111,22 @@ export const authOptions: NextAuthOptions = {
             image: true,
             subdomain: true,
             title: true,
+            isAdmin: true,
+            requirePasswordReset: true,
           }
         })
-        
+
         if (dbUser) {
           token.subdomain = dbUser.subdomain
           token.title = dbUser.title
           token.name = dbUser.name
           token.email = dbUser.email
           token.image = dbUser.image
+          token.isAdmin = dbUser.isAdmin
+          token.requirePasswordReset = dbUser.requirePasswordReset
         }
       }
-      
+
       return token
     },
     async session({ session, token }) {
@@ -129,6 +137,8 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string
         session.user.email = token.email as string
         session.user.image = token.image as string
+        session.user.isAdmin = token.isAdmin as boolean
+        session.user.requirePasswordReset = token.requirePasswordReset as boolean
       }
       return session
     },
