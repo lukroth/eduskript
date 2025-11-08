@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { MarkdownRenderer } from '@/components/public/markdown-renderer'
+import { AnnotatableContent } from '@/components/public/annotatable-content'
 import { Breadcrumb } from '@/components/public/breadcrumb'
 import { ExportPDF } from '@/components/public/export-pdf'
 import { Comments } from '@/components/public/comments'
@@ -422,7 +422,8 @@ export default async function PublicPage({ params }: PageProps) {
             </a></Breadcrumb>
 
           <article className="prose-theme">
-            <MarkdownRenderer
+            <AnnotatableContent
+              pageId={page.id}
               content={page.content}
               domain={domain}
               skriptId={skript.id}

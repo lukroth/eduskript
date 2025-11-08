@@ -432,7 +432,6 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
       data: {
         requesterId: session!.user.id,
         receiverId: teacher1.id,
-        status: 'accepted',
       },
     })
 
