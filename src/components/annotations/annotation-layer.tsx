@@ -32,6 +32,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [hasAnnotations, setHasAnnotations] = useState(false)
   const [sections, setSections] = useState<ContentSection[]>([])
   const [sectionData, setSectionData] = useState<Map<string, string>>(new Map())
+  const [stylusModeActive, setStylusModeActive] = useState(false)
   const [activePen, setActivePen] = useState(0)
   const [penColors, setPenColors] = useState<[string, string, string]>(() => {
     // Load pen colors from localStorage
@@ -345,6 +346,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
   }, [])
 
+  // Handle stylus detection
+  const handleStylusDetected = useCallback(() => {
+    if (!stylusModeActive) {
+      console.log('Stylus detected - activating stylus mode')
+      setStylusModeActive(true)
+    }
+  }, [stylusModeActive])
+
   return (
     <>
       {/* Version mismatch warning */}
@@ -405,6 +414,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                 initialData={initialData}
                 strokeColor={penColors[activePen]}
                 strokeWidth={penSizes[activePen]}
+                stylusModeActive={stylusModeActive}
+                onStylusDetected={handleStylusDetected}
               />
             </div>,
             section.element

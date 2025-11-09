@@ -13,6 +13,8 @@ interface SimpleCanvasProps {
   strokeWidth?: number
   strokeColor?: string
   eraserWidth?: number
+  stylusModeActive?: boolean
+  onStylusDetected?: () => void
 }
 
 export interface SimpleCanvasHandle {
@@ -21,7 +23,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10 }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number; pressure: number }>; mode: DrawMode; color: string; width: number }>>([])
@@ -84,6 +86,16 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         return
       }
 
+      // Detect stylus input
+      if (e.pointerType === 'pen' && onStylusDetected) {
+        onStylusDetected()
+      }
+
+      // In stylus mode, only allow pen input for drawing
+      if (stylusModeActive && e.pointerType !== 'pen') {
+        return
+      }
+
       const canvas = canvasRef.current
       if (!canvas) {
         return
@@ -96,7 +108,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode])
+    }, [mode, stylusModeActive, onStylusDetected])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawingRef.current || mode === 'view') return
@@ -187,7 +199,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           position: 'absolute',
           top: 0,
           left: 0,
-          touchAction: 'none',
+          touchAction: stylusModeActive ? 'pan-x pan-y pinch-zoom' : 'none',
           cursor: mode === 'draw' ? 'crosshair' : mode === 'erase' ? 'pointer' : 'default',
           pointerEvents: mode === 'view' ? 'none' : 'auto'
         }}
