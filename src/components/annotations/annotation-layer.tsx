@@ -521,21 +521,40 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [])
 
-  // Set up touch event listeners on document to capture ALL touch events (sidebar, main, etc.)
+  // Handle trackpad/mousepad pinch zoom (Ctrl+wheel)
+  const handleWheel = useCallback((e: WheelEvent) => {
+    // Trackpad pinch zoom comes through as wheel events with ctrlKey
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+
+      // Calculate zoom delta (negative deltaY means zoom in)
+      const delta = -e.deltaY * 0.01
+      const newZoom = Math.max(0.5, Math.min(3.0, zoom * (1 + delta)))
+
+      console.log('Trackpad zoom:', newZoom)
+      setZoom(newZoom)
+    }
+  }, [zoom])
+
+  // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
   useEffect(() => {
-    // Attach to document to prevent browser zoom everywhere
+    // Touch events for touchscreen pinch zoom
     document.addEventListener('touchstart', handleTouchStart, { passive: false })
     document.addEventListener('touchmove', handleTouchMove, { passive: false })
     document.addEventListener('touchend', handleTouchEnd, { passive: false })
     document.addEventListener('touchcancel', handleTouchEnd, { passive: false })
+
+    // Wheel events for trackpad/mousepad pinch zoom
+    document.addEventListener('wheel', handleWheel, { passive: false })
 
     return () => {
       document.removeEventListener('touchstart', handleTouchStart)
       document.removeEventListener('touchmove', handleTouchMove)
       document.removeEventListener('touchend', handleTouchEnd)
       document.removeEventListener('touchcancel', handleTouchEnd)
+      document.removeEventListener('wheel', handleWheel)
     }
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd])
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel])
 
   return (
     <>
