@@ -16,6 +16,7 @@ import { remarkImageAttributes } from './remark-plugins/image-attributes'
 import { rehypeInteractiveElements } from './rehype-plugins/interactive-elements'
 import { rehypeExcalidrawDualImage } from './rehype-plugins/excalidraw-dual-image'
 import { rehypeImageWrapper } from './rehype-plugins/image-wrapper'
+import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
 
 export interface ProcessedMarkdown {
   content: string
@@ -67,6 +68,7 @@ export async function processMarkdown(
   const rehypePlugins: PluggableList = [
     [remarkRehype, { allowDangerousHtml: true }],
     rehypeSlug, // Add IDs to headings
+    rehypeHeadingSectionIds, // Add data-section-id for annotations (must come after rehypeSlug)
     [rehypeAutolinkHeadings, {
       behavior: 'wrap',
       properties: { className: ['heading-link'] }

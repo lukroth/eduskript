@@ -15,17 +15,25 @@ export function Heading({ level, id, children }: HeadingProps) {
   // Generate ID from children text if not provided
   const headingId = id || generateSlug(childrenToString(children))
 
+  // Generate section ID for annotation system (h1-h4 only)
+  const sectionId = level <= 4 ? `${Tag}-${headingId}` : undefined
+
   const className = {
-    1: 'text-4xl font-bold mt-8 mb-4',
-    2: 'text-3xl font-bold mt-6 mb-3',
-    3: 'text-2xl font-semibold mt-5 mb-2.5',
-    4: 'text-xl font-semibold mt-4 mb-2',
+    1: 'text-4xl font-bold mb-4',
+    2: 'text-3xl font-bold mb-3',
+    3: 'text-2xl font-semibold mb-2.5',
+    4: 'text-xl font-semibold mb-2',
     5: 'text-lg font-semibold mt-3 mb-1.5',
     6: 'text-base font-semibold mt-2 mb-1',
   }[level]
 
   return (
-    <Tag id={headingId} className={`${className} group heading-link scroll-mt-20`}>
+    <Tag
+      id={headingId}
+      className={`${className} group heading-link scroll-mt-20`}
+      data-section-id={sectionId}
+      data-heading-text={childrenToString(children)}
+    >
       <a
         href={`#${headingId}`}
         className="no-underline hover:underline text-foreground"

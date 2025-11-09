@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
 import {
@@ -11,6 +12,12 @@ import {
   checkVersionMismatch,
   type SectionAnnotation
 } from '@/lib/indexeddb/annotations'
+
+interface ContentSection {
+  id: string
+  headingText: string
+  element: HTMLElement
+}
 
 interface AnnotationLayerProps {
   pageId: string
@@ -23,11 +30,43 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [pageVersion, setPageVersion] = useState<string>('')
   const [versionMismatch, setVersionMismatch] = useState(false)
   const [hasAnnotations, setHasAnnotations] = useState(false)
-  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
+  const [sections, setSections] = useState<ContentSection[]>([])
+  const [sectionData, setSectionData] = useState<Map<string, string>>(new Map())
+  const [activePen, setActivePen] = useState(0)
+  const [penColors, setPenColors] = useState<[string, string, string]>(() => {
+    // Load pen colors from localStorage
+    if (typeof window !== 'undefined') {
+      const savedColors = localStorage.getItem('annotation-pen-colors')
+      if (savedColors) {
+        try {
+          const parsed = JSON.parse(savedColors)
+          if (Array.isArray(parsed) && parsed.length === 3) {
+            return parsed as [string, string, string]
+          }
+        } catch (e) {
+          console.error('Error loading pen colors:', e)
+        }
+      }
+    }
+    return ['#000000', '#FF0000', '#0000FF']
+  })
   const contentRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<SimpleCanvasHandle>(null)
+  const canvasRefs = useRef<Map<string, React.MutableRefObject<SimpleCanvasHandle | null>>>(new Map())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const initialDataRef = useRef<string | undefined>(undefined)
+
+  // Canvas width is 1.5x content width
+  // Content is max-w-3xl (48rem = 768px)
+  const CONTENT_WIDTH_REM = 48
+  const CANVAS_WIDTH_REM = CONTENT_WIDTH_REM * 1.5 // 72rem = 1152px
+  const CANVAS_WIDTH_PX = CANVAS_WIDTH_REM * 16 // 1152px
+  const MARGIN_EXTENSION_REM = (CANVAS_WIDTH_REM - CONTENT_WIDTH_REM) / 2 // 12rem on each side
+
+  // Save pen colors to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotation-pen-colors', JSON.stringify(penColors))
+    }
+  }, [penColors])
 
   // Generate page version hash
   useEffect(() => {
@@ -45,88 +84,214 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [pageId, pageVersion])
 
-  // Load annotations from IndexedDB (once)
+  // Load annotations from IndexedDB
   useEffect(() => {
     if (!pageId) return
 
+    console.log('Loading annotations for page:', pageId)
     getPageAnnotations(pageId).then(pageAnnotation => {
+      console.log('Loaded page annotation:', pageAnnotation)
       if (pageAnnotation && pageAnnotation.sections.length > 0) {
         setHasAnnotations(true)
-        const firstSection = pageAnnotation.sections[0]
-        if (firstSection && firstSection.canvasData) {
-          initialDataRef.current = firstSection.canvasData
-        }
+        const dataMap = new Map<string, string>()
+        pageAnnotation.sections.forEach(section => {
+          console.log('Loading section:', section.sectionId, 'with data length:', section.canvasData.length)
+          dataMap.set(section.sectionId, section.canvasData)
+        })
+        setSectionData(dataMap)
+        console.log('Set section data map with', dataMap.size, 'entries')
+      } else {
+        console.log('No annotations found')
       }
     })
   }, [pageId])
 
-  // Measure content size once after mount
+  // Find section elements in the DOM (after markdown renders)
   useEffect(() => {
     if (!contentRef.current) return
 
-    // Wait for content to render
     const timer = setTimeout(() => {
-      if (contentRef.current) {
-        const rect = contentRef.current.getBoundingClientRect()
-        setCanvasSize({
-          width: Math.ceil(rect.width),
-          height: Math.ceil(contentRef.current.scrollHeight)
-        })
-      }
-    }, 100)
+      if (!contentRef.current) return
+
+      // Query for all section elements with data-section-id
+      const sectionElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
+      const newSections: ContentSection[] = []
+
+      sectionElements.forEach((element) => {
+        const sectionId = element.getAttribute('data-section-id')
+        const headingText = element.getAttribute('data-heading-text')
+
+        if (sectionId) {
+          newSections.push({
+            id: sectionId,
+            headingText: headingText || '',
+            element
+          })
+
+          // Create canvas ref if it doesn't exist
+          if (!canvasRefs.current.has(sectionId)) {
+            canvasRefs.current.set(sectionId, { current: null })
+          }
+        }
+      })
+
+      setSections(newSections)
+    }, 500) // Wait for markdown to render
 
     return () => clearTimeout(timer)
-  }, []) // Only run once on mount
+  }, [children]) // Re-run when children change (markdown re-renders)
 
-  // Handle canvas updates with debounced save
-  const handleCanvasUpdate = useCallback((data: string) => {
+  // Function to perform the actual save
+  const performSave = useCallback(async () => {
+    try {
+      // Collect all section data
+      const allSections: SectionAnnotation[] = []
+
+      console.log('Starting save, checking', sections.length, 'sections')
+      sections.forEach(section => {
+        const data = sectionData.get(section.id)
+        console.log('Section', section.id, 'has data:', data ? 'yes (' + data.length + ' chars)' : 'no')
+        if (data) {
+          try {
+            const paths = JSON.parse(data)
+            if (paths && paths.length > 0) {
+              console.log('Adding section', section.id, 'with', paths.length, 'paths to save')
+              allSections.push({
+                sectionId: section.id,
+                headingText: section.headingText,
+                canvasData: data,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              })
+            }
+          } catch (error) {
+            console.error('Error parsing section data:', error)
+          }
+        }
+      })
+
+      console.log('Saving', allSections.length, 'sections to IndexedDB for page', pageId, 'version', pageVersion)
+      if (allSections.length > 0) {
+        await savePageAnnotations(pageId, pageVersion, allSections)
+        console.log('Save completed successfully')
+      } else {
+        console.log('No sections to save')
+      }
+    } catch (error) {
+      console.error('Error saving annotations:', error)
+    }
+  }, [pageId, pageVersion, sections, sectionData])
+
+  // Save on unmount (navigation away)
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Perform immediate save on unmount
+      performSave()
+    }
+  }, [performSave])
+
+  // Save on page unload (refresh/close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Perform immediate save
+      performSave()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [performSave])
+
+  // Handle section annotation update with debounced save
+  const handleSectionUpdate = useCallback((sectionId: string, data: string) => {
+    // Update local state immediately
+    setSectionData(prev => {
+      const newMap = new Map(prev)
+      newMap.set(sectionId, data)
+      return newMap
+    })
+
+    // Check if there's actual data
+    try {
+      const paths = JSON.parse(data)
+      const hasData = paths && paths.length > 0
+
+      // Update hasAnnotations based on whether any section has data
+      setSectionData(prev => {
+        const hasAnyData = Array.from(prev.values()).some(d => {
+          try {
+            const p = JSON.parse(d)
+            return p && p.length > 0
+          } catch {
+            return false
+          }
+        })
+        setHasAnnotations(hasAnyData || hasData)
+        return prev
+      })
+
+      if (!hasData) return
+    } catch (error) {
+      console.error('Error parsing canvas data:', error)
+      return
+    }
+
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
 
-    // Check if there's actual data
-    try {
-      const paths = JSON.parse(data)
-      if (!paths || paths.length === 0) {
-        setHasAnnotations(false)
-        return
-      }
-
-      setHasAnnotations(true)
-
-      // Debounce save by 2 seconds
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          const section: SectionAnnotation = {
-            sectionId: 'full-page',
-            headingText: 'Full Page',
-            canvasData: data,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          }
-
-          await savePageAnnotations(pageId, pageVersion, [section])
-        } catch (error) {
-          console.error('Error saving annotations:', error)
-        }
-      }, 2000)
-    } catch (error) {
-      console.error('Error parsing canvas data:', error)
-    }
-  }, [pageId, pageVersion])
+    // Debounce save by 2 seconds
+    saveTimeoutRef.current = setTimeout(() => {
+      performSave()
+    }, 2000)
+  }, [pageId, pageVersion, sections, sectionData, performSave])
 
   // Handle clear all annotations
   const handleClearAll = useCallback(async () => {
     try {
-      await clearPageAnnotations(pageId)
-      canvasRef.current?.clear()
+      console.log('Clearing annotations, found', canvasRefs.current.size, 'canvas refs')
+
+      // Clear state first to prevent re-initialization
+      setSectionData(new Map())
       setHasAnnotations(false)
       setVersionMismatch(false)
+
+      // Clear database
+      await clearPageAnnotations(pageId)
+
+      // Clear all canvases
+      for (const [sectionId, canvasRef] of canvasRefs.current.entries()) {
+        console.log('Canvas ref for section', sectionId, ':', canvasRef.current)
+        if (canvasRef.current) {
+          canvasRef.current.clear()
+        }
+      }
     } catch (error) {
       console.error('Error clearing annotations:', error)
     }
   }, [pageId])
+
+  // Handle pen change
+  const handlePenChange = useCallback((penIndex: number) => {
+    setActivePen(penIndex)
+  }, [])
+
+  // Handle pen color change
+  const handlePenColorChange = useCallback((penIndex: number, color: string) => {
+    setPenColors(prev => {
+      const newColors: [string, string, string] = [...prev] as [string, string, string]
+      newColors[penIndex] = color
+      return newColors
+    })
+  }, [])
 
   return (
     <>
@@ -154,21 +319,44 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
-      {/* Content with canvas overlay */}
-      <div ref={contentRef} className="relative">
+      {/* Content with section canvas portals */}
+      <div ref={contentRef}>
         {children}
 
-        {/* Canvas overlay */}
-        {canvasSize && (
-          <SimpleCanvas
-            ref={canvasRef}
-            width={canvasSize.width}
-            height={canvasSize.height}
-            mode={mode === 'view' ? 'view' : (mode as DrawMode)}
-            onUpdate={handleCanvasUpdate}
-            initialData={initialDataRef.current}
-          />
-        )}
+        {/* Render canvases into section elements using portals */}
+        {sections.map(section => {
+          const canvasRef = canvasRefs.current.get(section.id)
+          if (!canvasRef || !section.element) return null
+
+          const initialData = sectionData.get(section.id)
+          console.log('Rendering canvas for section', section.id, 'with initialData:', initialData ? initialData.substring(0, 50) + '...' : 'none')
+          return createPortal(
+            <div
+              key={section.id}
+              className="canvas-section-wrapper"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: `-${MARGIN_EXTENSION_REM}rem`,
+                width: `${CANVAS_WIDTH_REM}rem`,
+                height: '100%',
+                pointerEvents: mode === 'view' ? 'none' : 'auto',
+                zIndex: 10
+              }}
+            >
+              <SimpleCanvas
+                ref={canvasRef}
+                width={CANVAS_WIDTH_PX}
+                height={section.element.offsetHeight}
+                mode={mode === 'view' ? 'view' : (mode as DrawMode)}
+                onUpdate={(data) => handleSectionUpdate(section.id, data)}
+                initialData={initialData}
+                strokeColor={penColors[activePen]}
+              />
+            </div>,
+            section.element
+          )
+        })}
       </div>
 
       {/* Toolbar */}
@@ -177,6 +365,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onModeChange={setMode}
         onClear={handleClearAll}
         hasAnnotations={hasAnnotations}
+        activePen={activePen}
+        onPenChange={handlePenChange}
+        penColors={penColors}
+        onPenColorChange={handlePenColorChange}
       />
     </>
   )

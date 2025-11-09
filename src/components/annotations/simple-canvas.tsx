@@ -27,18 +27,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number }>; mode: DrawMode; color: string; width: number }>>([])
     const currentPathRef = useRef<Array<{ x: number; y: number }>>([])
 
-    // Load initial data
-    useEffect(() => {
-      if (initialData && canvasRef.current) {
-        try {
-          pathsRef.current = JSON.parse(initialData)
-          redrawCanvas()
-        } catch (error) {
-          console.error('Error loading canvas data:', error)
-        }
-      }
-    }, [initialData])
-
     const redrawCanvas = useCallback(() => {
       const canvas = canvasRef.current
       if (!canvas) return
@@ -68,11 +56,30 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       })
     }, [eraserWidth])
 
+    // Load initial data
+    useEffect(() => {
+      if (initialData && canvasRef.current) {
+        try {
+          const paths = JSON.parse(initialData)
+          console.log('Loading initial data:', paths.length, 'paths')
+          pathsRef.current = paths
+          redrawCanvas()
+        } catch (error) {
+          console.error('Error loading canvas data:', error)
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialData])
+
     const startDrawing = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (mode === 'view') return
+      if (mode === 'view') {
+        return
+      }
 
       const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvas) {
+        return
+      }
 
       isDrawingRef.current = true
       const rect = canvas.getBoundingClientRect()
@@ -138,16 +145,20 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     }, [mode, strokeColor, strokeWidth, onUpdate])
 
     // Expose methods
-    useImperativeHandle(ref, () => ({
-      clear: () => {
-        pathsRef.current = []
-        redrawCanvas()
-        onUpdate(JSON.stringify([]))
-      },
-      exportData: () => {
-        return JSON.stringify(pathsRef.current)
+    useImperativeHandle(ref, () => {
+      console.log('SimpleCanvas ref attached')
+      return {
+        clear: () => {
+          console.log('Clear called on SimpleCanvas')
+          pathsRef.current = []
+          redrawCanvas()
+          onUpdate(JSON.stringify([]))
+        },
+        exportData: () => {
+          return JSON.stringify(pathsRef.current)
+        }
       }
-    }))
+    })
 
     return (
       <canvas
@@ -158,6 +169,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         onPointerMove={draw}
         onPointerUp={stopDrawing}
         onPointerLeave={stopDrawing}
+        className="annotation-canvas"
         style={{
           position: 'absolute',
           top: 0,

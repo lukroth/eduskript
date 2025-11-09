@@ -18,6 +18,8 @@ import { MathBlock } from './math-block'
 import { remarkFileResolver } from '@/lib/remark-plugins/file-resolver'
 import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
 import { rehypeShikiHighlight } from '@/lib/rehype-plugins/shiki-highlight'
+import { rehypeWrapSections } from '@/lib/rehype-plugins/wrap-sections'
+import rehypeSlug from 'rehype-slug'
 import { useTheme } from 'next-themes'
 
 // Context for passing content, callback, and markdown context down to components
@@ -63,6 +65,10 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
           .use(remarkRehype, { allowDangerousHtml: false })
+          // Add IDs to headings (needed for sections)
+          .use(rehypeSlug)
+          // Wrap headings + content into sections for annotations
+          .use(rehypeWrapSections)
           // Add KaTeX math rendering
           .use(rehypeKatex)
           // Add Shiki syntax highlighting
@@ -83,6 +89,20 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
               h4: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={4} {...props} />,
               h5: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={5} {...props} />,
               h6: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={6} {...props} />,
+              // Section wrapper for annotations (with position: relative for canvas overlays)
+              section: (props: React.HTMLAttributes<HTMLElement>) => (
+                <section
+                  {...props}
+                  style={{
+                    position: 'relative',
+                    paddingBottom: '2rem', // Spacing between sections (replaces heading margin-top)
+                    ...props.style
+                  }}
+                >
+                  {props.children}
+                  <hr className="border-t border-border/30 my-0" />
+                </section>
+              ),
               // Div component for Shiki code blocks (rehypeKatex handles math automatically)
               div: DivComponent,
             },

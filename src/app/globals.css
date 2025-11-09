@@ -295,11 +295,15 @@ html.dark {
 }
 
 .prose-theme h2 {
-  @apply text-2xl mt-8 mb-4;
+  @apply text-2xl mb-4;
 }
 
 .prose-theme h3 {
-  @apply text-xl mt-6 mb-2;
+  @apply text-xl mb-2;
+}
+
+.prose-theme h4 {
+  @apply mb-2;
 }
 
 /* Heading links should look like headings, not links */
@@ -495,4 +499,45 @@ html.dark {
 
 .dark .shiki .line-focus {
   /* No additional dark mode styling needed */
+}
+
+/* Canvas section wrapper */
+.canvas-section-wrapper {
+  position: relative;
+}
+
+/* Invert annotation canvas and color picker in dark mode */
+.dark .annotation-canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.dark .annotation-color-picker {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #ffffff !important;
+}
+
+/* Selected color indicator in circle picker */
+.dark .annotation-color-picker svg circle[r="5"] {
+  fill: #000000 !important;
+}
+
+.dark .annotation-color-indicator {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Vertical shadow overlay for entire annotation area */
+.annotation-vertical-shadows {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 15;
+  /* Two gradients positioned at canvas edges (72rem centered) */
+  background:
+    linear-gradient(to left, #0000000f 0%, #0000 100%), linear-gradient(to right, #0000000f 0%, #0000 100%);
+  background-position: calc(49.8% - 36rem) 0, calc(49.2% + 36rem) 0;
+  background-size: 16px 100%, 16px 100%;
+  background-repeat: no-repeat;
 }

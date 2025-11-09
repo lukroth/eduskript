@@ -382,7 +382,7 @@ export default async function PublicPage({ params }: PageProps) {
         fullSiteStructure={fullSiteStructure}
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           {/* Preview mode indicator for unpublished content */}
           {(!collection.isPublished || !skript.isPublished || !page.isPublished) && isAuthor && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
