@@ -605,20 +605,20 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
-      {/* Content with section canvas portals */}
+      {/* Content with section canvas portals - fixed width box with zoom/pan */}
       <div
         ref={contentRef}
         style={{
           touchAction: 'none',
           transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
-          transformOrigin: '0 0',
+          transformOrigin: 'top center',
           transition: 'none', // Instant updates for smooth pinch
-          position: 'relative', // For absolute positioned shadows
+          position: 'relative',
+          width: '72rem', // Canvas width (1152px)
+          margin: '0 auto', // Center on page
+          boxShadow: zoom !== 1.0 ? '0 0 60px rgba(0, 0, 0, 0.15)' : 'none', // Shadow when zoomed
         }}
       >
-        {/* Annotation shadow overlay - moves with zoom */}
-        <div className="annotation-vertical-shadows" />
-
         {children}
 
         {/* Render canvases into section elements using portals */}
@@ -635,8 +635,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
               style={{
                 position: 'absolute',
                 top: 0,
-                left: `-${MARGIN_EXTENSION_REM}rem`,
-                width: `${CANVAS_WIDTH_REM}rem`,
+                left: 0,
+                width: '100%',
                 height: '100%',
                 pointerEvents: 'none', // Always allow events to pass through to canvas
                 zIndex: 10

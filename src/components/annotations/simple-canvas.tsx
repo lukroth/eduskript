@@ -303,8 +303,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           position: 'absolute',
           top: 0,
           left: 0,
-          // Set CSS dimensions (internal resolution is scaled by DPI in useEffect)
-          width: `${width}px`,
+          // Use 100% width to fill container, height from element
+          width: '100%',
           height: `${height}px`,
           // Always allow pinch-zoom for crisp annotation rendering at any zoom level
           // Multi-touch detection prevents drawing during pinch gestures
