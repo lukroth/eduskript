@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from 'react'
+import simplify from 'simplify-js'
 
 export type DrawMode = 'draw' | 'erase'
 
@@ -44,7 +45,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Redraw all paths with pressure-sensitive line width
+      // Redraw all paths with pressure-sensitive line width and Bezier smoothing
       pathsRef.current.forEach(path => {
         if (path.points.length < 2) return
 
@@ -53,21 +54,71 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         ctx.lineJoin = 'round'
         ctx.globalCompositeOperation = path.mode === 'erase' ? 'destination-out' : 'source-over'
 
-        // Draw path with variable width based on pressure
-        for (let i = 1; i < path.points.length; i++) {
-          const prevPoint = path.points[i - 1]
-          const currPoint = path.points[i]
+        const points = path.points
 
-          // Calculate line width based on pressure
+        // For very short strokes (2 points), just draw a straight line
+        if (points.length === 2) {
           const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
-          const lineWidth = baseWidth * (currPoint.pressure || 0.5)
+          const lineWidth = baseWidth * (points[1].pressure || 0.5)
 
           ctx.beginPath()
           ctx.lineWidth = lineWidth
-          ctx.moveTo(prevPoint.x, prevPoint.y)
-          ctx.lineTo(currPoint.x, currPoint.y)
+          ctx.moveTo(points[0].x, points[0].y)
+          ctx.lineTo(points[1].x, points[1].y)
+          ctx.stroke()
+          return
+        }
+
+        // For longer strokes, use quadratic Bezier curves with pressure-sensitive width
+        // Draw segments with varying width based on pressure
+        for (let i = 0; i < points.length - 1; i++) {
+          const p0 = points[i]
+          const p1 = points[i + 1]
+
+          // Calculate control point as midpoint between current and next point
+          const cpX = (p0.x + p1.x) / 2
+          const cpY = (p0.y + p1.y) / 2
+
+          // Calculate line width based on pressure at current point
+          const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
+          const lineWidth = baseWidth * (p0.pressure || 0.5)
+
+          ctx.beginPath()
+          ctx.lineWidth = lineWidth
+
+          if (i === 0) {
+            // First segment: start at first point
+            ctx.moveTo(p0.x, p0.y)
+            ctx.quadraticCurveTo(p0.x, p0.y, cpX, cpY)
+          } else {
+            // Middle segments: start at previous midpoint
+            const prevP = points[i - 1]
+            const prevCpX = (prevP.x + p0.x) / 2
+            const prevCpY = (prevP.y + p0.y) / 2
+            ctx.moveTo(prevCpX, prevCpY)
+            ctx.quadraticCurveTo(p0.x, p0.y, cpX, cpY)
+          }
+
           ctx.stroke()
         }
+
+        // Draw final segment to last point
+        const lastIdx = points.length - 1
+        const secondLastIdx = lastIdx - 1
+        const lastPoint = points[lastIdx]
+        const secondLastPoint = points[secondLastIdx]
+
+        const finalCpX = (secondLastPoint.x + lastPoint.x) / 2
+        const finalCpY = (secondLastPoint.y + lastPoint.y) / 2
+
+        const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
+        const lineWidth = baseWidth * (lastPoint.pressure || 0.5)
+
+        ctx.beginPath()
+        ctx.lineWidth = lineWidth
+        ctx.moveTo(finalCpX, finalCpY)
+        ctx.quadraticCurveTo(lastPoint.x, lastPoint.y, lastPoint.x, lastPoint.y)
+        ctx.stroke()
       })
     }, [eraserWidth, zoom])
 
@@ -233,9 +284,30 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       isDrawingRef.current = false
 
       if (currentPathRef.current.length > 0 && mode !== 'view') {
-        // Save path
+        // Simplify points using Ramer-Douglas-Peucker algorithm
+        // Convert to simplify-js format (expects x, y properties)
+        const simplifyPoints = currentPathRef.current.map(p => ({ x: p.x, y: p.y }))
+        const simplified = simplify(simplifyPoints, 1.5, true) // epsilon=1.5, high quality mode
+
+        // Convert back to our format, preserving pressure from original points
+        // For each simplified point, find the closest original point's pressure
+        const simplifiedWithPressure = simplified.map(sp => {
+          // Find closest original point
+          let minDist = Infinity
+          let closestPressure = 0.5
+          for (const op of currentPathRef.current) {
+            const dist = Math.sqrt((sp.x - op.x) ** 2 + (sp.y - op.y) ** 2)
+            if (dist < minDist) {
+              minDist = dist
+              closestPressure = op.pressure
+            }
+          }
+          return { x: sp.x, y: sp.y, pressure: closestPressure }
+        })
+
+        // Save simplified path
         pathsRef.current.push({
-          points: [...currentPathRef.current],
+          points: simplifiedWithPressure,
           mode: mode as DrawMode,
           color: strokeColor,
           width: strokeWidth
