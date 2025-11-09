@@ -532,6 +532,20 @@ html.dark {
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* Fade-in animation for loaded annotations */
+@keyframes annotationFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.annotation-fade-in {
+  animation: annotationFadeIn 0.5s ease-in;
+}
+
 .dark .annotation-color-picker {
   filter: invert(1) hue-rotate(180deg);
   background-color: #ffffff !important;
