@@ -15,6 +15,7 @@ interface SimpleCanvasProps {
   eraserWidth?: number
   stylusModeActive?: boolean
   onStylusDetected?: () => void
+  onNonStylusInput?: () => void
 }
 
 export interface SimpleCanvasHandle {
@@ -23,7 +24,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected, onNonStylusInput }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number; pressure: number }>; mode: DrawMode; color: string; width: number }>>([])
@@ -93,6 +94,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       // In stylus mode, only allow pen input for drawing
       if (stylusModeActive && e.pointerType !== 'pen') {
+        // Switch to view mode when non-stylus input is detected
+        if (onNonStylusInput) {
+          onNonStylusInput()
+        }
         return
       }
 
@@ -108,7 +113,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode, stylusModeActive, onStylusDetected])
+    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawingRef.current || mode === 'view') return

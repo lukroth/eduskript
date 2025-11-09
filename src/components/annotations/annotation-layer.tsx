@@ -354,6 +354,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [stylusModeActive])
 
+  // Handle non-stylus input in stylus mode (switch to view mode)
+  const handleNonStylusInput = useCallback(() => {
+    if (stylusModeActive && mode !== 'view') {
+      console.log('Non-stylus input detected in stylus mode - switching to view mode')
+      setMode('view')
+    }
+  }, [stylusModeActive, mode])
+
   return (
     <>
       {/* Version mismatch warning */}
@@ -416,6 +424,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                 strokeWidth={penSizes[activePen]}
                 stylusModeActive={stylusModeActive}
                 onStylusDetected={handleStylusDetected}
+                onNonStylusInput={handleNonStylusInput}
               />
             </div>,
             section.element
