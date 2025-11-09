@@ -34,6 +34,15 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [sectionData, setSectionData] = useState<Map<string, string>>(new Map())
   const [stylusModeActive, setStylusModeActive] = useState(false)
   const [activePen, setActivePen] = useState(0)
+  const [zoom, setZoom] = useState(1.0)
+  const [panX, setPanX] = useState(0)
+  const [panY, setPanY] = useState(0)
+  const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const initialPinchDistanceRef = useRef<number | null>(null)
+  const initialZoomRef = useRef(1.0)
+  const initialPinchCenterRef = useRef<{ x: number; y: number } | null>(null)
+  const initialPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const singleTouchStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const [penColors, setPenColors] = useState<[string, string, string]>(() => {
     // Load pen colors from localStorage
     if (typeof window !== 'undefined') {
@@ -407,8 +416,138 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [stylusModeActive, mode])
 
+  // Custom pinch-zoom and pan handling
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    // Track all touches
+    for (let i = 0; i < e.touches.length; i++) {
+      const touch = e.touches[i]
+      touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
+    }
+
+    // Single touch - start pan when zoomed and in view mode
+    if (e.touches.length === 1 && zoom > 1.0 && mode === 'view') {
+      const touch = e.touches[0]
+      singleTouchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        panX,
+        panY
+      }
+      console.log('Single touch start for pan')
+    }
+
+    // Two touches - start pinch zoom
+    if (e.touches.length === 2) {
+      // Clear single touch pan
+      singleTouchStartRef.current = null
+
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
+      const centerX = (touch1.clientX + touch2.clientX) / 2
+      const centerY = (touch1.clientY + touch2.clientY) / 2
+
+      initialPinchDistanceRef.current = distance
+      initialPinchCenterRef.current = { x: centerX, y: centerY }
+      initialZoomRef.current = zoom
+      initialPanRef.current = { x: panX, y: panY }
+
+      console.log('Pinch start - distance:', distance, 'center:', centerX, centerY, 'zoom:', zoom)
+    }
+  }, [zoom, panX, panY, mode])
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    // Update touch positions
+    for (let i = 0; i < e.touches.length; i++) {
+      const touch = e.touches[i]
+      touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
+    }
+
+    // Handle single-finger pan when zoomed
+    if (e.touches.length === 1 && singleTouchStartRef.current !== null) {
+      const touch = e.touches[0]
+      const deltaX = touch.clientX - singleTouchStartRef.current.x
+      const deltaY = touch.clientY - singleTouchStartRef.current.y
+      const newPanX = singleTouchStartRef.current.panX + deltaX / zoom
+      const newPanY = singleTouchStartRef.current.panY + deltaY / zoom
+
+      setPanX(newPanX)
+      setPanY(newPanY)
+    }
+
+    // Handle pinch zoom and pan (2 fingers)
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null && initialPinchCenterRef.current !== null) {
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
+      const currentCenterX = (touch1.clientX + touch2.clientX) / 2
+      const currentCenterY = (touch1.clientY + touch2.clientY) / 2
+
+      // Calculate zoom factor
+      const zoomFactor = currentDistance / initialPinchDistanceRef.current
+      const newZoom = Math.max(0.5, Math.min(3.0, initialZoomRef.current * zoomFactor))
+
+      // Calculate pan offset (movement of pinch center)
+      const deltaCenterX = currentCenterX - initialPinchCenterRef.current.x
+      const deltaCenterY = currentCenterY - initialPinchCenterRef.current.y
+      const newPanX = initialPanRef.current.x + deltaCenterX / newZoom
+      const newPanY = initialPanRef.current.y + deltaCenterY / newZoom
+
+      console.log('Pinch move - zoom:', newZoom, 'pan:', newPanX, newPanY)
+      setZoom(newZoom)
+      setPanX(newPanX)
+      setPanY(newPanY)
+    }
+  }, [zoom])
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    // Remove ended touches
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      touchesRef.current.delete(touch.identifier)
+    }
+
+    // Clear single touch pan
+    if (e.touches.length === 0) {
+      singleTouchStartRef.current = null
+      console.log('Single touch end')
+    }
+
+    // Reset pinch state when less than 2 touches remain
+    if (e.touches.length < 2) {
+      initialPinchDistanceRef.current = null
+      initialPinchCenterRef.current = null
+      console.log('Pinch end')
+    }
+  }, [])
+
+  // Set up touch event listeners
+  useEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+
+    content.addEventListener('touchstart', handleTouchStart, { passive: false })
+    content.addEventListener('touchmove', handleTouchMove, { passive: false })
+    content.addEventListener('touchend', handleTouchEnd, { passive: false })
+    content.addEventListener('touchcancel', handleTouchEnd, { passive: false })
+
+    return () => {
+      content.removeEventListener('touchstart', handleTouchStart)
+      content.removeEventListener('touchmove', handleTouchMove)
+      content.removeEventListener('touchend', handleTouchEnd)
+      content.removeEventListener('touchcancel', handleTouchEnd)
+    }
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd])
+
   return (
     <>
+      {/* Zoom indicator */}
+      {zoom !== 1.0 && (
+        <div className="fixed top-4 right-4 z-50 bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-sm font-mono">
+          Zoom: {Math.round(zoom * 100)}%
+        </div>
+      )}
+
       {/* Version mismatch warning */}
       {versionMismatch && hasAnnotations && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
@@ -434,7 +573,15 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       )}
 
       {/* Content with section canvas portals */}
-      <div ref={contentRef}>
+      <div
+        ref={contentRef}
+        style={{
+          touchAction: 'none',
+          transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
+          transformOrigin: '0 0',
+          transition: 'none', // Instant updates for smooth pinch
+        }}
+      >
         {children}
 
         {/* Render canvases into section elements using portals */}
@@ -470,6 +617,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                 stylusModeActive={stylusModeActive}
                 onStylusDetected={handleStylusDetected}
                 onNonStylusInput={handleNonStylusInput}
+                zoom={zoom}
               />
             </div>,
             section.element

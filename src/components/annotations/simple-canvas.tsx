@@ -16,6 +16,7 @@ interface SimpleCanvasProps {
   stylusModeActive?: boolean
   onStylusDetected?: () => void
   onNonStylusInput?: () => void
+  zoom?: number
 }
 
 export interface SimpleCanvasHandle {
@@ -24,13 +25,14 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected, onNonStylusInput }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0 }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number; pressure: number }>; mode: DrawMode; color: string; width: number }>>([])
     const currentPathRef = useRef<Array<{ x: number; y: number; pressure: number }>>([])
     const [shouldFadeIn, setShouldFadeIn] = useState(false)
     const hasLoadedInitialDataRef = useRef(false)
+    const activePointersRef = useRef<Set<number>>(new Set())
 
     const redrawCanvas = useCallback(() => {
       const canvas = canvasRef.current
@@ -42,6 +44,13 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+      // Save context state
+      ctx.save()
+
+      // Apply zoom transformation
+      // Note: We scale from (0,0) which is the top-left of the canvas
+      ctx.scale(zoom, zoom)
+
       // Redraw all paths with pressure-sensitive line width
       pathsRef.current.forEach(path => {
         if (path.points.length < 2) return
@@ -52,6 +61,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         ctx.globalCompositeOperation = path.mode === 'erase' ? 'destination-out' : 'source-over'
 
         // Draw path with variable width based on pressure
+        // Coordinates are stored in original space, zoom is applied via ctx.scale
         for (let i = 1; i < path.points.length; i++) {
           const prevPoint = path.points[i - 1]
           const currPoint = path.points[i]
@@ -67,33 +77,38 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
         }
       })
-    }, [eraserWidth])
 
-    // Set up high-DPI canvas scaling
+      // Restore context state
+      ctx.restore()
+    }, [eraserWidth, zoom])
+
+    // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
       const canvas = canvasRef.current
       if (!canvas) return
 
       const dpr = window.devicePixelRatio || 1
-      const scaledWidth = width * dpr
-      const scaledHeight = height * dpr
+      // Include zoom in resolution calculation for crisp rendering at any zoom level
+      const totalScale = dpr * zoom
+      const scaledWidth = width * totalScale
+      const scaledHeight = height * totalScale
 
       // Only reset canvas if dimensions actually changed
       if (canvas.width !== scaledWidth || canvas.height !== scaledHeight) {
-        // Set internal canvas resolution (scaled by device pixel ratio)
+        // Set internal canvas resolution (scaled by device pixel ratio AND zoom)
         canvas.width = scaledWidth
         canvas.height = scaledHeight
 
         // Scale context so drawing coordinates stay in CSS pixels
         const ctx = canvas.getContext('2d')
         if (ctx) {
-          ctx.scale(dpr, dpr)
+          ctx.scale(totalScale, totalScale)
         }
 
         // Redraw existing paths at new resolution
         redrawCanvas()
       }
-    }, [width, height, redrawCanvas])
+    }, [width, height, zoom, redrawCanvas])
 
     // Load initial data
     useEffect(() => {
@@ -120,6 +135,14 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     }, [initialData])
 
     const startDrawing = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Track active pointers for multi-touch detection
+      activePointersRef.current.add(e.pointerId)
+
+      // Don't draw if multiple pointers are active (pinch gesture)
+      if (activePointersRef.current.size > 1) {
+        return
+      }
+
       // Detect stylus input first, before any other checks
       const isStylusInput = e.pointerType === 'pen'
       if (isStylusInput && onStylusDetected) {
@@ -148,14 +171,20 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       isDrawingRef.current = true
       const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+      // Convert screen coordinates to canvas coordinates by dividing by zoom
+      const x = (e.clientX - rect.left) / zoom
+      const y = (e.clientY - rect.top) / zoom
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput])
+    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, zoom])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Don't draw if multiple pointers are active (pinch gesture)
+      if (activePointersRef.current.size > 1) {
+        return
+      }
+
       if (!isDrawingRef.current || mode === 'view') return
 
       const canvas = canvasRef.current
@@ -170,10 +199,15 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Falls back to single event if getCoalescedEvents is not supported
       const events = e.nativeEvent.getCoalescedEvents?.() || [e.nativeEvent]
 
+      // Save context state for drawing
+      ctx.save()
+      ctx.scale(zoom, zoom)
+
       // Process each coalesced event to capture all intermediate points
       events.forEach((event) => {
-        const x = event.clientX - rect.left
-        const y = event.clientY - rect.top
+        // Convert screen coordinates to canvas coordinates by dividing by zoom
+        const x = (event.clientX - rect.left) / zoom
+        const y = (event.clientY - rect.top) / zoom
         const pressure = event.pressure || 0.5 // Default to 0.5 for mouse
 
         currentPathRef.current.push({ x, y, pressure })
@@ -199,9 +233,17 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
         }
       })
-    }, [mode, strokeColor, strokeWidth, eraserWidth])
 
-    const stopDrawing = useCallback(() => {
+      // Restore context state
+      ctx.restore()
+    }, [mode, strokeColor, strokeWidth, eraserWidth, zoom])
+
+    const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
+      // Remove pointer from tracking
+      if (e) {
+        activePointersRef.current.delete(e.pointerId)
+      }
+
       if (!isDrawingRef.current) return
 
       isDrawingRef.current = false
@@ -222,6 +264,15 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         onUpdate(data)
       }
     }, [mode, strokeColor, strokeWidth, onUpdate])
+
+    const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Clean up when pointer is cancelled
+      activePointersRef.current.delete(e.pointerId)
+      if (isDrawingRef.current) {
+        isDrawingRef.current = false
+        currentPathRef.current = []
+      }
+    }, [])
 
     // Expose methods
     useImperativeHandle(ref, () => {
@@ -246,6 +297,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         onPointerMove={draw}
         onPointerUp={stopDrawing}
         onPointerLeave={stopDrawing}
+        onPointerCancel={handlePointerCancel}
         className={`annotation-canvas ${shouldFadeIn ? 'annotation-fade-in' : ''}`}
         style={{
           position: 'absolute',
@@ -254,9 +306,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           // Set CSS dimensions (internal resolution is scaled by DPI in useEffect)
           width: `${width}px`,
           height: `${height}px`,
-          // Always allow touch pan/zoom/pinch in view mode or stylus mode
-          // This allows touch gestures to pass through for scrolling
-          touchAction: (mode === 'view' || stylusModeActive) ? 'pan-x pan-y pinch-zoom' : 'none',
+          // Always allow pinch-zoom for crisp annotation rendering at any zoom level
+          // Multi-touch detection prevents drawing during pinch gestures
+          touchAction: 'pan-x pan-y pinch-zoom',
           cursor: mode === 'draw' ? 'crosshair' : mode === 'erase' ? 'pointer' : 'default',
           // Only receive events when in draw/erase mode OR when stylus mode is active
           // This allows text selection in view mode without stylus mode
