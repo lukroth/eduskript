@@ -5,6 +5,14 @@
 
 set -e
 
+# Load .env file if it exists
+if [ -f .env ]; then
+  echo "Loading environment variables from .env file..."
+  set -a
+  source .env
+  set +a
+fi
+
 # Configuration - Use environment variables with defaults
 REPO="${DEPLOY_REPO:-marcchehab/eduskript}"
 IMAGE="${DEPLOY_IMAGE:-ghcr.io/marcchehab/eduskript:latest}"
@@ -14,15 +22,17 @@ VPS_USER="${DEPLOY_VPS_USER}"
 # Validate required environment variables
 if [ -z "$VPS_HOST" ]; then
   echo -e "${RED}❌ Error: DEPLOY_VPS_HOST environment variable is not set${NC}"
-  echo "Please set it before running this script:"
-  echo "  export DEPLOY_VPS_HOST=your-vps-hostname"
+  echo "Please set it in one of these ways:"
+  echo "  1. Create a .env file (see .env.example)"
+  echo "  2. Export it: export DEPLOY_VPS_HOST=your-vps-hostname"
   exit 1
 fi
 
 if [ -z "$VPS_USER" ]; then
   echo -e "${RED}❌ Error: DEPLOY_VPS_USER environment variable is not set${NC}"
-  echo "Please set it before running this script:"
-  echo "  export DEPLOY_VPS_USER=your-vps-username"
+  echo "Please set it in one of these ways:"
+  echo "  1. Create a .env file (see .env.example)"
+  echo "  2. Export it: export DEPLOY_VPS_USER=your-vps-username"
   exit 1
 fi
 
