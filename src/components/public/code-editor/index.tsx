@@ -47,12 +47,6 @@ export function CodeEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const MIN_VISIBLE_WIDTH = 100 // pixels
 
-  // Calculate visibility based on width and detect turtle module
-  const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(files[activeFileIndex]?.content || initialCode)
-  const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
-  const showTurtle = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
-  const [canvasVisible, setCanvasVisible] = useState(showCanvas && hasTurtleModule)
-
   // Multi-file support
   const [files, setFiles] = useState<PythonFile[]>([
     { name: 'main.py', content: initialCode }
@@ -60,6 +54,12 @@ export function CodeEditor({
   const [activeFileIndex, setActiveFileIndex] = useState(0)
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // Calculate visibility based on width and detect turtle module
+  const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(files[activeFileIndex]?.content || initialCode)
+  const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
+  const showTurtle = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
+  const [canvasVisible, setCanvasVisible] = useState(showCanvas)
 
   // Canvas pan and zoom state
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 })
