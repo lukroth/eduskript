@@ -12,7 +12,7 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, Bug } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, Palette } from 'lucide-react'
 import {
   RunState,
   OutputLevel,
@@ -62,7 +62,7 @@ export function CodeEditor({
   const hasGraphics = hasTurtleModule || hasMatplotlib
   const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
-  const [canvasVisible, setCanvasVisible] = useState(showCanvas)
+  const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
 
   // Canvas pan and zoom state
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 })
@@ -77,12 +77,10 @@ export function CodeEditor({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const outputPanelRef = useRef<HTMLDivElement>(null)
 
-  // Update canvas visibility when graphics modules are detected
+  // Update canvas visibility based on graphics module detection
   useEffect(() => {
-    if (hasGraphics && !canvasVisible) {
-      setCanvasVisible(true)
-    }
-  }, [hasGraphics, canvasVisible])
+    setCanvasVisible(hasGraphics)
+  }, [hasGraphics])
 
   // Handle splitter dragging
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -828,46 +826,12 @@ plots
         {/* Code Editor Panel */}
         {showEditor && (
           <div
-            className="flex flex-col border-r"
+            className="flex flex-col border-r relative"
             style={{
               width: canvasVisible && showGraphics ? `${editorWidth}%` : '100%',
               display: showEditor ? 'flex' : 'none'
             }}
           >
-            {/* Editor Controls */}
-            <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
-              <div className="flex items-center gap-2">
-                {runState === RunState.STOPPED ? (
-                  <Button onClick={runCode} size="sm" variant="default">
-                    <Play className="w-4 h-4 mr-1" />
-                    Run
-                  </Button>
-                ) : (
-                  <Button onClick={stopCode} size="sm" variant="destructive">
-                    <Square className="w-4 h-4 mr-1" />
-                    Stop
-                  </Button>
-                )}
-                <Button onClick={resetCode} size="sm" variant="outline">
-                  <RotateCcw className="w-4 h-4 mr-1" />
-                  Reset
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                {!showGraphics && canvasVisible && language === 'python' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditorWidth(50)}
-                    title="Show Graphics Panel"
-                    className="text-primary hover:text-primary"
-                  >
-                    <Bug className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
             {/* File Tabs */}
             {language === 'python' && (
               <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 overflow-x-auto">
@@ -934,7 +898,36 @@ plots
             )}
 
             {/* CodeMirror Editor */}
-            <div ref={editorRef} className="flex-1 overflow-auto w-full h-full" />
+            <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative">
+              {/* Floating Control Buttons */}
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
+                {runState === RunState.STOPPED ? (
+                  <Button onClick={runCode} size="sm" variant="default" className="h-7 px-2 shadow-lg">
+                    <Play className="w-3 h-3 mr-1" />
+                    Run
+                  </Button>
+                ) : (
+                  <Button onClick={stopCode} size="sm" variant="destructive" className="h-7 px-2 shadow-lg">
+                    <Square className="w-3 h-3 mr-1" />
+                    Stop
+                  </Button>
+                )}
+                <Button onClick={resetCode} size="sm" variant="outline" className="h-7 px-2 shadow-lg">
+                  <RotateCcw className="w-3 h-3" />
+                </Button>
+                {!showGraphics && hasGraphics && language === 'python' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditorWidth(50)}
+                    title="Show Graphics Panel"
+                    className="h-7 px-2 shadow-lg text-primary hover:text-primary"
+                  >
+                    <Palette className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -959,25 +952,6 @@ plots
             className="flex flex-col relative"
             style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }}
           >
-            <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
-              <div className="text-sm font-medium">
-                {language === 'python' ? 'Graphics' : 'Canvas'}
-              </div>
-              <div className="flex items-center gap-1">
-                <Button onClick={resetCanvasView} size="sm" variant="ghost" title="Reset View">
-                  <RotateCcw className="w-4 h-4" />
-                </Button>
-                <Button onClick={screenshotCanvas} size="sm" variant="ghost" title="Screenshot">
-                  <Camera className="w-4 h-4" />
-                </Button>
-                <Button onClick={toggleFullscreen} size="sm" variant="ghost" title="Fullscreen">
-                  {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </Button>
-                <Button onClick={() => setCanvasVisible(false)} size="sm" variant="ghost" title="Hide Canvas">
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
             <div
               ref={canvasContainerRef}
               className="flex-1 relative overflow-hidden"
@@ -992,6 +966,15 @@ plots
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseUp}
             >
+              {/* Floating Control Buttons */}
+              <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+                <Button onClick={screenshotCanvas} size="sm" variant="outline" className="h-7 w-7 p-0 shadow-lg" title="Screenshot">
+                  <Camera className="w-3 h-3" />
+                </Button>
+                <Button onClick={toggleFullscreen} size="sm" variant="outline" className="h-7 w-7 p-0 shadow-lg" title="Fullscreen">
+                  {fullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                </Button>
+              </div>
               <div
                 ref={canvasRef}
                 className="absolute"
