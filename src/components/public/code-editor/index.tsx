@@ -616,6 +616,22 @@ export function CodeEditor({
         }
       }
 
+      // Configure matplotlib to use non-interactive backend
+      if (uniquePackages.includes('matplotlib')) {
+        // Prevent matplotlib from appending to DOM
+        ;(document as any).pyodideMplTarget = null
+
+        await pyodide.runPythonAsync(`
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+# Prevent matplotlib from creating interactive dialogs
+plt.ioff()
+# Make plt.show() a no-op (we capture figures directly)
+plt.show = lambda: None
+`)
+      }
+
       // Capture stdout
       let stdoutBuffer: string[] = []
       pyodide.setStdout({
@@ -634,6 +650,24 @@ export function CodeEditor({
 
       // Run the code
       const result = await pyodide.runPythonAsync(code)
+
+      // Clean up any matplotlib UI elements that might have been created
+      const cleanupMatplotlibUI = () => {
+        // Target the outermost container that matplotlib creates
+        document.querySelectorAll('body > div[style*="display: inline-block"]').forEach(el => {
+          // Check if it contains matplotlib elements
+          if (el.querySelector('.mpl-canvas, .mpl-toolbar, .ui-dialog-titlebar')) {
+            el.remove()
+          }
+        })
+        // Also clean up any standalone elements
+        document.querySelectorAll('.ui-dialog, .mpl-message, .mpl-toolbar').forEach(el => el.remove())
+      }
+
+      cleanupMatplotlibUI()
+      // Run cleanup again after a short delay to catch async UI creation
+      setTimeout(cleanupMatplotlibUI, 100)
+      setTimeout(cleanupMatplotlibUI, 500)
 
       // Check if matplotlib plots were created and capture them
       try {

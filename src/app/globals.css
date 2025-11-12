@@ -657,3 +657,18 @@ html, body {
   background-size: 16px 100%, 16px 100%;
   background-repeat: no-repeat;
 }
+
+/* Hide matplotlib interactive dialogs (we use Agg backend for static plots) */
+.ui-dialog-titlebar,
+.mpl-toolbar,
+.mpl-message,
+.mpl-canvas,
+div > .ui-dialog-titlebar,
+div[style*="resize: both"] > canvas.mpl-canvas {
+  display: none !important;
+}
+
+/* Hide any matplotlib figure containers that escape to body */
+body > div[style*="display: inline-block"] > div[style*="resize: both"] {
+  display: none !important;
+}
