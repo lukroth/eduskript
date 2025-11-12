@@ -13,6 +13,39 @@ for i in range(4):
 print("Square drawn!")
 `
 
+const matplotlibExample = `import matplotlib.pyplot as plt
+import numpy as np
+
+# Create some data
+x = np.linspace(0, 10, 100)
+y1 = np.sin(x)
+y2 = np.cos(x)
+
+# Create a figure with two subplots
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+
+# Plot sine wave
+ax1.plot(x, y1, 'b-', label='sin(x)')
+ax1.set_title('Sine Wave')
+ax1.set_xlabel('x')
+ax1.set_ylabel('y')
+ax1.grid(True)
+ax1.legend()
+
+# Plot cosine wave
+ax2.plot(x, y2, 'r-', label='cos(x)')
+ax2.set_title('Cosine Wave')
+ax2.set_xlabel('x')
+ax2.set_ylabel('y')
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+print("Plot generated!")
+`
+
 export default function PythonTestPage() {
   return (
     <div className="container mx-auto p-6">
@@ -40,6 +73,16 @@ for i in range(10):
 
 print("Done!")
 `}
+            showCanvas={false}
+          />
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-3">Example 3: Matplotlib Plots</h2>
+          <CodeEditor
+            id="matplotlib-example"
+            language="python"
+            initialCode={matplotlibExample}
             showCanvas={false}
           />
         </section>

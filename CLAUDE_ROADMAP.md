@@ -10,8 +10,8 @@
 ## 🎯 Priority List (drag to reorder)
 
 **Currently working on: Code Editor** - a code editor for students to learn python with turtle using codemirror
+**Plugin System** - Extensible component architecture, MDX
 **Video Hosting** - Swiss-compliant video upload and embedding
-**Plugin System** - Extensible component architecture
 **Marketplace** - Content selling and customer relationships
 
 LMS stuff later

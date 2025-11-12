@@ -117,7 +117,41 @@ export function CodeEditor({
     setMounted(true)
   }, [])
 
-  // Load Skulpt scripts for Python
+  // Load Pyodide for Python (excluding turtle)
+  useEffect(() => {
+    if (language !== 'python') return
+
+    // Global promise cache to prevent loading Pyodide multiple times
+    if ((window as any).__pyodidePromise) return
+
+    const loadPyodideScript = async () => {
+      try {
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js'
+
+        await new Promise<void>((resolve, reject) => {
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error('Failed to load Pyodide'))
+          document.body.appendChild(script)
+        })
+
+        // Initialize Pyodide
+        ;(window as any).__pyodidePromise = (window as any).loadPyodide({
+          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
+        })
+
+        const pyodide = await (window as any).__pyodidePromise
+        console.log('[Pyodide] Loaded successfully', pyodide.version)
+      } catch (error) {
+        console.error('[Pyodide] Failed to load:', error)
+        addOutput('Failed to load Python runtime (Pyodide)', OutputLevel.ERROR)
+      }
+    }
+
+    loadPyodideScript()
+  }, [language])
+
+  // Load Skulpt scripts for Python (turtle support)
   useEffect(() => {
     if (language !== 'python') return
 
@@ -374,7 +408,12 @@ export function CodeEditor({
     const code = editorViewRef.current.state.doc.toString()
 
     if (language === 'python') {
-      runPythonCode(code)
+      // Decide which runtime to use based on turtle module detection
+      if (hasTurtleModule) {
+        runPythonCode(code) // Use Skulpt for turtle
+      } else {
+        runPyodideCode(code) // Use Pyodide for everything else (including matplotlib)
+      }
     } else if (language === 'javascript') {
       // TODO: Implement JavaScript execution
       addOutput('JavaScript execution not yet implemented', OutputLevel.ERROR)
@@ -467,6 +506,99 @@ export function CodeEditor({
       )
     } catch (error) {
       addOutput(`Error: ${error}`, OutputLevel.ERROR)
+      setRunState(RunState.STOPPED)
+    }
+  }
+
+  // Run Python code with Pyodide (for matplotlib, numpy, etc.)
+  const runPyodideCode = async (code: string) => {
+    if (!(window as any).__pyodidePromise) {
+      addOutput('Pyodide runtime not loaded yet', OutputLevel.ERROR)
+      return
+    }
+
+    setRunState(RunState.RUNNING)
+    setOutput([]) // Clear previous output
+
+    try {
+      const pyodide = await (window as any).__pyodidePromise
+
+      // Capture stdout
+      let stdoutBuffer: string[] = []
+      pyodide.setStdout({
+        batched: (text: string) => {
+          stdoutBuffer.push(text)
+          addOutput(text, OutputLevel.OUTPUT)
+        }
+      })
+
+      // Capture stderr
+      pyodide.setStderr({
+        batched: (text: string) => {
+          addOutput(text, OutputLevel.ERROR)
+        }
+      })
+
+      // Run the code
+      const result = await pyodide.runPythonAsync(code)
+
+      // Check if matplotlib plots were created and capture them
+      try {
+        const plotScript = `
+import sys
+import io
+import base64
+
+plots = []
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+
+    # Get all figures
+    figures = [plt.figure(num) for num in plt.get_fignums()]
+
+    for fig in figures:
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+        buf.seek(0)
+        img_str = 'data:image/png;base64,' + base64.b64encode(buf.read()).decode('UTF-8')
+        plots.append(img_str)
+        plt.close(fig)
+except ImportError:
+    pass  # matplotlib not loaded
+except Exception as e:
+    print(f"Error capturing plots: {e}", file=sys.stderr)
+
+plots
+`
+        const plotsData = await pyodide.runPythonAsync(plotScript)
+
+        // Display plots as images in output
+        if (plotsData && plotsData.length > 0) {
+          for (let i = 0; i < plotsData.length; i++) {
+            const imgData = plotsData[i]
+            // Create a special output entry for images
+            setOutput(prev => [...prev, {
+              message: `<img src="${imgData}" alt="Plot ${i + 1}" style="max-width: 100%; height: auto; margin: 8px 0; border-radius: 4px;" />`,
+              level: OutputLevel.OUTPUT,
+              timestamp: Date.now(),
+              isHtml: true
+            }])
+          }
+        }
+      } catch (plotError) {
+        console.error('[Pyodide] Error capturing plots:', plotError)
+      }
+
+      if (result !== undefined && result !== null) {
+        addOutput(String(result), OutputLevel.OUTPUT)
+      }
+
+      addOutput('✓ Program completed successfully', OutputLevel.OUTPUT)
+      setRunState(RunState.STOPPED)
+    } catch (error: any) {
+      const errorMessage = error.message || String(error)
+      addOutput(errorMessage, OutputLevel.ERROR)
       setRunState(RunState.STOPPED)
     }
   }
@@ -751,7 +883,7 @@ export function CodeEditor({
             output.map((entry, index) => (
               <div
                 key={index}
-                className={`whitespace-pre-wrap ${
+                className={`${entry.isHtml ? '' : 'whitespace-pre-wrap'} ${
                   entry.level === OutputLevel.ERROR
                     ? 'text-red-600 dark:text-red-400'
                     : entry.level === OutputLevel.WARNING
@@ -759,7 +891,11 @@ export function CodeEditor({
                     : 'text-foreground'
                 }`}
               >
-                {entry.message}
+                {entry.isHtml ? (
+                  <div dangerouslySetInnerHTML={{ __html: entry.message }} />
+                ) : (
+                  entry.message
+                )}
               </div>
             ))
           )}

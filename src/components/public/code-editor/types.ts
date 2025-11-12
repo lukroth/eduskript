@@ -16,6 +16,7 @@ export interface OutputEntry {
   message: string
   level: OutputLevel
   timestamp: number
+  isHtml?: boolean // For rendering matplotlib plots and rich output
 }
 
 export interface PythonFile {
