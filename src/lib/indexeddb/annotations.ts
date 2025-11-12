@@ -1,6 +1,23 @@
 import Dexie, { Table } from 'dexie'
 
-// Section annotation data structure
+// Individual stroke/path data structure
+export interface StrokeData {
+  points: Array<{ x: number; y: number; pressure: number }>
+  mode: 'draw' | 'erase'
+  color: string
+  width: number
+  sectionId: string        // Which section this stroke belongs to
+  sectionOffsetY: number   // Y-offset of section when drawn
+}
+
+// Heading position tracking
+export interface HeadingPosition {
+  sectionId: string
+  offsetY: number
+  headingText: string
+}
+
+// Old format (for migration)
 export interface SectionAnnotation {
   sectionId: string
   headingText: string
@@ -9,10 +26,20 @@ export interface SectionAnnotation {
   updatedAt: number
 }
 
-// Page annotation container
+// New single-canvas page annotation
 export interface PageAnnotation {
   pageId: string // Primary key
   pageVersion: string // Content hash for version tracking
+  canvasData: string // JSON stringified StrokeData[] for entire page
+  headingOffsets: Record<string, number> // sectionId → Y position
+  createdAt: number
+  updatedAt: number
+}
+
+// Old format (for migration)
+export interface LegacyPageAnnotation {
+  pageId: string
+  pageVersion: string
   sections: SectionAnnotation[]
   createdAt: number
   updatedAt: number
@@ -25,14 +52,77 @@ class AnnotationDatabase extends Dexie {
   constructor() {
     super('EduskriptAnnotations')
 
+    // Version 1: Original multi-canvas format
     this.version(1).stores({
       annotations: 'pageId, pageVersion, updatedAt'
+    })
+
+    // Version 2: Single canvas format with migration
+    this.version(2).stores({
+      annotations: 'pageId, pageVersion, updatedAt'
+    }).upgrade(async (tx) => {
+      // Migrate old multi-section format to new single-canvas format
+      const annotations = await tx.table('annotations').toArray()
+
+      for (const annotation of annotations) {
+        const legacy = annotation as unknown as LegacyPageAnnotation
+
+        if ('sections' in legacy && legacy.sections) {
+          // Migrate from old format
+          const migratedAnnotation = await migrateToSingleCanvas(legacy)
+          await tx.table('annotations').put(migratedAnnotation)
+        }
+      }
     })
   }
 }
 
 // Singleton instance
 export const annotationDb = new AnnotationDatabase()
+
+/**
+ * Migrate legacy multi-section format to single-canvas format
+ */
+async function migrateToSingleCanvas(legacy: LegacyPageAnnotation): Promise<PageAnnotation> {
+  const allStrokes: StrokeData[] = []
+  const headingOffsets: Record<string, number> = {}
+
+  // For each section, parse canvas data and add sectionId
+  for (const section of legacy.sections) {
+    try {
+      const sectionStrokes = JSON.parse(section.canvasData) as Array<{
+        points: Array<{ x: number; y: number; pressure: number }>
+        mode: 'draw' | 'erase'
+        color: string
+        width: number
+      }>
+
+      // Assume section offset is 0 (we don't have historical data)
+      // These will be recalculated on first load
+      headingOffsets[section.sectionId] = 0
+
+      // Add section ID to each stroke
+      const migratedStrokes = sectionStrokes.map(stroke => ({
+        ...stroke,
+        sectionId: section.sectionId,
+        sectionOffsetY: 0 // Will be recalculated on load
+      }))
+
+      allStrokes.push(...migratedStrokes)
+    } catch (error) {
+      console.error(`Error migrating section ${section.sectionId}:`, error)
+    }
+  }
+
+  return {
+    pageId: legacy.pageId,
+    pageVersion: legacy.pageVersion,
+    canvasData: JSON.stringify(allStrokes),
+    headingOffsets,
+    createdAt: legacy.createdAt,
+    updatedAt: legacy.updatedAt
+  }
+}
 
 // Helper functions for annotation management
 
@@ -49,9 +139,14 @@ export async function getPageAnnotations(pageId: string): Promise<PageAnnotation
 }
 
 /**
- * Save or update page annotations
+ * Save or update page annotations with single canvas data
  */
-export async function savePageAnnotations(pageId: string, pageVersion: string, sections: SectionAnnotation[]): Promise<void> {
+export async function savePageAnnotations(
+  pageId: string,
+  pageVersion: string,
+  canvasData: string,
+  headingOffsets: Record<string, number>
+): Promise<void> {
   try {
     const now = Date.now()
     const existing = await annotationDb.annotations.get(pageId)
@@ -59,110 +154,22 @@ export async function savePageAnnotations(pageId: string, pageVersion: string, s
     if (existing) {
       await annotationDb.annotations.update(pageId, {
         pageVersion,
-        sections,
+        canvasData,
+        headingOffsets,
         updatedAt: now
       })
     } else {
       await annotationDb.annotations.add({
         pageId,
         pageVersion,
-        sections,
+        canvasData,
+        headingOffsets,
         createdAt: now,
         updatedAt: now
       })
     }
   } catch (error) {
     console.error('Error saving page annotations:', error)
-    throw error
-  }
-}
-
-/**
- * Update a single section's annotation
- */
-export async function updateSectionAnnotation(
-  pageId: string,
-  pageVersion: string,
-  sectionId: string,
-  headingText: string,
-  canvasData: string
-): Promise<void> {
-  try {
-    const existing = await annotationDb.annotations.get(pageId)
-    const now = Date.now()
-
-    if (existing) {
-      // Update existing section or add new one
-      const sectionIndex = existing.sections.findIndex(s => s.sectionId === sectionId)
-
-      if (sectionIndex >= 0) {
-        // Update existing section
-        existing.sections[sectionIndex] = {
-          sectionId,
-          headingText,
-          canvasData,
-          createdAt: existing.sections[sectionIndex].createdAt,
-          updatedAt: now
-        }
-      } else {
-        // Add new section
-        existing.sections.push({
-          sectionId,
-          headingText,
-          canvasData,
-          createdAt: now,
-          updatedAt: now
-        })
-      }
-
-      await annotationDb.annotations.update(pageId, {
-        pageVersion,
-        sections: existing.sections,
-        updatedAt: now
-      })
-    } else {
-      // Create new page annotation with first section
-      await annotationDb.annotations.add({
-        pageId,
-        pageVersion,
-        sections: [{
-          sectionId,
-          headingText,
-          canvasData,
-          createdAt: now,
-          updatedAt: now
-        }],
-        createdAt: now,
-        updatedAt: now
-      })
-    }
-  } catch (error) {
-    console.error('Error updating section annotation:', error)
-    throw error
-  }
-}
-
-/**
- * Delete a section's annotation
- */
-export async function deleteSectionAnnotation(pageId: string, sectionId: string): Promise<void> {
-  try {
-    const existing = await annotationDb.annotations.get(pageId)
-    if (existing) {
-      existing.sections = existing.sections.filter(s => s.sectionId !== sectionId)
-
-      if (existing.sections.length === 0) {
-        // If no sections left, delete the entire page annotation
-        await annotationDb.annotations.delete(pageId)
-      } else {
-        await annotationDb.annotations.update(pageId, {
-          sections: existing.sections,
-          updatedAt: Date.now()
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Error deleting section annotation:', error)
     throw error
   }
 }

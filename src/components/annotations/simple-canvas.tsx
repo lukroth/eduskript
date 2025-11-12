@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from 'react'
+import { determineSectionFromY, type HeadingPosition } from '@/lib/annotations/reposition-strokes'
 
 export type DrawMode = 'draw' | 'erase'
 
@@ -17,6 +18,7 @@ interface SimpleCanvasProps {
   onStylusDetected?: () => void
   onNonStylusInput?: () => void
   zoom?: number
+  headingPositions?: HeadingPosition[]
 }
 
 export interface SimpleCanvasHandle {
@@ -25,10 +27,17 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 100, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0 }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 100, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0, headingPositions = [] }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
-    const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number; pressure: number }>; mode: DrawMode; color: string; width: number }>>([])
+    const pathsRef = useRef<Array<{
+      points: Array<{ x: number; y: number; pressure: number }>
+      mode: DrawMode
+      color: string
+      width: number
+      sectionId: string
+      sectionOffsetY: number
+    }>>([])
     const currentPathRef = useRef<Array<{ x: number; y: number; pressure: number }>>([])
     const [shouldFadeIn, setShouldFadeIn] = useState(false)
     const hasLoadedInitialDataRef = useRef(false)
@@ -322,13 +331,20 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       isDrawingRef.current = false
 
       if (currentPathRef.current.length > 0 && mode !== 'view') {
+        // Determine which section this stroke belongs to based on first point
+        const firstPoint = currentPathRef.current[0]
+        const sectionId = determineSectionFromY(firstPoint.y, headingPositions) || 'unknown'
+        const sectionOffsetY = headingPositions.find(h => h.sectionId === sectionId)?.offsetY || 0
+
         // Save the path with all original points and pressure data intact
         // Visual smoothing is handled by Bezier curves during rendering
         pathsRef.current.push({
           points: currentPathRef.current,
           mode: mode as DrawMode,
           color: strokeColor,
-          width: strokeWidth
+          width: strokeWidth,
+          sectionId,
+          sectionOffsetY
         })
 
         currentPathRef.current = []
@@ -339,11 +355,11 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         // Log storage statistics
         const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
         const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
-        console.log(`Canvas data: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
+        console.log(`Canvas data: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB (section: ${sectionId})`)
 
         onUpdate(data)
       }
-    }, [mode, strokeColor, strokeWidth, onUpdate])
+    }, [mode, strokeColor, strokeWidth, onUpdate, headingPositions])
 
     const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Clean up when pointer is cancelled

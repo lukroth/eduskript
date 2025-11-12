@@ -29,6 +29,7 @@
 *.pem
 /oldstuff
 /code-review
+/tmp
 
 # debug
 npm-debug.log*

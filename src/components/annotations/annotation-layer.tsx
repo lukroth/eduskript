@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { AlertTriangle } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
 import {
@@ -10,14 +10,10 @@ import {
   clearPageAnnotations,
   generateContentHash,
   checkVersionMismatch,
-  type SectionAnnotation
+  type HeadingPosition,
+  type StrokeData
 } from '@/lib/indexeddb/annotations'
-
-interface ContentSection {
-  id: string
-  headingText: string
-  element: HTMLElement
-}
+import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 
 interface AnnotationLayerProps {
   pageId: string
@@ -30,8 +26,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [pageVersion, setPageVersion] = useState<string>('')
   const [versionMismatch, setVersionMismatch] = useState(false)
   const [hasAnnotations, setHasAnnotations] = useState(false)
-  const [sections, setSections] = useState<ContentSection[]>([])
-  const [sectionData, setSectionData] = useState<Map<string, string>>(new Map())
+  const [canvasData, setCanvasData] = useState<string>('')
+  const [headingPositions, setHeadingPositions] = useState<HeadingPosition[]>([])
   const [stylusModeActive, setStylusModeActive] = useState(false)
   const [activePen, setActivePen] = useState(0)
   const [zoom, setZoom] = useState(1.0)
@@ -97,9 +93,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   })
   const contentRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement | null>(null)
-  const canvasRefs = useRef<Map<string, React.MutableRefObject<SimpleCanvasHandle | null>>>(new Map())
+  const canvasRef = useRef<SimpleCanvasHandle | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isClearingRef = useRef(false)
+  const [pageHeight, setPageHeight] = useState(0)
+  const [orphanedStrokesCount, setOrphanedStrokesCount] = useState(0)
+  const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
 
   // Canvas width is 1.5x content width
   // Content is max-w-5xl (80rem = 1280px)
@@ -145,58 +144,105 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [pageId, pageVersion])
 
-  // Load annotations from IndexedDB
+  // Load annotations from IndexedDB (only when pageId changes)
   useEffect(() => {
     if (!pageId) return
 
     console.log('Loading annotations for page:', pageId)
     getPageAnnotations(pageId).then(pageAnnotation => {
       console.log('Loaded page annotation:', pageAnnotation)
-      if (pageAnnotation && pageAnnotation.sections.length > 0) {
-        setHasAnnotations(true)
-        const dataMap = new Map<string, string>()
-        pageAnnotation.sections.forEach(section => {
-          console.log('Loading section:', section.sectionId, 'with data length:', section.canvasData.length)
-          dataMap.set(section.sectionId, section.canvasData)
-        })
-        setSectionData(dataMap)
-        console.log('Set section data map with', dataMap.size, 'entries')
+      if (pageAnnotation && pageAnnotation.canvasData) {
+        try {
+          const strokes: StrokeData[] = JSON.parse(pageAnnotation.canvasData)
+
+          if (strokes.length > 0) {
+            setHasAnnotations(true)
+            setCanvasData(JSON.stringify(strokes))
+            setStoredHeadingOffsets(pageAnnotation.headingOffsets || {})
+            console.log('Loaded', strokes.length, 'strokes')
+          }
+        } catch (error) {
+          console.error('Error parsing canvas data:', error)
+        }
       } else {
         console.log('No annotations found')
+        setStoredHeadingOffsets({})
       }
     })
   }, [pageId])
 
-  // Find section elements in the DOM (after markdown renders)
+  // Apply repositioning when heading positions change (only if needed)
+  useEffect(() => {
+    if (!canvasData || headingPositions.length === 0 || Object.keys(storedHeadingOffsets).length === 0) return
+
+    try {
+      const strokes: StrokeData[] = JSON.parse(canvasData)
+      if (strokes.length === 0) return
+
+      // Check if repositioning is needed
+      const currentOffsets = Object.fromEntries(
+        headingPositions.map(h => [h.sectionId, h.offsetY])
+      )
+
+      // Only reposition if stored offsets differ from current offsets
+      const needsReposition = Object.keys(storedHeadingOffsets).some(
+        key => storedHeadingOffsets[key] !== currentOffsets[key]
+      )
+
+      if (needsReposition) {
+        console.log('Content changed - repositioning strokes')
+        console.log('Stored offsets:', storedHeadingOffsets)
+        console.log('Current offsets:', currentOffsets)
+
+        const result = repositionStrokes(strokes, headingPositions, storedHeadingOffsets)
+        setCanvasData(JSON.stringify(result.strokes))
+        setOrphanedStrokesCount(result.orphanedCount)
+        // Update stored offsets so we don't reposition again
+        setStoredHeadingOffsets(currentOffsets)
+
+        if (result.orphanedCount > 0) {
+          console.log(`Warning: ${result.orphanedCount} orphaned strokes detected`)
+        }
+      }
+    } catch (error) {
+      console.error('Error checking repositioning:', error)
+    }
+  }, [headingPositions, storedHeadingOffsets])
+
+  // Track heading positions and page height (after markdown renders)
   useEffect(() => {
     if (!contentRef.current) return
 
     const timer = setTimeout(() => {
       if (!contentRef.current) return
 
-      // Query for all section elements with data-section-id
-      const sectionElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
-      const newSections: ContentSection[] = []
+      // Get page dimensions
+      setPageHeight(contentRef.current.scrollHeight)
 
-      sectionElements.forEach((element) => {
+      // Query for all headings with data-section-id (from h1, h2, h3 elements)
+      const headingElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
+      const positions: HeadingPosition[] = []
+
+      headingElements.forEach((element) => {
         const sectionId = element.getAttribute('data-section-id')
         const headingText = element.getAttribute('data-heading-text')
 
         if (sectionId) {
-          newSections.push({
-            id: sectionId,
-            headingText: headingText || '',
-            element
-          })
+          // Get the heading element's position relative to contentRef
+          const rect = element.getBoundingClientRect()
+          const parentRect = contentRef.current!.getBoundingClientRect()
+          const offsetY = rect.top - parentRect.top + contentRef.current!.scrollTop
 
-          // Create canvas ref if it doesn't exist
-          if (!canvasRefs.current.has(sectionId)) {
-            canvasRefs.current.set(sectionId, { current: null })
-          }
+          positions.push({
+            sectionId,
+            offsetY,
+            headingText: headingText || ''
+          })
         }
       })
 
-      setSections(newSections)
+      setHeadingPositions(positions)
+      console.log('Tracked', positions.length, 'heading positions')
     }, 500) // Wait for markdown to render
 
     return () => clearTimeout(timer)
@@ -210,65 +256,44 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       return
     }
 
+    if (!canvasData || !pageId || !pageVersion) {
+      console.log('Skipping save - missing required data')
+      return
+    }
+
+    // Don't save if heading positions haven't been tracked yet
+    if (headingPositions.length === 0) {
+      console.log('Skipping save - waiting for heading positions to be tracked')
+      return
+    }
+
     try {
-      // Collect all section data
-      const allSections: SectionAnnotation[] = []
+      // Parse canvas data to check if we have strokes
+      const strokes = JSON.parse(canvasData) as StrokeData[]
 
-      console.log('Starting save, checking', sections.length, 'sections')
-      sections.forEach(section => {
-        const data = sectionData.get(section.id)
-        console.log('Section', section.id, 'has data:', data ? 'yes (' + data.length + ' chars)' : 'no')
-        if (data) {
-          try {
-            const paths = JSON.parse(data)
-            if (paths && paths.length > 0) {
-              console.log('Adding section', section.id, 'with', paths.length, 'paths to save')
-              allSections.push({
-                sectionId: section.id,
-                headingText: section.headingText,
-                canvasData: data,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              })
-            }
-          } catch (error) {
-            console.error('Error parsing section data:', error)
-          }
-        }
-      })
-
-      // Calculate aggregate statistics across all sections
-      let totalPaths = 0
-      let totalPoints = 0
-      let totalSizeBytes = 0
-
-      allSections.forEach(section => {
-        try {
-          const paths = JSON.parse(section.canvasData)
-          totalPaths += paths.length
-          paths.forEach((path: { points: Array<unknown> }) => {
-            totalPoints += path.points.length
-          })
-          totalSizeBytes += new Blob([section.canvasData]).size
-        } catch (error) {
-          console.error('Error calculating section stats:', error)
-        }
-      })
-
-      const totalSizeKB = (totalSizeBytes / 1024).toFixed(2)
-      console.log(`📊 TOTAL across all canvases: ${allSections.length} sections, ${totalPaths} paths, ${totalPoints} points, ${totalSizeKB} KB`)
-
-      console.log('Saving', allSections.length, 'sections to IndexedDB for page', pageId, 'version', pageVersion)
-      if (allSections.length > 0) {
-        await savePageAnnotations(pageId, pageVersion, allSections)
-        console.log('Save completed successfully')
-      } else {
-        console.log('No sections to save')
+      if (strokes.length === 0) {
+        console.log('No strokes to save')
+        return
       }
+
+      // Build heading offsets map
+      const headingOffsets = Object.fromEntries(
+        headingPositions.map(h => [h.sectionId, h.offsetY])
+      )
+
+      // Calculate statistics
+      const totalPoints = strokes.reduce((sum, stroke) => sum + stroke.points.length, 0)
+      const sizeKB = (new Blob([canvasData]).size / 1024).toFixed(2)
+
+      console.log(`📊 Saving: ${strokes.length} strokes, ${totalPoints} points, ${sizeKB} KB`)
+      console.log(`📍 Tracking ${headingPositions.length} heading positions`)
+
+      await savePageAnnotations(pageId, pageVersion, canvasData, headingOffsets)
+      console.log('Save completed successfully')
     } catch (error) {
       console.error('Error saving annotations:', error)
     }
-  }, [pageId, pageVersion, sections, sectionData])
+  }, [canvasData, pageId, pageVersion, headingPositions])
 
   // Save on unmount (navigation away)
   useEffect(() => {
@@ -297,36 +322,29 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [performSave])
 
-  // Handle section annotation update with debounced save
-  const handleSectionUpdate = useCallback((sectionId: string, data: string) => {
+  // Handle canvas annotation update with debounced save
+  const handleCanvasUpdate = useCallback((data: string) => {
     // Reset clearing flag when user starts drawing again
     isClearingRef.current = false
 
     // Update local state immediately
-    setSectionData(prev => {
-      const newMap = new Map(prev)
-      newMap.set(sectionId, data)
-      return newMap
-    })
+    setCanvasData(data)
+
+    // Update stored heading offsets to current positions when drawing new strokes
+    // This prevents newly drawn strokes from being repositioned when content changes
+    if (headingPositions.length > 0) {
+      const currentOffsets = Object.fromEntries(
+        headingPositions.map(h => [h.sectionId, h.offsetY])
+      )
+      setStoredHeadingOffsets(currentOffsets)
+    }
 
     // Check if there's actual data
     try {
-      const paths = JSON.parse(data)
-      const hasData = paths && paths.length > 0
+      const strokes = JSON.parse(data) as StrokeData[]
+      const hasData = strokes && strokes.length > 0
 
-      // Update hasAnnotations based on whether any section has data
-      setSectionData(prev => {
-        const hasAnyData = Array.from(prev.values()).some(d => {
-          try {
-            const p = JSON.parse(d)
-            return p && p.length > 0
-          } catch {
-            return false
-          }
-        })
-        setHasAnnotations(hasAnyData || hasData)
-        return prev
-      })
+      setHasAnnotations(hasData)
 
       if (!hasData) return
     } catch (error) {
@@ -343,12 +361,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     saveTimeoutRef.current = setTimeout(() => {
       performSave()
     }, 2000)
-  }, [pageId, pageVersion, sections, sectionData, performSave])
+  }, [performSave, headingPositions])
 
   // Handle clear all annotations
   const handleClearAll = useCallback(async () => {
     try {
-      console.log('Clearing annotations, found', canvasRefs.current.size, 'canvas refs')
+      console.log('Clearing all annotations')
 
       // Set flag to prevent any saves during/after clear operation
       isClearingRef.current = true
@@ -360,24 +378,53 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       }
 
       // Clear state first to prevent re-initialization
-      setSectionData(new Map())
+      setCanvasData('')
       setHasAnnotations(false)
       setVersionMismatch(false)
+      setOrphanedStrokesCount(0)
 
       // Clear database
       await clearPageAnnotations(pageId)
 
-      // Clear all canvases
-      for (const [sectionId, canvasRef] of canvasRefs.current.entries()) {
-        console.log('Canvas ref for section', sectionId, ':', canvasRef.current)
-        if (canvasRef.current) {
-          canvasRef.current.clear()
-        }
+      // Clear canvas
+      if (canvasRef.current) {
+        canvasRef.current.clear()
       }
+
+      console.log('Annotations cleared successfully')
     } catch (error) {
       console.error('Error clearing annotations:', error)
     }
   }, [pageId])
+
+  // Handle removal of orphaned strokes
+  const handleRemoveOrphans = useCallback(() => {
+    if (!canvasData) return
+
+    try {
+      const strokes: StrokeData[] = JSON.parse(canvasData)
+      const filtered = strokes.filter(stroke => !stroke.sectionId.endsWith('-ORPHANED'))
+
+      const newData = JSON.stringify(filtered)
+      setCanvasData(newData)
+      setOrphanedStrokesCount(0)
+
+      // Update canvas
+      if (canvasRef.current) {
+        // The canvas will reload with filtered data via initialData prop
+      }
+
+      // Trigger immediate save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      performSave()
+
+      console.log(`Removed ${strokes.length - filtered.length} orphaned strokes`)
+    } catch (error) {
+      console.error('Error removing orphaned strokes:', error)
+    }
+  }, [canvasData, performSave])
 
   // Handle pen change
   const handlePenChange = useCallback((penIndex: number) => {
@@ -774,26 +821,48 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
-      {/* Wrapper for section detection and main element reference */}
-      <div ref={contentRef}>
+      {/* Orphaned strokes warning banner */}
+      {orphanedStrokesCount > 0 && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-600 rounded-lg shadow-lg px-4 py-2 max-w-md">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+            <span className="text-sm text-yellow-800 dark:text-yellow-200">
+              {orphanedStrokesCount} annotation{orphanedStrokesCount > 1 ? 's are' : ' is'} orphaned (original section{orphanedStrokesCount > 1 ? 's' : ''} deleted)
+            </span>
+            <button
+              onClick={handleRemoveOrphans}
+              className="ml-2 px-2 py-1 bg-yellow-200 dark:bg-yellow-800 hover:bg-yellow-300 dark:hover:bg-yellow-700 rounded text-xs text-yellow-900 dark:text-yellow-100 whitespace-nowrap"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Wrapper for content and canvas overlay */}
+      <div ref={contentRef} style={{ position: 'relative' }}>
         {children}
 
-        {/* Render canvases into section elements using portals */}
-        {sections.map(section => {
-          const canvasRef = canvasRefs.current.get(section.id)
-          if (!canvasRef || !section.element) return null
-
-          const initialData = sectionData.get(section.id)
-          console.log('Rendering canvas for section', section.id, 'with initialData:', initialData ? initialData.substring(0, 50) + '...' : 'none')
-          return createPortal(
+        {/* Single canvas overlay for entire page */}
+        {pageHeight > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: `-${MARGIN_EXTENSION_REM}rem`,
+              width: `${CANVAS_WIDTH_PX}px`,
+              height: pageHeight,
+              pointerEvents: mode === 'view' && !stylusModeActive ? 'none' : 'auto',
+              zIndex: 10
+            }}
+          >
             <SimpleCanvas
-              key={section.id}
               ref={canvasRef}
               width={CANVAS_WIDTH_PX}
-              height={section.element.offsetHeight}
+              height={pageHeight}
               mode={mode === 'view' ? 'view' : (mode as DrawMode)}
-              onUpdate={(data) => handleSectionUpdate(section.id, data)}
-              initialData={initialData}
+              onUpdate={handleCanvasUpdate}
+              initialData={canvasData}
               strokeColor={penColors[activePen]}
               strokeWidth={penSizes[activePen]}
               eraserWidth={eraserSize}
@@ -801,10 +870,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
               onStylusDetected={handleStylusDetected}
               onNonStylusInput={handleNonStylusInput}
               zoom={zoom}
-            />,
-            section.element
-          )
-        })}
+              headingPositions={headingPositions}
+            />
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}
