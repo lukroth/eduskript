@@ -22,8 +22,8 @@ export default defineConfig({
         'prisma/**',
       ],
     },
-    include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['node_modules', '.next', 'dist'],
+    include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    exclude: ['node_modules/**', '.next/**', 'dist/**'],
   },
   resolve: {
     alias: {
