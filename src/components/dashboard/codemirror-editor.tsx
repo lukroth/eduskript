@@ -327,15 +327,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
             EditorView.theme({
               '&': {
                 height: '100%',
-                backgroundColor: 'hsl(var(--card))',
-                color: 'hsl(var(--foreground))',
               },
               '.cm-content': {
                 padding: '12px',
                 fontSize: '14px',
                 lineHeight: '1.5',
-                backgroundColor: 'hsl(var(--card))',
-                color: 'hsl(var(--foreground))',
                 minHeight: '100%',
               },
               '.cm-focused': {
@@ -346,19 +342,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 height: '100%',
               },
               '.cm-scroller': {
-                backgroundColor: 'hsl(var(--card))',
                 minHeight: '100%',
                 overflowX: 'hidden', // Prevent horizontal overflow
               },
               '.cm-line': {
                 wordBreak: 'break-word', // Break long words
-              },
-              // Fix with specific selector that causes transparent selection background issues
-              '&.cm-focused .cm-line ::selection': {
-                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(37, 99, 235, 0.3) !important',
-              },
-              '&.cm-focused .cm-line::selection': {
-                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(37, 99, 235, 0.3) !important',
               },
             }),
             EditorView.lineWrapping, // Add line wrapping extension
