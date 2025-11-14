@@ -39,6 +39,14 @@ export function AnnotationToolbar({
   eraserSize,
   onEraserSizeChange
 }: AnnotationToolbarProps) {
+  // Save confirm preference to localStorage
+  const handleToggleConfirm = (value: boolean) => {
+    setConfirmBeforeDelete(value)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotation-confirm-delete', value.toString())
+    }
+  }
+
   const handleColorChange = (penIndex: number, color: string) => {
     onPenColorChange(penIndex, color)
     onPenChange(penIndex)
@@ -69,6 +77,21 @@ export function AnnotationToolbar({
   const [showEraserControls, setShowEraserControls] = useState(false)
   const eraserHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
   const eraserHideTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const [showDeleteControls, setShowDeleteControls] = useState(false)
+  const deleteHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const deleteHideTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const [confirmBeforeDelete, setConfirmBeforeDelete] = useState<boolean>(() => {
+    // Load preference from localStorage - default is false (no popup)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('annotation-confirm-delete')
+      if (saved !== null) {
+        return saved === 'true'
+      }
+    }
+    return false
+  })
 
   const handlePenMouseEnter = (penIndex: number) => {
     // Clear any pending hide timer
@@ -143,6 +166,49 @@ export function AnnotationToolbar({
     }
     setShowEraserControls(false)
     onModeChange(mode === 'erase' ? 'view' : 'erase')
+  }
+
+  const handleDeleteMouseEnter = () => {
+    // Clear any pending hide timer
+    if (deleteHideTimerRef.current) {
+      clearTimeout(deleteHideTimerRef.current)
+      deleteHideTimerRef.current = null
+    }
+
+    // Set timer to show delete controls
+    deleteHoverTimerRef.current = setTimeout(() => {
+      setShowDeleteControls(true)
+    }, 300)
+  }
+
+  const handleDeleteMouseLeave = () => {
+    if (deleteHoverTimerRef.current) {
+      clearTimeout(deleteHoverTimerRef.current)
+      deleteHoverTimerRef.current = null
+    }
+
+    // If delete controls are showing, delay hiding them
+    if (showDeleteControls) {
+      deleteHideTimerRef.current = setTimeout(() => {
+        setShowDeleteControls(false)
+      }, 200)
+    }
+  }
+
+  const handleDeleteClick = () => {
+    if (deleteHoverTimerRef.current) {
+      clearTimeout(deleteHoverTimerRef.current)
+      deleteHoverTimerRef.current = null
+    }
+    setShowDeleteControls(false)
+
+    if (confirmBeforeDelete) {
+      if (confirm('Clear all annotations on this page?')) {
+        onClear()
+      }
+    } else {
+      onClear()
+    }
   }
 
   const toolbarContent = (
@@ -316,18 +382,56 @@ export function AnnotationToolbar({
 
       {/* Clear All */}
       {hasAnnotations && (
-        <button
-          onClick={() => {
-            if (confirm('Clear all annotations on this page?')) {
-              onClear()
-            }
-          }}
-          className="p-3 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          title="Clear all annotations"
-          aria-label="Clear all annotations"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={handleDeleteClick}
+            onMouseEnter={handleDeleteMouseEnter}
+            onMouseLeave={handleDeleteMouseLeave}
+            className="p-3 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            title="Clear all annotations"
+            aria-label="Clear all annotations"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+
+          {/* Delete confirmation toggle popup */}
+          {showDeleteControls && (
+            <div
+              className="absolute right-full mr-2 bottom-0"
+              onMouseEnter={() => {
+                if (deleteHoverTimerRef.current) {
+                  clearTimeout(deleteHoverTimerRef.current)
+                }
+                if (deleteHideTimerRef.current) {
+                  clearTimeout(deleteHideTimerRef.current)
+                  deleteHideTimerRef.current = null
+                }
+              }}
+              onMouseLeave={() => setShowDeleteControls(false)}
+            >
+              <div className="bg-background border border-border rounded-lg shadow-lg p-3 whitespace-nowrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-xs text-foreground">Confirm deletion</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={confirmBeforeDelete}
+                    onClick={() => handleToggleConfirm(!confirmBeforeDelete)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      confirmBeforeDelete ? 'bg-primary' : 'bg-muted'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        confirmBeforeDelete ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
     </div>

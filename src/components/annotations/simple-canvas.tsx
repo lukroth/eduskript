@@ -196,7 +196,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           pathsRef.current = paths
           // Only trigger fade-in animation on the FIRST load, not on subsequent updates
           if (paths.length > 0 && !hasLoadedInitialDataRef.current) {
-            hasLoadedInitialDataRef.current = true
             setShouldFadeIn(true)
             // Remove the fade-in class after animation completes (0.5s)
             setTimeout(() => {
@@ -207,6 +206,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         } catch (error) {
           console.error('Error loading canvas data:', error)
         }
+      }
+      // Mark as initialized after first load attempt, regardless of whether there was data
+      if (!hasLoadedInitialDataRef.current) {
+        hasLoadedInitialDataRef.current = true
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialData])

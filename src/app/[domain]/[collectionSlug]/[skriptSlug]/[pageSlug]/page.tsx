@@ -380,7 +380,7 @@ export default async function PublicPage({ params }: PageProps) {
         fullSiteStructure={fullSiteStructure}
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       >
-        <div className="max-w-5xl mx-auto py-4 shadow-xl">
+        <div className="max-w-5xl mx-auto py-4 px-4 sm:px-8 md:px-12 lg:px-24 shadow-xl">
           {/* Preview mode indicator for unpublished content */}
           {(!collection.isPublished || !skript.isPublished || !page.isPublished) && isAuthor && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
@@ -413,7 +413,7 @@ export default async function PublicPage({ params }: PageProps) {
           </article>
 
           <div className="mt-8 pt-8 border-t border-border">
-            <ExportPDF 
+            <ExportPDF
               content={page.content}
               title={page.title}
               author={teacherForLayout.name}
