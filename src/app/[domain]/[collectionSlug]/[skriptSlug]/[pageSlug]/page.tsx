@@ -208,7 +208,7 @@ export default async function PublicPage({ params }: PageProps) {
     })
 
     if (!teacher) {
-      console.log('❌ Teacher not found, calling notFound()')
+      console.error('❌ Teacher not found, calling notFound()')
       notFound()
     }
 
@@ -216,7 +216,6 @@ export default async function PublicPage({ params }: PageProps) {
     const isAuthor = session?.user?.email === teacher.email
 
     // Find the collection, skript, and page
-    console.log('📚 Looking for collection:', collectionSlug)
     const collection = await prisma.collection.findFirst({
       where: {
         slug: collectionSlug,

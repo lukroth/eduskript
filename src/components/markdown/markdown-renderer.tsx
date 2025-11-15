@@ -171,13 +171,19 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
   return <div className={className} {...props}>{children}</div>
 }
 
+// Counter for auto-numbering code editors without explicit IDs
+let editorCounter = 0
+
 function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
   const { resolvedTheme } = useTheme()
   const { markdownContext } = useContext(MarkdownEditContext)
   const language = (props['dataLanguage'] as string) || (props['data-language'] as string) || 'python'
   const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
-  const id = (props['dataId'] as string) || (props['data-id'] as string)
+  const providedId = (props['dataId'] as string) || (props['data-id'] as string)
   const showCanvas = (props['dataShowCanvas'] as string) || (props['data-show-canvas'] as string)
+
+  // Auto-assign ID if not provided (counting from 0 for each page)
+  const id = providedId || `${editorCounter++}`
 
   const decodedCode = decodeHtmlEntities(code)
 
@@ -261,6 +267,9 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
     const processContent = async () => {
       try {
         setError(null)
+
+        // Reset editor counter for this page render
+        editorCounter = 0
 
         // Build the processing pipeline
         const processor = unified()

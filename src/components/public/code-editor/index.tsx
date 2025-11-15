@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
@@ -104,7 +104,20 @@ export function CodeEditor({
     setCanvasVisible(hasGraphics)
   }, [hasGraphics])
 
-  // Save state to user data service whenever it changes
+  // Debounced auto-save for code content changes
+  const contentSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const debouncedSaveContent = useCallback(() => {
+    if (!editorViewRef.current) return
+
+    const content = editorViewRef.current.state.doc.toString()
+    setFiles(prev => prev.map((file, idx) =>
+      idx === activeFileIndex ? { ...file, content } : file
+    ))
+  }, [activeFileIndex])
+
+  // Save settings changes immediately (fontSize, editorWidth, canvasTransform, activeFileIndex)
+  // Don't include files here - those are saved via the debounced content listener above
   useEffect(() => {
     // Only save if pageId is provided (not in fallback mode)
     if (!pageId) return
@@ -117,9 +130,9 @@ export function CodeEditor({
       canvasTransform,
     }
 
-    // Save with debounce (1 second default)
-    savePersistentData(dataToSave)
-  }, [files, activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData])
+    // Save immediately for settings changes
+    savePersistentData(dataToSave, { immediate: true })
+  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files])
 
   // Handle splitter dragging
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -299,6 +312,23 @@ export function CodeEditor({
     // Add VSCode theme (light or dark)
     extensions.push(isDark ? vsCodeDark : vsCodeLight)
 
+    // Add update listener for auto-save
+    extensions.push(
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          // Clear existing timeout
+          if (contentSaveTimeoutRef.current) {
+            clearTimeout(contentSaveTimeoutRef.current)
+          }
+
+          // Debounce save by 2 seconds after typing stops
+          contentSaveTimeoutRef.current = setTimeout(() => {
+            debouncedSaveContent()
+          }, 2000)
+        }
+      })
+    )
+
     // Clean up previous editor
     if (editorViewRef.current) {
       editorViewRef.current.destroy()
@@ -321,8 +351,12 @@ export function CodeEditor({
         editorViewRef.current.destroy()
         editorViewRef.current = null
       }
+      // Clear any pending auto-save
+      if (contentSaveTimeoutRef.current) {
+        clearTimeout(contentSaveTimeoutRef.current)
+      }
     }
-  }, [mounted, resolvedTheme, language, initialCode, fontSize])
+  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent])
 
   // Attach non-passive wheel event listener to prevent page scroll
   useEffect(() => {
