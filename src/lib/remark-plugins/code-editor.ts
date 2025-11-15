@@ -16,12 +16,9 @@ import type { Node } from 'unist'
 export function remarkCodeEditor() {
   return (tree: Node) => {
     visit(tree, 'code', (node: any) => {
-      console.log('[remarkCodeEditor] Found code block:', { lang: node.lang, meta: node.meta, value: node.value?.substring(0, 50) })
 
       // Check if the meta field contains "editor"
       if (node.meta && node.meta.includes('editor')) {
-        console.log('[remarkCodeEditor] Converting to code-editor element!')
-        console.log('[remarkCodeEditor] Code:', node.value)
 
         const language = node.lang || 'python' // Default to python if no language specified
 
@@ -60,7 +57,6 @@ export function remarkCodeEditor() {
         delete node.meta
         delete node.value
 
-        console.log('[remarkCodeEditor] Created element node:', node)
       }
     })
   }

@@ -186,20 +186,14 @@ export default async function PublicPage({ params }: PageProps) {
   const { domain, collectionSlug, skriptSlug, pageSlug } = await params
   const session = await getServerSession(authOptions)
   
-  // Debug logging
-  console.log('🔍 PublicPage Debug:', { domain, collectionSlug, skriptSlug, pageSlug })
-  
   // Check if we're on a subdomain by examining the Host header
   const headersList = await headers()
   const host = headersList.get('host') || ''
   const hostname = host.split(':')[0]
   const isOnSubdomain = hostname !== 'localhost' && hostname.endsWith('.localhost')
 
-  console.log('🌐 Host info:', { host, hostname, isOnSubdomain })
-
   try {
     // Find teacher by subdomain
-    console.log('👨‍🏫 Looking for teacher with subdomain:', domain)
     const teacher = await prisma.user.findFirst({
       where: { subdomain: domain },
       select: {
@@ -212,8 +206,6 @@ export default async function PublicPage({ params }: PageProps) {
         sidebarBehavior: true
       }
     })
-
-    console.log('👨‍🏫 Teacher found:', teacher ? `${teacher.name} (${teacher.subdomain})` : 'null')
 
     if (!teacher) {
       console.log('❌ Teacher not found, calling notFound()')

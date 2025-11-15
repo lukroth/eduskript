@@ -166,12 +166,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [pageVersion, annotationData])
 
-  // Load annotations from user data service (only on initial mount)
-  const hasLoadedInitialData = useRef(false)
+  // Load annotations from user data service
+  // Only load if we don't have local data yet (prevents overwriting active drawing)
   useEffect(() => {
-    // Only load once on mount, don't reload when annotationData changes from our own saves
-    if (hasLoadedInitialData.current) return
-    hasLoadedInitialData.current = true
+    // Don't reload if we already have canvas data (user is drawing)
+    if (canvasData) return
 
     if (annotationData && annotationData.canvasData) {
       try {
@@ -189,7 +188,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         console.error('Error parsing canvas data:', error)
       }
     }
-  }, [annotationData])
+  }, [annotationData, canvasData])
 
   // Apply repositioning when heading positions change (only if needed)
   useEffect(() => {
