@@ -145,8 +145,8 @@ export function CodeEditor({
     ))
   }, [activeFileIndex, componentId])
 
-  // Save settings changes immediately (fontSize, editorWidth, canvasTransform, activeFileIndex)
-  // Don't include files here - those are saved via the debounced content listener above
+  // Save data to IndexedDB when anything changes
+  // Files changes are debounced via the update listener, settings changes are immediate
   useEffect(() => {
     // Only save if pageId is provided (not in fallback mode)
     if (!pageId) return
@@ -159,9 +159,9 @@ export function CodeEditor({
       canvasTransform,
     }
 
-    console.log('[CodeEditor] Saving data:', { componentId, pageId, dataToSave })
+    console.log('[CodeEditor] Saving to IndexedDB:', { componentId, pageId, dataToSave })
 
-    // Save immediately for settings changes
+    // Save immediately (debouncing already happened at the update listener level for content)
     savePersistentData(dataToSave, { immediate: true })
   }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId])
 
@@ -346,8 +346,9 @@ export function CodeEditor({
     // Add update listener for auto-save
     extensions.push(
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          console.log('[CodeEditor] Document changed, scheduling save in 2 seconds')
+        // Only trigger save on user input, not programmatic changes
+        if (update.docChanged && update.transactions.some(tr => tr.annotation(EditorView.userEvent))) {
+          console.log('[CodeEditor] Document changed by USER, scheduling save in 2 seconds')
 
           // Clear existing timeout
           if (contentSaveTimeoutRef.current) {
@@ -359,6 +360,8 @@ export function CodeEditor({
             console.log('[CodeEditor] 2 seconds elapsed, triggering debounced save')
             debouncedSaveContent()
           }, 2000)
+        } else if (update.docChanged) {
+          console.log('[CodeEditor] Document changed PROGRAMMATICALLY, not saving')
         }
       })
     )
