@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
+import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
   name: string
@@ -49,18 +50,24 @@ interface PublicSiteLayoutProps {
   sidebarBehavior?: 'contextual' | 'full'
 }
 
-export function PublicSiteLayout({ 
-  teacher, 
-  siteStructure, 
-  rootSkripts = [], 
-  children, 
+export function PublicSiteLayout({
+  teacher,
+  siteStructure,
+  rootSkripts = [],
+  children,
   currentPath,
   fullSiteStructure,
   sidebarBehavior = 'contextual'
 }: PublicSiteLayoutProps) {
   const router = useRouter()
+  const { setSidebarCollapsed: setSidebarCollapsedInContext } = useLayout()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Sync local sidebar collapse state with global context
+  useEffect(() => {
+    setSidebarCollapsedInContext(isSidebarCollapsed)
+  }, [isSidebarCollapsed, setSidebarCollapsedInContext])
   
   // Storage keys for persistence
   const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.subdomain}`

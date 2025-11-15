@@ -2,6 +2,7 @@
 
 import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from 'next-themes'
+import { LayoutProvider } from '@/contexts/layout-context'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -14,7 +15,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         storageKey="eduskript-theme"
         themes={['light', 'dark', 'system']}
       >
-        {children}
+        <LayoutProvider>
+          {children}
+        </LayoutProvider>
       </ThemeProvider>
     </SessionProvider>
   )

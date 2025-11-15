@@ -14,6 +14,7 @@ import {
   type StrokeData
 } from '@/lib/indexeddb/annotations'
 import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
+import { useLayout } from '@/contexts/layout-context'
 
 interface AnnotationLayerProps {
   pageId: string
@@ -22,6 +23,7 @@ interface AnnotationLayerProps {
 }
 
 export function AnnotationLayer({ pageId, content, children }: AnnotationLayerProps) {
+  const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
   const [versionMismatch, setVersionMismatch] = useState(false)
@@ -100,12 +102,23 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [orphanedStrokesCount, setOrphanedStrokesCount] = useState(0)
   const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
 
-  // Canvas width is 1.5x content width
-  // Content is max-w-5xl (80rem = 1280px)
-  const CONTENT_WIDTH_REM = 80
-  const CANVAS_WIDTH_REM = CONTENT_WIDTH_REM * 1.5 // 120rem = 1920px
-  const CANVAS_WIDTH_PX = CANVAS_WIDTH_REM * 16 // 1920px
-  const MARGIN_EXTENSION_REM = (CANVAS_WIDTH_REM - CONTENT_WIDTH_REM) / 2 // 12rem on each side
+  // Canvas width matches paper width exactly
+  // Paper is max-w-5xl (64rem = 1024px)
+  const PAPER_WIDTH_REM = 64
+  const CANVAS_WIDTH_PX = PAPER_WIDTH_REM * 16 // 1024px
+
+  // Track paper padding for canvas alignment
+  const [paperPaddingLeft, setPaperPaddingLeft] = useState(0)
+
+  // Measure paper padding when it mounts
+  useEffect(() => {
+    const paperElement = document.getElementById('paper')
+    if (paperElement) {
+      const style = window.getComputedStyle(paperElement)
+      const padding = parseFloat(style.paddingLeft) || 0
+      setPaperPaddingLeft(padding)
+    }
+  }, [])
 
   // Save pen colors to localStorage whenever they change
   useEffect(() => {
@@ -148,9 +161,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   useEffect(() => {
     if (!pageId) return
 
-    console.log('Loading annotations for page:', pageId)
     getPageAnnotations(pageId).then(pageAnnotation => {
-      console.log('Loaded page annotation:', pageAnnotation)
       if (pageAnnotation && pageAnnotation.canvasData) {
         try {
           const strokes: StrokeData[] = JSON.parse(pageAnnotation.canvasData)
@@ -159,13 +170,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
             setHasAnnotations(true)
             setCanvasData(JSON.stringify(strokes))
             setStoredHeadingOffsets(pageAnnotation.headingOffsets || {})
-            console.log('Loaded', strokes.length, 'strokes')
           }
         } catch (error) {
           console.error('Error parsing canvas data:', error)
         }
       } else {
-        console.log('No annotations found')
         setStoredHeadingOffsets({})
       }
     })
@@ -190,19 +199,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       )
 
       if (needsReposition) {
-        console.log('Content changed - repositioning strokes')
-        console.log('Stored offsets:', storedHeadingOffsets)
-        console.log('Current offsets:', currentOffsets)
-
         const result = repositionStrokes(strokes, headingPositions, storedHeadingOffsets)
         setCanvasData(JSON.stringify(result.strokes))
         setOrphanedStrokesCount(result.orphanedCount)
         // Update stored offsets so we don't reposition again
         setStoredHeadingOffsets(currentOffsets)
-
-        if (result.orphanedCount > 0) {
-          console.log(`Warning: ${result.orphanedCount} orphaned strokes detected`)
-        }
       }
     } catch (error) {
       console.error('Error checking repositioning:', error)
@@ -239,7 +240,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
 
     setHeadingPositions(positions)
-    console.log('Tracked', positions.length, 'heading positions')
   }, [])
 
   // Track heading positions and page height (after markdown renders)
@@ -264,7 +264,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       if (!isScheduled) {
         isScheduled = true
         rafId = requestAnimationFrame(() => {
-          console.log('Window resized - recalculating heading positions')
           recalculateHeadingPositions()
           isScheduled = false
         })
@@ -281,45 +280,25 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Function to perform the actual save
   const performSave = useCallback(async () => {
     // Don't save if we're in the middle of clearing
-    if (isClearingRef.current) {
-      console.log('Skipping save - clearing in progress')
-      return
-    }
+    if (isClearingRef.current) return
 
-    if (!canvasData || !pageId || !pageVersion) {
-      console.log('Skipping save - missing required data')
-      return
-    }
+    if (!canvasData || !pageId || !pageVersion) return
 
     // Don't save if heading positions haven't been tracked yet
-    if (headingPositions.length === 0) {
-      console.log('Skipping save - waiting for heading positions to be tracked')
-      return
-    }
+    if (headingPositions.length === 0) return
 
     try {
       // Parse canvas data to check if we have strokes
       const strokes = JSON.parse(canvasData) as StrokeData[]
 
-      if (strokes.length === 0) {
-        console.log('No strokes to save')
-        return
-      }
+      if (strokes.length === 0) return
 
       // Build heading offsets map
       const headingOffsets = Object.fromEntries(
         headingPositions.map(h => [h.sectionId, h.offsetY])
       )
 
-      // Calculate statistics
-      const totalPoints = strokes.reduce((sum, stroke) => sum + stroke.points.length, 0)
-      const sizeKB = (new Blob([canvasData]).size / 1024).toFixed(2)
-
-      console.log(`📊 Saving: ${strokes.length} strokes, ${totalPoints} points, ${sizeKB} KB`)
-      console.log(`📍 Tracking ${headingPositions.length} heading positions`)
-
       await savePageAnnotations(pageId, pageVersion, canvasData, headingOffsets)
-      console.log('Save completed successfully')
     } catch (error) {
       console.error('Error saving annotations:', error)
     }
@@ -396,8 +375,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Handle clear all annotations
   const handleClearAll = useCallback(async () => {
     try {
-      console.log('Clearing all annotations')
-
       // Set flag to prevent any saves during/after clear operation
       isClearingRef.current = true
 
@@ -420,8 +397,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       if (canvasRef.current) {
         canvasRef.current.clear()
       }
-
-      console.log('Annotations cleared successfully')
     } catch (error) {
       console.error('Error clearing annotations:', error)
     }
@@ -449,8 +424,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         clearTimeout(saveTimeoutRef.current)
       }
       performSave()
-
-      console.log(`Removed ${strokes.length - filtered.length} orphaned strokes`)
     } catch (error) {
       console.error('Error removing orphaned strokes:', error)
     }
@@ -487,12 +460,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Handle stylus detection
   const handleStylusDetected = useCallback(() => {
     if (!stylusModeActive) {
-      console.log('Stylus detected - activating stylus mode')
       setStylusModeActive(true)
     }
     // Switch to draw mode only if in view mode (preserve erase mode)
     if (mode === 'view') {
-      console.log('Stylus detected - switching from view to draw mode')
       setMode('draw')
     }
   }, [stylusModeActive, mode])
@@ -503,7 +474,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const handleDocumentPointer = (e: PointerEvent) => {
       if (e.pointerType === 'pen') {
-        console.log('Stylus detected on document (hover or touch) - activating stylus mode')
         handleStylusDetected()
       }
     }
@@ -523,7 +493,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const handleDocumentMouseMove = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') {
-        console.log('Mouse detected on document - deactivating stylus mode')
         setStylusModeActive(false)
         setMode('view')
       }
@@ -539,7 +508,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Handle non-stylus input in stylus mode (switch to view mode and deactivate stylus mode)
   const handleNonStylusInput = useCallback(() => {
     if (stylusModeActive && mode !== 'view') {
-      console.log('Non-stylus input detected in stylus mode - switching to view mode and deactivating stylus mode')
       setMode('view')
       setStylusModeActive(false)
     }
@@ -561,8 +529,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     // Restore transform
     mainRef.current.style.transform = currentTransform
 
-    const viewportHeight = window.innerHeight
-
     // Calculate limits in pan space
     // Top limit: content top should not go below viewport top
     const maxPanY = -mainTop / newZoom
@@ -573,7 +539,67 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     // Clamp panY between limits
     return Math.max(minPanY, Math.min(maxPanY, newPanY))
-  }, [zoom])
+  }, [zoom, viewportHeight])
+
+  // Calculate horizontal pan limits - measures on-demand for accuracy
+  const calculateHorizontalLimit = useCallback((newPanX: number, newZoom: number = zoom) => {
+    if (!mainRef.current) return newPanX
+
+    const paperElement = document.getElementById('paper')
+    if (!paperElement) return newPanX
+
+    // Remove transform to get natural position
+    const currentTransform = mainRef.current.style.transform
+    mainRef.current.style.transform = 'none'
+
+    // Measure both main and paper elements
+    const mainRect = mainRef.current.getBoundingClientRect()
+    const paperRect = paperElement.getBoundingClientRect()
+
+    mainRef.current.style.transform = currentTransform
+
+    // The transform origin is "top center" of the MAIN element, not viewport
+    const originX = (mainRect.left + mainRect.right) / 2
+    const leftBoundary = sidebarWidth
+
+    const naturalLeft = paperRect.left
+    const naturalRight = paperRect.right
+
+    // Calculate where the paper edges WILL BE after zoom transformation
+    // With transform-origin at center (originX), edges transform as:
+    // transformedPos = originX + (naturalPos - originX) * zoom
+    const transformedLeft = originX + (naturalLeft - originX) * newZoom
+    const transformedRight = originX + (naturalRight - originX) * newZoom
+    const transformedWidth = transformedRight - transformedLeft
+
+    const availableWidth = viewportWidth - leftBoundary
+
+    // If paper fits in viewport, center it and lock panning
+    if (transformedWidth <= availableWidth) {
+      const transformedCenter = (transformedLeft + transformedRight) / 2
+      const desiredCenter = leftBoundary + availableWidth / 2
+      // How much do we need to pan to move transformedCenter to desiredCenter?
+      // Pan is applied after zoom, so: screenPos = transformedPos + panX * zoom
+      const centerPanX = (desiredCenter - transformedCenter) / newZoom
+      return centerPanX
+    }
+
+    // Paper is wider than viewport - allow panning to see entire paper + buffers
+    const leftBuffer = 32
+    const rightBuffer = 32
+
+    // Left constraint: Paper left edge should be visible with a small buffer from sidebar
+    const leftTarget = leftBoundary + leftBuffer
+    // We want: transformedLeft + panX * zoom = leftTarget
+    const maxPanX = (leftTarget - transformedLeft) / newZoom
+
+    // Right constraint: Paper right edge should be visible with a small buffer from viewport edge
+    const rightTarget = viewportWidth - rightBuffer
+    // We want: transformedRight + panX * zoom = rightTarget
+    const minPanX = (rightTarget - transformedRight) / newZoom
+
+    return Math.max(minPanX, Math.min(maxPanX, newPanX))
+  }, [zoom, viewportWidth, sidebarWidth])
 
   // Custom pinch-zoom and pan handling
   const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -592,7 +618,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         panX,
         panY
       }
-      console.log('Single touch start for pan')
     }
 
     // Two touches - start pinch zoom and prevent browser zoom
@@ -612,8 +637,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       initialPinchCenterRef.current = { x: centerX, y: centerY }
       initialZoomRef.current = zoom
       initialPanRef.current = { x: panX, y: panY }
-
-      console.log('Pinch start - distance:', distance, 'center:', centerX, centerY, 'zoom:', zoom)
     }
   }, [zoom, panX, panY, mode])
 
@@ -629,10 +652,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const touch = e.touches[0]
       const deltaX = touch.clientX - singleTouchStartRef.current.x
       const deltaY = touch.clientY - singleTouchStartRef.current.y
-      const newPanX = singleTouchStartRef.current.panX + deltaX / zoom
+      let newPanX = singleTouchStartRef.current.panX + deltaX / zoom
       let newPanY = singleTouchStartRef.current.panY + deltaY / zoom
 
-      // Apply scroll limits
+      // Apply limits
+      newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
       setPanX(newPanX)
@@ -653,9 +677,19 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const zoomFactor = currentDistance / initialPinchDistanceRef.current
       const newZoom = Math.max(0.5, Math.min(3.0, initialZoomRef.current * zoomFactor))
 
-      // Zoom around the initial pinch center point, accounting for transform-origin: top center
-      const originX = window.innerWidth / 2
-      const originY = 0
+      // Zoom around the initial pinch center point, accounting for transform-origin: top center of main
+      // We need to get the main element's center as the origin
+      if (!mainRef.current) return
+
+      // Get natural (untransformed) position of main element
+      const currentTransform = mainRef.current.style.transform
+      mainRef.current.style.transform = 'none'
+      const mainRect = mainRef.current.getBoundingClientRect()
+      mainRef.current.style.transform = currentTransform
+
+      const originX = (mainRect.left + mainRect.right) / 2
+      const originY = mainRect.top
+
       const initialCenterX = initialPinchCenterRef.current.x
       const initialCenterY = initialPinchCenterRef.current.y
       const zoomPanX = (initialCenterX - originX) * (1 / newZoom - 1 / initialZoomRef.current) + initialPanRef.current.x
@@ -664,18 +698,18 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       // Add pan from finger movement
       const deltaCenterX = currentCenterX - initialCenterX
       const deltaCenterY = currentCenterY - initialCenterY
-      const newPanX = zoomPanX + deltaCenterX / newZoom
+      let newPanX = zoomPanX + deltaCenterX / newZoom
       let newPanY = zoomPanY + deltaCenterY / newZoom
 
-      // Apply scroll limits
+      // Apply limits
+      newPanX = calculateHorizontalLimit(newPanX, newZoom)
       newPanY = calculateScrollLimits(newPanY, newZoom)
 
-      console.log('Pinch move - zoom:', newZoom, 'pan:', newPanX, newPanY)
       setZoom(newZoom)
       setPanX(newPanX)
       setPanY(newPanY)
     }
-  }, [zoom, calculateScrollLimits])
+  }, [zoom, calculateScrollLimits, calculateHorizontalLimit])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Remove ended touches
@@ -687,14 +721,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     // Clear single touch pan
     if (e.touches.length === 0) {
       singleTouchStartRef.current = null
-      console.log('Single touch end')
     }
 
     // Reset pinch state when less than 2 touches remain
     if (e.touches.length < 2) {
       initialPinchDistanceRef.current = null
       initialPinchCenterRef.current = null
-      console.log('Pinch end')
     }
   }, [])
 
@@ -704,22 +736,31 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault()
 
+      if (!mainRef.current) return
+
       // Calculate zoom delta (negative deltaY means zoom in)
       const delta = -e.deltaY * 0.01
       const newZoom = Math.max(0.5, Math.min(3.0, zoom * (1 + delta)))
 
-      // Zoom around cursor position, accounting for transform-origin: top center
-      const originX = window.innerWidth / 2
-      const originY = 0
+      // Get natural (untransformed) position of main element
+      const currentTransform = mainRef.current.style.transform
+      mainRef.current.style.transform = 'none'
+      const mainRect = mainRef.current.getBoundingClientRect()
+      mainRef.current.style.transform = currentTransform
+
+      // Zoom around cursor position, accounting for transform-origin: top center of main element
+      const originX = (mainRect.left + mainRect.right) / 2
+      const originY = mainRect.top
+
       const mouseX = e.clientX
       const mouseY = e.clientY
-      const newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoom) + panX
+      let newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoom) + panX
       let newPanY = (mouseY - originY) * (1 / newZoom - 1 / zoom) + panY
 
-      // Apply scroll limits
+      // Apply limits
+      newPanX = calculateHorizontalLimit(newPanX, newZoom)
       newPanY = calculateScrollLimits(newPanY, newZoom)
 
-      console.log('Trackpad zoom:', newZoom)
       setZoom(newZoom)
       setPanX(newPanX)
       setPanY(newPanY)
@@ -730,17 +771,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       // Convert scroll to pan (deltaX and deltaY are in pixels)
       // This handles both trackpad pan and regular mousewheel scroll
-      const newPanX = panX - e.deltaX / zoom
+      let newPanX = panX - e.deltaX / zoom
       let newPanY = panY - e.deltaY / zoom
 
-      // Apply scroll limits
+      // Apply limits
+      newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
-      console.log('Wheel pan/scroll:', newPanX, newPanY)
       setPanX(newPanX)
       setPanY(newPanY)
     }
-  }, [zoom, panX, panY, calculateScrollLimits])
+  }, [zoom, panX, panY, calculateScrollLimits, calculateHorizontalLimit])
 
   // Handle middle mouse button drag for desktop
   const handleMouseDown = useCallback((e: MouseEvent) => {
@@ -754,7 +795,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         panY
       }
       document.body.style.cursor = 'grabbing'
-      console.log('Middle mouse drag start')
     }
   }, [panX, panY])
 
@@ -762,22 +802,22 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (middleMouseDragRef.current) {
       const deltaX = e.clientX - middleMouseDragRef.current.x
       const deltaY = e.clientY - middleMouseDragRef.current.y
-      const newPanX = middleMouseDragRef.current.panX + deltaX / zoom
+      let newPanX = middleMouseDragRef.current.panX + deltaX / zoom
       let newPanY = middleMouseDragRef.current.panY + deltaY / zoom
 
-      // Apply scroll limits
+      // Apply limits
+      newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
       setPanX(newPanX)
       setPanY(newPanY)
     }
-  }, [zoom, calculateScrollLimits])
+  }, [zoom, calculateScrollLimits, calculateHorizontalLimit])
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
     if (middleMouseDragRef.current && e.button === 1) {
       middleMouseDragRef.current = null
       document.body.style.cursor = ''
-      console.log('Middle mouse drag end')
     }
   }, [])
 
@@ -879,7 +919,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
             style={{
               position: 'absolute',
               top: 0,
-              left: `-${MARGIN_EXTENSION_REM}rem`,
+              left: `-${paperPaddingLeft}px`,
               width: `${CANVAS_WIDTH_PX}px`,
               height: pageHeight,
               pointerEvents: mode === 'view' && !stylusModeActive ? 'none' : 'auto',
