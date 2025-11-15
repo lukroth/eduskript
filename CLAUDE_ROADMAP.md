@@ -46,148 +46,25 @@
 
 ## 🎯 Priority List (drag to reorder)
 
-**Currently working on: Code Editor** - a code editor for students to learn python with turtle using codemirror
-merge code reivew
-**Plugin System** - Extensible component architecture, MDX
-**Video Hosting** - Swiss-compliant video upload and embedding
-**Marketplace** - Content selling and customer relationships
+**Next up:**
+- **Plugin System** - Extensible component architecture, MDX
+- **Video Hosting** - Swiss-compliant video upload and embedding
+- **Marketplace** - Content selling and customer relationships
 
-LMS stuff later
-**Student Analytics** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
-**Interactive Quizzes** - In-lesson quizzes with progress tracking
+**LMS features (later):**
+- **Student Analytics** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
+- **Interactive Quizzes** - In-lesson quizzes with progress tracking
 
 ---
 
-# Lesson Editor Enhancements & Student Analytics Roadmap
+# Enhanced Lesson Editor & Student Analytics Roadmap
 
 ## 🎨 Phase 1: Enhanced Lesson Editor
 
-### 1.1 Python Code Editor with Turtle Graphics ✅ COMPLETED
-**Goal**: Interactive Python code editor for students to learn programming with turtle graphics
-
-**Phase 1.1.1: Setup Skulpt and Core Infrastructure** ✅
-- [x] Copy Skulpt files to public directory
-  - [x] Copy `skulpt.min.js` from old project
-  - [x] Copy `skulpt-stdlib.js` from old project
-  - [x] Verify files work by loading in browser
-- [x] Create basic component structure
-  - [x] Create `src/components/public/code-editor/index.tsx` (main component)
-  - [x] Create `src/components/public/code-editor/` directory for sub-components
-  - [x] Set up TypeScript types for Skulpt and editor config
-
-**Phase 1.1.2: CodeMirror Integration** ✅
-- [x] Implement CodeMirror editor
-  - [x] Set up CodeMirror 6 with Python language support
-  - [x] Configure theme switching (light/dark mode, using oneDark theme)
-  - [x] Add line numbers and basic editing features
-  - [x] Configure Python syntax highlighting
-- [x] Add editor controls
-  - [x] Run button to execute code
-  - [x] Stop button to halt execution
-  - [x] Reset button to restore initial code
-  - [x] Clear output button
-
-**Phase 1.1.3: Skulpt Python Execution** ✅
-- [x] Configure Skulpt runtime
-  - [x] Set up output capture for print statements
-  - [x] Configure turtle graphics canvas
-  - [x] Handle Python errors and display them
-  - [x] Set execution limits for safety
-- [x] Create turtle graphics canvas area
-  - [x] Canvas wrapper with proper dimensions
-  - [x] Make canvas hideable when not using turtle
-  - [x] Add screenshot/download canvas functionality (placeholder)
-  - [x] Add fullscreen mode for canvas
-  - [x] Canvas pan and zoom with mouse drag/scroll
-
-**Phase 1.1.4: Terminal Output** ✅
-- [x] Implement terminal output area
-  - [x] Display print() output
-  - [x] Show error messages with proper formatting
-  - [x] Color-code different output types (stdout, stderr, warnings)
-  - [x] Add clear button for output
-  - [x] Make output scrollable
-
-**Phase 1.1.5: Multi-File Support** ✅
-- [x] Add file management
-  - [x] Create file tabs UI for multiple Python files
-  - [x] Add/remove/rename file functionality (double-click to rename)
-  - [x] Switch between files in editor
-  - [x] Store all files in component state
-- [x] Implement Python import system
-  - [x] Configure Skulpt to support custom modules
-  - [x] Allow importing from other files in the project (with/without .py extension)
-  - [x] Handle import errors gracefully
-  - [x] Test cross-file imports
-
-**Phase 1.1.6: Markdown Integration** ✅
-- [x] Create custom remark plugin for code editor blocks
-  - [x] Syntax: ` ```python editor` with optional config
-  - [x] Support initial code in markdown
-  - [x] Render editor in public pages via hydration
-- [x] Add editor toolbar button to markdown editor
-  - [x] Icon for inserting code editor blocks
-  - [x] Template code insertion
-  - [x] Preview in split view
-
-**Phase 1.1.7: Advanced Features** ✅
-- [x] Client-side Python autocomplete and language server
-  - [x] Keyword and builtin function completion
-  - [x] Turtle graphics method completion
-  - [x] Module member completion (math, random, turtle)
-  - [x] Auto-trigger on dot notation (e.g., `t.` shows turtle methods)
-  - [x] User-defined function/class/variable extraction and completion
-  - [ ] **Future Enhancement**: Context-aware cross-file completion (know about imports from file2, etc.)
-
-**Phase 1.1.8: Polish and UX** (Partially Complete)
-- [x] UI improvements
-  - [x] Match design system (Radix UI components)
-  - [x] Theme respecting (dark/light mode)
-  - [x] Loading states
-- [ ] Additional features (future)
-  - [ ] Auto-save to localStorage
-  - [ ] Code history/undo for entire sessions
-  - [ ] Share code snippets
-  - [ ] Keyboard shortcuts (Ctrl+Enter to run)
-
-**Implementation Notes**:
-- **Location**: `src/components/public/code-editor/`
-- **Files Created**:
-  - `index.tsx` - Main editor component with multi-file support
-  - `types.ts` - TypeScript definitions
-  - `python-completions.ts` - Client-side language intelligence
-- **Remark Plugin**: `src/lib/remark-plugins/code-editor.ts`
-- **Toolbar Integration**: `src/components/dashboard/codemirror-editor.tsx` (line ~542)
-
-**Future Improvements**:
-- Enhanced autocomplete with cross-file import awareness
-- Better static analysis to know function signatures from imported modules
-
-**Recent Updates (2025-01-12)**:
-- ✅ **Unified VSCode color scheme across all code editors** - Complete syntax highlighting consistency
-  - Replaced Shiki with CodeMirror for static code blocks
-  - Updated interactive Python/JS editor to use VSCode themes (was using oneDark)
-  - All three editors now use identical VSCode Light/Dark themes:
-    - Interactive code editor (public): `vsCodeDark` / `vsCodeLight`
-    - Backend markdown editor: `vsCodeDark` / `vsCodeLight`
-    - Static code blocks: `vsCodeDark` / `vsCodeLight`
-  - VSCode color scheme features: functions (yellow), strings (brown-reddish), comments (green)
-  - Support for `[!code ++]`, `[!code --]`, `[!code highlight]`, and `[!code focus]` annotations
-  - Implemented via `rehypeCodemirrorHighlight` plugin and `CodeMirrorCodeBlock` component
-  - Files: `src/components/markdown/codemirror-code-block.tsx`, `src/lib/rehype-plugins/codemirror-highlight.ts`, `src/components/public/code-editor/index.tsx`
-
-**Implemented Architecture:**
-- **Editor**: CodeMirror 6 with Python language support
-- **Python Runtime**: Skulpt.js (browser-based Python interpreter)
-- **UI Layout**: Left = code editor with file tabs, Right = turtle canvas (pan/zoom, hideable), Bottom = terminal output
-- **Multi-file**: Tab-based interface with add/remove/rename (double-click)
-- **Autocomplete**: Client-side language server with keyword, builtin, module, and user-defined symbol completion
-- **Storage**: Component state (no persistence - resets on page reload)
-
-### 1.2 Video Hosting Integration
+### 1.1 Video Hosting Integration
 **Goal**: Professional video hosting with Swiss data privacy compliance
 
-**Phase 1.2.1: Provider Research**
+**Phase 1.1.1: Provider Research**
 - [ ] Evaluate Mux Video
   - [ ] Pricing and storage limits
   - [ ] Data residency (can data stay in EU/Switzerland?)
@@ -208,7 +85,7 @@ LMS stuff later
   - ✅ API for upload/playback
   - ✅ Reasonable pricing for educational use
 
-**Phase 1.2.2: Video Upload Implementation**
+**Phase 1.1.2: Video Upload Implementation**
 - [ ] Design video storage model
   - [ ] Add `Video` table to Prisma schema
   - [ ] Track upload status, processing state, provider metadata
@@ -229,10 +106,10 @@ LMS stuff later
   - [ ] Playback controls and quality selector
   - [ ] Captions/subtitles support (future)
 
-### 1.3 Interactive Quiz Component
+### 1.2 Interactive Quiz Component
 **Goal**: In-lesson quizzes with student progress tracking
 
-**Phase 1.3.1: Quiz Structure Design**
+**Phase 1.2.1: Quiz Structure Design**
 - [ ] Define quiz types
   - [ ] Multiple choice (single/multiple answers)
   - [ ] True/False
@@ -248,7 +125,7 @@ LMS stuff later
   - [ ] Track completion and scores
   - [ ] Allow retry attempts
 
-**Phase 1.3.2: Quiz Component Implementation**
+**Phase 1.2.2: Quiz Component Implementation**
 - [ ] Build quiz renderer
   - [ ] Create `src/components/quiz/quiz-renderer.tsx`
   - [ ] Support all question types
@@ -268,10 +145,10 @@ LMS stuff later
   - [ ] Store anonymized results
   - [ ] Display student's previous attempts
 
-### 1.4 Custom Component Plugin System
+### 1.3 Custom Component Plugin System
 **Goal**: Extensible plugin architecture for interactive lesson components
 
-**Phase 1.4.1: Architecture Planning**
+**Phase 1.3.1: Architecture Planning**
 - [ ] Brainstorm plugin architecture approaches
   - [ ] Sandboxed iframe approach vs. React component registration
   - [ ] Security model (XSS prevention, content security policy)
@@ -288,7 +165,7 @@ LMS stuff later
   - [ ] Licensing model (free vs. paid plugins)
   - [ ] Plugin dependencies and compatibility
 
-**Phase 1.4.2: Core Plugin Infrastructure**
+**Phase 1.3.2: Core Plugin Infrastructure**
 - [ ] Implement plugin loader system
   - [ ] Create plugin registry at `src/lib/plugins/registry.ts`
   - [ ] Plugin manifest schema and validation
@@ -311,7 +188,7 @@ LMS stuff later
   - [ ] Enable/disable toggle per skript or globally
   - [ ] Plugin settings/configuration interface
 
-**Phase 1.4.3: Marketplace Preparation (Future)**
+**Phase 1.3.3: Marketplace Preparation (Future)**
 - [ ] Plugin submission and review workflow
 - [ ] Public plugin directory
 - [ ] Rating and review system
