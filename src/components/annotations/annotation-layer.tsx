@@ -166,8 +166,13 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [pageVersion, annotationData])
 
-  // Load annotations from user data service
+  // Load annotations from user data service (only on initial mount)
+  const hasLoadedInitialData = useRef(false)
   useEffect(() => {
+    // Only load once on mount, don't reload when annotationData changes from our own saves
+    if (hasLoadedInitialData.current) return
+    hasLoadedInitialData.current = true
+
     if (annotationData && annotationData.canvasData) {
       try {
         const strokes: StrokeData[] = JSON.parse(annotationData.canvasData)
@@ -179,30 +184,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           setCanvasData(annotationData.canvasData)
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setStoredHeadingOffsets(annotationData.headingOffsets || {})
-        } else {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setHasAnnotations(false)
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setCanvasData('')
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setStoredHeadingOffsets({})
         }
       } catch (error) {
         console.error('Error parsing canvas data:', error)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setHasAnnotations(false)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCanvasData('')
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setStoredHeadingOffsets({})
       }
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setHasAnnotations(false)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCanvasData('')
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStoredHeadingOffsets({})
     }
   }, [annotationData])
 
