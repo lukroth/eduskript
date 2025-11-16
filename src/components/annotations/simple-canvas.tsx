@@ -40,7 +40,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const currentPathRef = useRef<Array<{ x: number; y: number; pressure: number }>>([])
     const currentModeRef = useRef<DrawMode>('draw') // Track the effective mode for current stroke
     const strokesMarkedForDeletionRef = useRef<Set<number>>(new Set()) // Track strokes to delete when eraser lifts
+    const eraserTrailRef = useRef<Array<{ x: number; y: number }>>([]) // Track eraser position history for tail effect
     const [shouldFadeIn, setShouldFadeIn] = useState(false)
+    const [isEraserActive, setIsEraserActive] = useState(false) // Track if hardware eraser is actively being used
     const hasLoadedInitialDataRef = useRef(false)
     const activePointersRef = useRef<Set<number>>(new Set())
     const activeTouchPointersRef = useRef<Set<number>>(new Set()) // Track only touch/mouse (not pen) for multi-touch detection
@@ -196,6 +198,38 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       // Reset globalAlpha
       ctx.globalAlpha = 1.0
+
+      // Draw eraser cursor with tail if in erase mode and we have trail points
+      if (currentModeRef.current === 'erase' && eraserTrailRef.current.length > 0) {
+        const trail = eraserTrailRef.current
+        const trailLength = trail.length
+
+        // Draw tail as progressively smaller circles with fading opacity
+        for (let i = 0; i < trailLength; i++) {
+          const pos = trail[i]
+          const progress = i / (trailLength - 1) // 0 to 1 from oldest to newest
+
+          // Circle size: from 1.5px to 4px
+          const radius = 1.5 + progress * 2.5
+
+          // Opacity: from 0.2 to 1.0
+          ctx.globalAlpha = 0.2 + progress * 0.8
+
+          ctx.beginPath()
+          ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2)
+          ctx.fillStyle = '#888888'
+          ctx.fill()
+
+          // Add subtle outline only on the current (last) circle
+          if (i === trailLength - 1) {
+            ctx.strokeStyle = '#666666'
+            ctx.lineWidth = 1
+            ctx.stroke()
+          }
+        }
+
+        ctx.globalAlpha = 1.0
+      }
     }, [zoom, smoothPoints, strokesMarkedForDeletionRef])
 
     // Set up high-DPI canvas scaling with zoom support
@@ -295,9 +329,13 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const effectiveMode = isEraserButton ? 'erase' : mode
       currentModeRef.current = effectiveMode as DrawMode
 
-      // Clear marked strokes when starting a new erase stroke
+      // Update eraser active state for cursor visibility
+      setIsEraserActive(currentModeRef.current === 'erase')
+
+      // Clear marked strokes and trail when starting a new erase stroke
       if (currentModeRef.current === 'erase') {
         strokesMarkedForDeletionRef.current.clear()
+        eraserTrailRef.current = []
       }
 
       const canvas = canvasRef.current
@@ -321,6 +359,18 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // But always allow stylus to proceed regardless of touch count
       const isStylusInput = e.pointerType === 'pen'
       if (!isStylusInput && activeTouchPointersRef.current.size > 1) {
+        return
+      }
+
+      // Detect eraser button during hover (even when not drawing)
+      const isEraserButton = isStylusInput && (e.buttons & 32) !== 0
+      if (isEraserButton && !isDrawingRef.current) {
+        // Update cursor visibility for eraser hover
+        setIsEraserActive(true)
+        return
+      } else if (!isEraserButton && !isDrawingRef.current && isEraserActive) {
+        // Clear eraser cursor when stylus flips back to pen while hovering
+        setIsEraserActive(false)
         return
       }
 
@@ -350,12 +400,18 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         // For eraser mode, check for collisions with existing strokes
         if (currentModeRef.current === 'erase') {
+          // Update eraser trail (keep last 10 points for tail effect)
+          eraserTrailRef.current.push({ x, y })
+          if (eraserTrailRef.current.length > 10) {
+            eraserTrailRef.current.shift()
+          }
+
           pathsRef.current.forEach((stroke, index) => {
             if (stroke.mode !== 'erase' && isPointNearStroke(x, y, stroke)) {
               strokesMarkedForDeletionRef.current.add(index)
             }
           })
-          // Redraw to show marked strokes as transparent
+          // Redraw to show marked strokes as transparent and eraser cursor
           redrawCanvas()
         } else {
           // Draw segment with pressure-sensitive width for draw mode
@@ -393,26 +449,30 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       isDrawingRef.current = false
 
       // If we just finished an eraser stroke, delete all marked strokes
-      if (currentModeRef.current === 'erase' && strokesMarkedForDeletionRef.current.size > 0) {
-        // Filter out strokes that were marked for deletion
-        const indicesToDelete = new Set(strokesMarkedForDeletionRef.current)
-        pathsRef.current = pathsRef.current.filter((_, index) => !indicesToDelete.has(index))
+      if (currentModeRef.current === 'erase') {
+        if (strokesMarkedForDeletionRef.current.size > 0) {
+          // Filter out strokes that were marked for deletion
+          const indicesToDelete = new Set(strokesMarkedForDeletionRef.current)
+          pathsRef.current = pathsRef.current.filter((_, index) => !indicesToDelete.has(index))
 
-        // Clear the marked strokes set
-        strokesMarkedForDeletionRef.current.clear()
+          // Clear the marked strokes set
+          strokesMarkedForDeletionRef.current.clear()
 
-        // Redraw canvas to show deleted strokes are gone
+          // Notify parent with updated data
+          const data = JSON.stringify(pathsRef.current)
+          const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
+          const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
+          console.log(`Canvas data after erase: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
+          onUpdate(data)
+
+          // Clear current path for eraser
+          currentPathRef.current = []
+        }
+
+        // Always clear eraser trail and redraw when lifting eraser
+        eraserTrailRef.current = []
+        setIsEraserActive(false)
         redrawCanvas()
-
-        // Notify parent with updated data
-        const data = JSON.stringify(pathsRef.current)
-        const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
-        const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
-        console.log(`Canvas data after erase: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
-        onUpdate(data)
-
-        // Clear current path for eraser
-        currentPathRef.current = []
         return
       }
 
@@ -470,6 +530,15 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       }
     })
 
+    // Handle pointer enter to detect eraser hover
+    const handlePointerEnter = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+      const isStylusInput = e.pointerType === 'pen'
+      const isEraserButton = isStylusInput && (e.buttons & 32) !== 0
+      if (isEraserButton) {
+        setIsEraserActive(true)
+      }
+    }, [])
+
     return (
       <canvas
         ref={canvasRef}
@@ -478,7 +547,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         onPointerUp={stopDrawing}
         onPointerLeave={stopDrawing}
         onPointerCancel={handlePointerCancel}
-        className={`annotation-canvas ${shouldFadeIn ? 'annotation-fade-in' : ''}`}
+        onPointerEnter={handlePointerEnter}
+        className={`annotation-canvas ${shouldFadeIn ? 'annotation-fade-in' : ''} ${(mode === 'erase' || isEraserActive) ? 'eraser-cursor-hidden' : ''}`}
         style={{
           position: 'absolute',
           top: 0,
@@ -489,7 +559,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           // Always allow pinch-zoom for crisp annotation rendering at any zoom level
           // Multi-touch detection prevents drawing during pinch gestures
           touchAction: 'pan-x pan-y pinch-zoom',
-          cursor: mode === 'draw' ? 'crosshair' : mode === 'erase' ? 'pointer' : 'default',
+          cursor: (mode === 'erase' || isEraserActive) ? 'none' : (mode === 'draw' ? 'crosshair' : 'default'),
           // Only receive events when in draw/erase mode OR when stylus mode is active
           // This allows text selection in view mode without stylus mode
           pointerEvents: (mode !== 'view' || stylusModeActive) ? 'auto' : 'none'

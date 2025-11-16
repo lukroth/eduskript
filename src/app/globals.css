@@ -602,3 +602,8 @@ body > div[style*="display: inline-block"] > div[style*="resize: both"] {
   background: hsl(var(--primary) / 0.1);
   border-left-color: hsl(var(--primary) / 0.7);
 }
+
+/* Force hide cursor for eraser mode */
+.eraser-cursor-hidden {
+  cursor: none !important;
+}
