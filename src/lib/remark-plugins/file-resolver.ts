@@ -25,7 +25,7 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
     const { fileList } = options
 
     // Visit all nodes that can embed files (image, link, etc.)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     visit(tree as Parameters<typeof visit>[0], (node: any) => {
       // Only process nodes with a 'url' property (image, link, etc.)
       if (!node.url || typeof node.url !== 'string') return
@@ -71,7 +71,7 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
  * Handle Excalidraw file references by finding light/dark SVG variants
  * and adding data attributes to the image node
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]) {
   if (!fileList || fileList.length === 0) {
     node.url = `/missing-file/${filename}`

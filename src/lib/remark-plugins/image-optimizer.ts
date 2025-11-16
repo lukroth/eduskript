@@ -6,7 +6,7 @@ import { visit } from 'unist-util-visit'
 export function rehypeImageOptimizer() {
   return function transformer(tree: unknown) {
     // Visit all img elements
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     visit(tree as Parameters<typeof visit>[0], 'element', (node: any) => {
       if (node.tagName !== 'img') return
 

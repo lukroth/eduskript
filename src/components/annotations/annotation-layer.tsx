@@ -168,7 +168,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setVersionMismatch(mismatch)
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setVersionMismatch(false)
     }
   }, [pageVersion, annotationData])
@@ -189,9 +189,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         if (strokes.length > 0) {
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setHasAnnotations(true)
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+           
           setCanvasData(annotationData.canvasData)
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+           
           setStoredHeadingOffsets(annotationData.headingOffsets || {})
         }
       } catch (error) {
@@ -233,10 +233,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         const result = repositionStrokes(strokes, headingPositions, storedHeadingOffsets)
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCanvasData(JSON.stringify(result.strokes))
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setOrphanedStrokesCount(result.orphanedCount)
         // Update stored offsets so we don't reposition again
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setStoredHeadingOffsets(currentOffsets)
       }
     } catch (error) {
@@ -454,7 +454,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     saveTimeoutRef.current = setTimeout(() => {
       performSave()
     }, 2000)
-  }, [performSave, headingPositions])
+  }, [performSave, headingPositions, createVersionSnapshot])
 
   // Handle clear all annotations
   const handleClearAll = useCallback(async () => {

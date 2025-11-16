@@ -10,7 +10,7 @@ interface MathBlockProps {
 
 export function MathBlock({ inline = false, children }: MathBlockProps) {
   // Validate KaTeX input before rendering
-  // eslint-disable-next-line react-hooks/error-boundaries
+   
   const renderMath = () => {
     try {
       if (inline) {

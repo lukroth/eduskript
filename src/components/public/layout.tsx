@@ -130,9 +130,9 @@ export function PublicSiteLayout({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedCollections(getInitialExpandedCollections())
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setExpandedSkripts(getInitialExpandedSkripts())
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setIsInitialized(true)
   }, [getInitialExpandedCollections, getInitialExpandedSkripts])
 
@@ -154,7 +154,7 @@ export function PublicSiteLayout({
         }
       })
     })
-    
+
     if (hasChanges) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpandedSkripts(newExpandedSkripts)

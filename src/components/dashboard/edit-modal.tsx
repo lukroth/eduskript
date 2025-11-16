@@ -58,7 +58,7 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
         slug: item.slug || '',
         isPublished: item.isPublished
       })
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setError('')
     }
   }, [open, item])

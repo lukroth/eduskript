@@ -239,7 +239,7 @@ export function SortablePages({
     console.log('SortablePages received pages:', pages.map(p => ({ id: p.id, title: p.title, order: p.order })))
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(pages)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setIsMounted(true)
   }, [pages])
 

@@ -9,11 +9,11 @@ export function rehypeInteractiveElements() {
     let codeBlockIndex = 0
     let imageIndex = 0
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     visit(tree as Parameters<typeof visit>[0], 'element', (node: any) => {
       // Add metadata to code blocks
       if (node.tagName === 'pre') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const codeElement = node.children.find(
           (child: any) =>
             typeof child === 'object' && 'tagName' in child && child.tagName === 'code'

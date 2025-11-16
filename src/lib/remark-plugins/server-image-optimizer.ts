@@ -31,7 +31,7 @@ export function remarkServerImageOptimizer(options: ServerImageOptimizerOptions 
     const downloadPromises: Promise<void>[] = []
 
     // Visit all image nodes
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     visit(tree as Parameters<typeof visit>[0], 'image', (node: any) => {
       if (!node.url || typeof node.url !== 'string') return
 
