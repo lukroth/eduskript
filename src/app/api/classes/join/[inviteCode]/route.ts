@@ -1,0 +1,186 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+
+interface RouteParams {
+  params: Promise<{
+    inviteCode: string
+  }>
+}
+
+// POST /api/classes/join/[inviteCode] - Student joins a class
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { inviteCode } = await params
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify user is a student
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        accountType: true,
+        studentPseudonym: true
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    if (user.accountType !== 'student') {
+      return NextResponse.json(
+        { error: 'Only students can join classes' },
+        { status: 403 }
+      )
+    }
+
+    // Find the class by invite code
+    const classRecord = await prisma.class.findUnique({
+      where: { inviteCode },
+      include: {
+        teacher: {
+          select: {
+            name: true,
+            subdomain: true
+          }
+        }
+      }
+    })
+
+    if (!classRecord) {
+      return NextResponse.json(
+        { error: 'Invalid invite code' },
+        { status: 404 }
+      )
+    }
+
+    if (!classRecord.isActive) {
+      return NextResponse.json(
+        { error: 'This class is no longer active' },
+        { status: 403 }
+      )
+    }
+
+    // Check if already a member
+    const existingMembership = await prisma.classMembership.findUnique({
+      where: {
+        classId_studentId: {
+          classId: classRecord.id,
+          studentId: session.user.id
+        }
+      }
+    })
+
+    if (existingMembership) {
+      return NextResponse.json({
+        message: 'Already a member of this class',
+        class: {
+          id: classRecord.id,
+          name: classRecord.name,
+          description: classRecord.description,
+          teacherName: classRecord.teacher.name
+        },
+        alreadyMember: true
+      })
+    }
+
+    // Create membership
+    await prisma.classMembership.create({
+      data: {
+        classId: classRecord.id,
+        studentId: session.user.id
+      }
+    })
+
+    // If this student was pre-authorized, remove from pre-auth table
+    if (user.studentPseudonym) {
+      await prisma.preAuthorizedStudent.deleteMany({
+        where: {
+          classId: classRecord.id,
+          pseudonym: user.studentPseudonym.replace('student_', '').replace('@eduskript.local', '')
+        }
+      })
+    }
+
+    console.log('[API] Student joined class:', {
+      classId: classRecord.id,
+      studentId: session.user.id,
+      inviteCode
+    })
+
+    return NextResponse.json({
+      message: 'Successfully joined class',
+      class: {
+        id: classRecord.id,
+        name: classRecord.name,
+        description: classRecord.description,
+        teacherName: classRecord.teacher.name
+      }
+    }, { status: 201 })
+  } catch (error) {
+    console.error('[API] Error joining class:', error)
+    return NextResponse.json(
+      { error: 'Failed to join class' },
+      { status: 500 }
+    )
+  }
+}
+
+// GET /api/classes/join/[inviteCode] - Preview class info before joining
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { inviteCode } = await params
+
+    // Find the class by invite code
+    const classRecord = await prisma.class.findUnique({
+      where: { inviteCode },
+      include: {
+        teacher: {
+          select: {
+            name: true,
+            subdomain: true
+          }
+        },
+        _count: {
+          select: {
+            memberships: true
+          }
+        }
+      }
+    })
+
+    if (!classRecord) {
+      return NextResponse.json(
+        { error: 'Invalid invite code' },
+        { status: 404 }
+      )
+    }
+
+    if (!classRecord.isActive) {
+      return NextResponse.json(
+        { error: 'This class is no longer active' },
+        { status: 403 }
+      )
+    }
+
+    return NextResponse.json({
+      class: {
+        name: classRecord.name,
+        description: classRecord.description,
+        teacherName: classRecord.teacher.name,
+        memberCount: classRecord._count.memberships
+      }
+    })
+  } catch (error) {
+    console.error('[API] Error previewing class:', error)
+    return NextResponse.json(
+      { error: 'Failed to preview class' },
+      { status: 500 }
+    )
+  }
+}

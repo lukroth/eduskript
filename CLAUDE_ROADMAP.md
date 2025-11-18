@@ -1,80 +1,100 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-01-15*
-*Current Status: User Data Service COMPLETED! Local persistence for annotations and code editor state now available.*
+*Last updated: 2025-11-18*
+*Current Status: Privacy-Preserving Class Management System - IMPLEMENTATION COMPLETE!*
 
 > **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
 
 ---
 
-## 🔧 Recent Infrastructure Improvements (2025-01-15)
+## 📋 Current Implementation Status
 
-**Build Configuration & CI/CD**:
-- ✅ **Next.js 16 Migration** - Updated ESLint configuration for Next.js 16
-  - Migrated from `next lint` to direct `eslint .` (Next.js 16 removed built-in lint command)
-  - Converted ESLint config to flat config format (eslint.config.mjs)
-  - Fixed pnpm version mismatch in GitHub Actions workflow
-  - Updated TypeScript configuration to exclude test directories from production builds
-  - Resolved all 19 ESLint errors (React hooks patterns, variable declarations)
-  - Build now passes successfully with zero errors
+### ✅ Phase 0: Microsoft Authentication & GDPR Privacy Infrastructure (COMPLETED)
 
-**Subdomain Routing Fixes**:
-- ✅ **Preview Button URL Generation** - Fixed incorrect URL construction in page builder
-  - Preview button now correctly generates URLs like `eduadmin.eduskript.org` instead of `eduadmin.org`
-  - Properly detects base domain vs subdomain (eduskript.org vs dashboard.eduskript.org)
-- ✅ **Native Subdomain Support** - CustomDomainHandler now recognizes `.eduskript.org` subdomains
-  - Added detection for both `.eduskript.org` (production) and `.localhost` (development)
-  - Automatically rewrites subdomain URLs to `/{subdomain}` path for proper routing
-  - Users can now access their pages via `username.eduskript.org` and see correct content
+**Microsoft OAuth Integration:**
+- ✅ Added AzureADProvider to NextAuth configuration
+- ✅ Transferred Azure AD credentials from informatikgarten.ch
+- ✅ Updated environment configuration (.env, .env.example)
+- ✅ Configured OAuth scopes: `openid profile email offline_access`
+- ✅ Enabled PrismaAdapter for OAuth providers
 
-**UI Cleanup**:
-- ✅ **Removed Duplicate Footer** - Cleaned up redundant VersionFooter component
-  - Kept GitInfo component in bottom right (expandable git commit info)
-  - Removed full-width VersionFooter from main page
+**Privacy-Preserving Student Data Model:**
+- ✅ Created pseudonym generation utilities (`src/lib/privacy/pseudonym.ts`)
+  - HMAC-SHA256 hashing for stable, verifiable pseudonyms
+  - Teacher verification without storing student PII
+- ✅ Updated User schema with privacy fields:
+  - `accountType` (teacher/student)
+  - `studentPseudonym` (hashed identifier)
+  - `gdprConsentAt` (consent timestamp)
+  - `lastSeenAt` (for inactive account cleanup)
+- ✅ Created StudentProgress model (page completion tracking)
+- ✅ Created StudentSubmission model (assignments, grades, feedback)
+- ✅ Updated auth callbacks to generate pseudonyms automatically
+- ✅ Updated TypeScript types for session/JWT
 
-**User Data Service**:
-- ✅ **IndexedDB Persistence Layer** - Created comprehensive local storage system
-  - Dexie-based database with compound primary key [pageId, componentId]
-  - Singleton service pattern with debounced saves (1 second default)
-  - React hook (useUserData) for component integration
-  - Type-safe data structures for annotations and code editor state
-  - Migrated annotations from old implementation to new service
-  - Added code editor persistence (files, settings, canvas transform)
-  - Foundation for future remote sync when student accounts exist
+**GDPR Compliance Endpoints:**
+- ✅ Data export endpoint: `GET /api/user/data-export`
+  - GDPR Article 15 - Right to Access
+  - Exports all user data as downloadable JSON
+- ✅ Account deletion endpoint: `DELETE /api/user/account`
+  - GDPR Article 17 - Right to Erasure
+  - Anonymizes student submissions (preserves teacher records)
+  - Cascade deletes all other user data
+- ✅ Account info endpoint: `GET /api/user/account`
+  - Shows user stats and data counts
 
-**Files Modified**:
-- `.github/workflows/ci.yml` - Removed hardcoded pnpm version
-- `package.json` - Updated lint script to use eslint directly
-- `eslint.config.mjs` - Migrated to flat config format
-- `tsconfig.json` - Excluded test/review directories
-- `src/components/CustomDomainHandler.tsx` - Added native subdomain detection
-- `src/components/dashboard/page-builder-interface.tsx` - Fixed preview URL logic
-- `src/app/page.tsx` - Removed duplicate footer
-- `src/lib/userdata/` - New user data service directory
-  - `types.ts` - TypeScript interfaces for user data
-  - `schema.ts` - Dexie database schema
-  - `userDataService.ts` - Singleton service with CRUD operations
-  - `hooks.ts` - useUserData React hook
-- `src/lib/markdown.ts` - Added pageId to MarkdownContext
-- `src/components/public/annotatable-content.tsx` - Pass pageId through context
-- `src/components/markdown/markdown-renderer.tsx` - Pass pageId to CodeEditor
-- `src/components/annotations/annotation-layer.tsx` - Migrated to use new service
-- `src/components/public/code-editor/index.tsx` - Added persistence support
+**Database & Testing:**
+- ✅ Generated Prisma client with new schema
+- ✅ Pushed schema changes to database
+- ✅ Verified dev server starts successfully
+- ✅ No TypeScript errors
+
+### ✅ Phase 0.5: Privacy-Preserving Class Management (COMPLETED)
+
+**Class Management System:**
+- ✅ Created Class model with invite codes and teacher ownership
+- ✅ Created ClassMembership junction table for many-to-many relationships
+- ✅ Created PreAuthorizedStudent model for bulk import before signup
+- ✅ Teacher-facing UI: `/dashboard/classes` for class list and creation
+- ✅ Teacher-facing UI: `/dashboard/classes/[id]` for class details with:
+  - Bulk email import (CSV/paste) that hashes emails to pseudonyms
+  - Client-side localStorage mapping (email → pseudonym) for teacher verification
+  - Student lookup tool to check enrollment status
+  - Invite link generation and sharing
+- ✅ Student-facing UI: `/classes/join/[inviteCode]` for joining classes
+- ✅ Student-facing UI: `/dashboard/my-classes` for viewing enrolled classes
+- ✅ Auto-enrollment via PrivacyAdapter during student signup
+- ✅ API endpoints:
+  - `GET/POST /api/classes` - List and create classes
+  - `POST /api/classes/[id]/bulk-import` - Bulk import student emails
+  - `GET /api/classes/[id]/students` - Get class roster
+  - `GET/POST /api/classes/join/[inviteCode]` - Preview and join class
+  - `GET /api/classes/my-classes` - Student's enrolled classes
+- ✅ Cryptographically random 16-character invite codes (2^64 combinations)
+- ✅ Server-side email hashing (HMAC-SHA256) - emails never stored in cleartext
+- ✅ Client-side localStorage for email-to-pseudonym mapping
+- ✅ Role-based sidebar navigation (Teachers see "Classes", Students see "My Classes")
+
+**What's Next:**
+- 🔲 UI for consent flow (first-time student login)
+- 🔲 Gradebook interface (view progress, grade submissions)
+- 🔲 Student progress tracking API endpoints
+- 🔲 Submission management UI
 
 ---
 
-
 ## 🎯 Priority List (drag to reorder)
 
-**Next up:**
-- **Improvements to page editor**: add buttons on top and a indicator that shows which paragraph we're on. sync scroll.
-- **Plugin System** - Extensible component architecture, MDX
-- **Video Hosting** - Swiss-compliant video upload and embedding
-- **Marketplace** - Content selling and customer relationships
-
-**LMS features (later):**
-- **Student Accounts** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
+**LMS features:**
+- **Student Accounts** - ✅ Core infrastructure complete, 🔲 UI implementation pending
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
+
+**Next up:**
+- **Video Hosting** - Swiss-compliant video upload and embedding
+- **Backup System** - Easy to use database exports and UI to restore database if necessary
+- **Plugin System** - Extensible component architecture, MDX
+- **Marketplace / Sharing** - Content sharing (unsure: selling?)
+
 
 ---
 

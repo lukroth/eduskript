@@ -21,6 +21,13 @@ export async function GET() {
         emailVerified: true,
         createdAt: true,
         updatedAt: true,
+        accounts: {
+          select: {
+            id: true,
+            provider: true,
+            providerAccountId: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

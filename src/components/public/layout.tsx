@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
+import { AuthButton } from './auth-button'
 import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
@@ -212,7 +213,13 @@ export function PublicSiteLayout({
   return (
     <div className="min-h-screen bg-background">
       <ReadingProgress />
-      
+
+      {/* Top-right controls - only visible on mobile when sidebar is closed */}
+      <div className="lg:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
+        <PublicThemeToggle />
+        <AuthButton />
+      </div>
+
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
@@ -232,29 +239,39 @@ export function PublicSiteLayout({
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className={`border-b border-border ${isSidebarCollapsed ? 'p-4' : 'p-6'}`}>
-            {/* Collapse button */}
-            <div className="flex justify-end mb-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="p-2"
-              >
-                {isSidebarCollapsed ? (
+            {isSidebarCollapsed ? (
+              /* Collapsed sidebar header */
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className="p-2"
+                >
                   <ChevronRight className="w-5 h-5" />
-                ) : (
-                  <ChevronLeft className="w-5 h-5" />
-                )}
-              </Button>
-            </div>
-            
-            {!isSidebarCollapsed && (
+                </Button>
+                <AuthButton />
+                <PublicThemeToggle />
+              </div>
+            ) : (
+              /* Expanded sidebar header */
               <>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-4">
                   <h1 className="text-xl font-bold text-foreground">
                     {teacher.name}
                   </h1>
-                  <PublicThemeToggle />
+                  <div className="flex items-center gap-2">
+                    <PublicThemeToggle />
+                    <AuthButton />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                      className="p-2"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </Button>
+                  </div>
                 </div>
                 {teacher.title && (
                   <p className="text-sm text-muted-foreground mt-1">

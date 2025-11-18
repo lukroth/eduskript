@@ -23,6 +23,7 @@ model Account {
   refresh_token     String?
   access_token      String?
   expires_at        Int?
+  ext_expires_in    Int?    // Microsoft-specific: extended token expiration
   token_type        String?
   scope             String?
   id_token          String?
@@ -77,6 +78,12 @@ model User {
   isAdmin Boolean @default(false)
   requirePasswordReset Boolean @default(false)
 
+  // Privacy and account type
+  accountType      String    @default("teacher") // "teacher" or "student"
+  studentPseudonym String?   @unique // HMAC-SHA256(email) for student privacy
+  gdprConsentAt    DateTime? // Timestamp of GDPR consent acceptance
+  lastSeenAt       DateTime? // For inactive account cleanup
+
   // Relations
   accounts      Account[]
   sessions      Session[]
@@ -102,7 +109,15 @@ model User {
   
   // Page layout
   pageLayout PageLayout?
-  
+
+  // Student data
+  studentProgress    StudentProgress[]   @relation("StudentProgress")
+  studentSubmissions StudentSubmission[] @relation("StudentSubmissions")
+
+  // Class relations
+  teacherClasses     Class[]             @relation("TeacherClasses")
+  studentMemberships ClassMembership[]   @relation("StudentMemberships")
+
   @@map("users")
 }
 
@@ -221,10 +236,14 @@ model Page {
   skriptId    String
   skript      Skript   @relation(fields: [skriptId], references: [id], onDelete: Cascade)
   versions    PageVersion[]
-  
+
   // Many-to-many relation for multiple authors
   authors     PageAuthor[]
-  
+
+  // Student data
+  studentProgress    StudentProgress[]   @relation("PageProgress")
+  studentSubmissions StudentSubmission[] @relation("PageSubmissions")
+
   @@unique([skriptId, slug])
   @@map("pages")
 }
@@ -344,4 +363,98 @@ model PageLayoutItem {
 
   @@unique([pageLayoutId, contentId, type])
   @@map("page_layout_items")
+}
+
+// Student Progress Tracking
+// Tracks which pages students have viewed and completed
+model StudentProgress {
+  id           String   @id @default(cuid())
+  studentId    String   @map("student_id")
+  pageId       String   @map("page_id")
+  completed    Boolean  @default(false)
+  lastViewedAt DateTime @default(now()) @map("last_viewed_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  student User @relation("StudentProgress", fields: [studentId], references: [id], onDelete: Cascade)
+  page    Page @relation("PageProgress", fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, pageId])
+  @@index([studentId])
+  @@index([pageId])
+  @@map("student_progress")
+}
+
+// Student Submissions
+// Stores student work like annotations, code, or text submissions
+model StudentSubmission {
+  id          String   @id @default(cuid())
+  studentId   String   @map("student_id")
+  pageId      String   @map("page_id")
+  contentData String   @map("content_data") // JSON stringified data (annotations, code, etc.)
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  grade       Float?   // Optional numeric grade
+  feedback    String?  // Optional teacher feedback
+
+  student User @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  page    Page @relation("PageSubmissions", fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, pageId])
+  @@index([studentId])
+  @@index([pageId])
+  @@map("student_submissions")
+}
+
+// Class model - teacher-owned groups of students
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  teacherId   String   @map("teacher_id")
+  inviteCode  String   @unique @map("invite_code")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teacher               User                   @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  memberships           ClassMembership[]
+  preAuthorizedStudents PreAuthorizedStudent[]
+
+  @@index([teacherId])
+  @@index([inviteCode])
+  @@map("classes")
+}
+
+// Junction table for Class-Student many-to-many
+model ClassMembership {
+  id        String   @id @default(cuid())
+  classId   String   @map("class_id")
+  studentId String   @map("student_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation("StudentMemberships", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([classId])
+  @@index([studentId])
+  @@map("class_memberships")
+}
+
+// Pre-authorized student pseudonyms (for bulk import)
+model PreAuthorizedStudent {
+  id        String   @id @default(cuid())
+  classId   String   @map("class_id")
+  pseudonym String   // Hashed email (before student signs up)
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  // Relations
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, pseudonym])
+  @@index([pseudonym])
+  @@index([classId])
+  @@map("pre_authorized_students")
 }

@@ -4,6 +4,60 @@ This file tracks features that have been fully implemented and deployed.
 
 *Last updated: 2025-01-15*
 
+## 🔧 Recent Infrastructure Improvements (2025-01-15)
+
+**Build Configuration & CI/CD**:
+- ✅ **Next.js 16 Migration** - Updated ESLint configuration for Next.js 16
+  - Migrated from `next lint` to direct `eslint .` (Next.js 16 removed built-in lint command)
+  - Converted ESLint config to flat config format (eslint.config.mjs)
+  - Fixed pnpm version mismatch in GitHub Actions workflow
+  - Updated TypeScript configuration to exclude test directories from production builds
+  - Resolved all 19 ESLint errors (React hooks patterns, variable declarations)
+  - Build now passes successfully with zero errors
+
+**Subdomain Routing Fixes**:
+- ✅ **Preview Button URL Generation** - Fixed incorrect URL construction in page builder
+  - Preview button now correctly generates URLs like `eduadmin.eduskript.org` instead of `eduadmin.org`
+  - Properly detects base domain vs subdomain (eduskript.org vs dashboard.eduskript.org)
+- ✅ **Native Subdomain Support** - CustomDomainHandler now recognizes `.eduskript.org` subdomains
+  - Added detection for both `.eduskript.org` (production) and `.localhost` (development)
+  - Automatically rewrites subdomain URLs to `/{subdomain}` path for proper routing
+  - Users can now access their pages via `username.eduskript.org` and see correct content
+
+**UI Cleanup**:
+- ✅ **Removed Duplicate Footer** - Cleaned up redundant VersionFooter component
+  - Kept GitInfo component in bottom right (expandable git commit info)
+  - Removed full-width VersionFooter from main page
+
+**User Data Service**:
+- ✅ **IndexedDB Persistence Layer** - Created comprehensive local storage system
+  - Dexie-based database with compound primary key [pageId, componentId]
+  - Singleton service pattern with debounced saves (1 second default)
+  - React hook (useUserData) for component integration
+  - Type-safe data structures for annotations and code editor state
+  - Migrated annotations from old implementation to new service
+  - Added code editor persistence (files, settings, canvas transform)
+  - Foundation for future remote sync when student accounts exist
+
+**Files Modified**:
+- `.github/workflows/ci.yml` - Removed hardcoded pnpm version
+- `package.json` - Updated lint script to use eslint directly
+- `eslint.config.mjs` - Migrated to flat config format
+- `tsconfig.json` - Excluded test/review directories
+- `src/components/CustomDomainHandler.tsx` - Added native subdomain detection
+- `src/components/dashboard/page-builder-interface.tsx` - Fixed preview URL logic
+- `src/app/page.tsx` - Removed duplicate footer
+- `src/lib/userdata/` - New user data service directory
+  - `types.ts` - TypeScript interfaces for user data
+  - `schema.ts` - Dexie database schema
+  - `userDataService.ts` - Singleton service with CRUD operations
+  - `hooks.ts` - useUserData React hook
+- `src/lib/markdown.ts` - Added pageId to MarkdownContext
+- `src/components/public/annotatable-content.tsx` - Pass pageId through context
+- `src/components/markdown/markdown-renderer.tsx` - Pass pageId to CodeEditor
+- `src/components/annotations/annotation-layer.tsx` - Migrated to use new service
+- `src/components/public/code-editor/index.tsx` - Added persistence support
+
 ---
 
 ## ✅ Admin User System (Phase 0)

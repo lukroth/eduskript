@@ -103,9 +103,9 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">Create Account</CardTitle>
+          <CardTitle className="text-2xl text-center">Create Teacher Account</CardTitle>
           <CardDescription className="text-center">
-            Enter your information to create your account
+            If you are a teacher, create your account here. Students should sign in through their teacher&apos;s subdomain.
           </CardDescription>
         </CardHeader>
         <CardContent>

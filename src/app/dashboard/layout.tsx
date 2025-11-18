@@ -23,11 +23,11 @@ export default async function DashboardLayout({
 
   return (
     <ErrorProvider>
-      <div className="min-h-screen bg-background">
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
         <DashboardNav />
-        <div className="flex">
+        <div className="flex flex-1 overflow-hidden">
           <DashboardSidebar />
-          <main className="flex-1 p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>

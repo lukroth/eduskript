@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
@@ -14,10 +14,28 @@ const navigation = [
   { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
 ]
 
+const teacherNavigation = [
+  { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
+  { name: 'Classes', href: '/dashboard/classes', icon: GraduationCap },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
+]
+
+const studentNavigation = [
+  { name: 'My Classes', href: '/dashboard/my-classes', icon: GraduationCap },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+]
+
 export function DashboardSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { data: session } = useSession()
+
+  // Determine which navigation to show based on account type
+  const isStudent = session?.user?.accountType === 'student'
+  const isTeacher = session?.user?.accountType === 'teacher'
+
+  const navItems = isStudent ? studentNavigation : isTeacher ? teacherNavigation : navigation
 
   return (
     <div className={cn(
@@ -44,7 +62,7 @@ export function DashboardSidebar() {
 
         {/* Navigation */}
         <nav className="space-y-2 flex-1">
-          {navigation.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon
             // Highlight page-builder for both /dashboard and /dashboard/page-builder
             const isActive = pathname === item.href ||
