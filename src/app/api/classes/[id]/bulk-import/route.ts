@@ -147,14 +147,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Return statistics only (never expose email->pseudonym mappings)
+    // Return statistics and mappings (mappings are stored client-side in localStorage)
     return NextResponse.json({
       imported: pseudonymsToAdd.length,
       alreadyMembers: existingPseudonyms.size,
       alreadyPreAuthorized: preAuthPseudonyms.size,
       total: normalizedEmails.length,
-      // Security: Mappings are stored server-side only
-      // Use the verification endpoint to check individual emails
+      // Return email->pseudonymEmail mappings for client-side storage
+      mappings: emailPseudonymMap,
     })
   } catch (error) {
     console.error('[API] Error bulk importing students:', error)
