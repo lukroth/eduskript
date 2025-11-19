@@ -126,10 +126,10 @@ export function isStudentEmail(email: string): boolean {
  * @returns A user-friendly display name
  *
  * @example
- * getStudentDisplayName('a3f5b9c2d8e1f4a7...') // => 'Student a3f5b9c2'
+ * getStudentDisplayName('a3f5b9c2d8e1f4a7...') // => 'student-a3f5b9c2'
  */
 export function getStudentDisplayName(pseudonym: string): string {
   // Use first 8 characters for better uniqueness while keeping brevity
   const shortId = pseudonym.substring(0, 8)
-  return `Student ${shortId}`
+  return `student-${shortId}`
 }

@@ -102,6 +102,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       include: {
         student: {
           select: {
+            id: true,
             studentPseudonym: true
           }
         }
@@ -110,6 +111,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const existingPseudonyms = new Set(
       existingMembers.map(m => m.student.studentPseudonym)
+    )
+
+    // Create a map of pseudonym -> student ID for reveal requests
+    const pseudonymToStudentId = new Map(
+      existingMembers.map(m => [m.student.studentPseudonym, m.student.id])
     )
 
     // Check which pseudonyms are already pre-authorized
@@ -147,14 +153,54 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Return statistics and mappings (mappings are stored client-side in localStorage)
+    // Create identity reveal requests for enrolled students
+    const revealRequestsCreated: string[] = []
+    for (const [email, pseudonymEmail] of Object.entries(emailPseudonymMap)) {
+      const pseudonym = generatePseudonym(email)
+      const studentId = pseudonymToStudentId.get(pseudonym)
+
+      if (studentId) {
+        // Student is already enrolled, create identity reveal request
+        try {
+          await prisma.identityRevealRequest.upsert({
+            where: {
+              classId_studentId_email: {
+                classId,
+                studentId,
+                email
+              }
+            },
+            update: {
+              // If request already exists and was rejected, don't update
+              // If it was pending, keep it pending
+            },
+            create: {
+              classId,
+              teacherId: session.user.id,
+              studentId,
+              email,
+              status: 'pending'
+            }
+          })
+          revealRequestsCreated.push(email)
+        } catch (error) {
+          console.error(`[API] Failed to create reveal request for ${email}:`, error)
+        }
+      }
+    }
+
+    console.log('[API] Created identity reveal requests:', {
+      classId,
+      count: revealRequestsCreated.length
+    })
+
+    // Return statistics (note: no mappings returned - students must consent first)
     return NextResponse.json({
       imported: pseudonymsToAdd.length,
       alreadyMembers: existingPseudonyms.size,
       alreadyPreAuthorized: preAuthPseudonyms.size,
+      revealRequestsSent: revealRequestsCreated.length,
       total: normalizedEmails.length,
-      // Return email->pseudonymEmail mappings for client-side storage
-      mappings: emailPseudonymMap,
     })
   } catch (error) {
     console.error('[API] Error bulk importing students:', error)

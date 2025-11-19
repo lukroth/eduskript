@@ -205,7 +205,7 @@ export function getClientIdentifier(request: Request): string {
  * Gets the current size of the rate limit store (for monitoring)
  */
 export function getRateLimitStoreSize(): number {
-  return Object.keys(store).size
+  return Object.keys(store).length
 }
 
 /**

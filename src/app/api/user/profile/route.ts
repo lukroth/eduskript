@@ -11,7 +11,8 @@ const updateProfileSchema = z.object({
     .min(3, 'Subdomain must be at least 3 characters')
     .max(50, 'Subdomain must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens')
-    .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Subdomain cannot start or end with a hyphen'),
+    .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Subdomain cannot start or end with a hyphen')
+    .optional(), // Make subdomain optional for students
   webpageDescription: z.string().optional(), // New field for webpage description
   title: z.string().optional(),
   bio: z.string().optional()

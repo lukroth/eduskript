@@ -19,6 +19,8 @@ export async function GET() {
         isAdmin: true,
         requirePasswordReset: true,
         emailVerified: true,
+        accountType: true,
+        studentPseudonym: true,
         createdAt: true,
         updatedAt: true,
         accounts: {

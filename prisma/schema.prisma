@@ -118,6 +118,10 @@ model User {
   teacherClasses     Class[]             @relation("TeacherClasses")
   studentMemberships ClassMembership[]   @relation("StudentMemberships")
 
+  // Identity reveal requests
+  teacherIdentityRequests IdentityRevealRequest[] @relation("TeacherIdentityRequests")
+  studentIdentityRequests IdentityRevealRequest[] @relation("StudentIdentityRequests")
+
   @@map("users")
 }
 
@@ -417,9 +421,10 @@ model Class {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  teacher               User                   @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher               User                      @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
   memberships           ClassMembership[]
   preAuthorizedStudents PreAuthorizedStudent[]
+  identityRevealRequests IdentityRevealRequest[]
 
   @@index([teacherId])
   @@index([inviteCode])
@@ -457,4 +462,27 @@ model PreAuthorizedStudent {
   @@index([pseudonym])
   @@index([classId])
   @@map("pre_authorized_students")
+}
+
+// Identity reveal requests - teacher asks student to reveal their identity
+model IdentityRevealRequest {
+  id         String   @id @default(cuid())
+  classId    String   @map("class_id")
+  teacherId  String   @map("teacher_id")
+  studentId  String   @map("student_id") // The actual student user ID
+  email      String   // The email the teacher claims matches this student
+  status     String   @default("pending") // "pending", "approved", "rejected"
+  requestedAt DateTime @default(now()) @map("requested_at")
+  respondedAt DateTime? @map("responded_at")
+
+  // Relations
+  class    Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher  User  @relation("TeacherIdentityRequests", fields: [teacherId], references: [id], onDelete: Cascade)
+  student  User  @relation("StudentIdentityRequests", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId, email]) // One request per class-student-email combo
+  @@index([studentId, status]) // Fast lookup for student's pending requests
+  @@index([classId])
+  @@index([teacherId])
+  @@map("identity_reveal_requests")
 }

@@ -23,6 +23,7 @@ const teacherNavigation = [
 
 const studentNavigation = [
   { name: 'My Classes', href: '/dashboard/my-classes', icon: GraduationCap },
+  { name: 'Privacy Requests', href: '/dashboard/privacy-requests', icon: Shield },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 

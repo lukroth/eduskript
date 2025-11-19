@@ -247,21 +247,27 @@ export default function ClassesPage() {
       const data = await response.json()
       console.log('Bulk import response:', data)
 
-      // Save the email-to-pseudonym mapping to IndexedDB
-      await saveEmailMappings(classId, data.mappings)
+      let message = ''
+      if (data.imported > 0) {
+        message += `${data.imported} new pre-authorization${data.imported !== 1 ? 's' : ''} added\n`
+      }
+      if (data.alreadyMembers > 0) {
+        message += `${data.alreadyMembers} already enrolled\n`
+      }
+      if (data.alreadyPreAuthorized > 0) {
+        message += `${data.alreadyPreAuthorized} already pre-authorized\n`
+      }
+      if (data.revealRequestsSent > 0) {
+        message += `${data.revealRequestsSent} identity reveal request${data.revealRequestsSent !== 1 ? 's' : ''} sent to enrolled students\n(Students must consent before you can identify them)`
+      }
 
       setDialogType('success')
       setDialogTitle('Students Added Successfully')
-      setDialogMessage(
-        `${data.imported} new pre-authorization${data.imported !== 1 ? 's' : ''} added\n` +
-        `${data.alreadyMembers} already enrolled\n` +
-        `${data.alreadyPreAuthorized} already pre-authorized`
-      )
+      setDialogMessage(message.trim())
       setDialogOpen(true)
 
       setEmailInputs({ ...emailInputs, [classId]: '' })
       await loadClassDetails(classId)
-      await loadClasses()
     } catch (error) {
       console.error('Error adding students:', error)
       setDialogType('error')
@@ -475,27 +481,6 @@ export default function ClassesPage() {
                           <Users className="w-4 h-4" />
                           <span>{classItem.memberCount}</span>
                         </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                copyInviteLink(classItem.inviteCode)
-                              }}
-                            >
-                              {copiedCode === classItem.inviteCode ? (
-                                <Check className="w-4 h-4 text-green-600" />
-                              ) : (
-                                <LinkIcon className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Copy invite link</p>
-                          </TooltipContent>
-                        </Tooltip>
                       </div>
                     </button>
 
@@ -527,7 +512,7 @@ export default function ClassesPage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>Copy invite link</p>
+                                <p>Copy anonymous invite link</p>
                               </TooltipContent>
                             </Tooltip>
                           </div>
@@ -580,7 +565,7 @@ export default function ClassesPage() {
                                         onClick={() => handleSort(classItem.id, 'name')}
                                         className="flex items-center gap-2 hover:text-foreground"
                                       >
-                                        Student Name
+                                        Nickname
                                         {getSortIcon(classItem.id, 'name')}
                                       </button>
                                     </th>
@@ -605,7 +590,7 @@ export default function ClassesPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {getSortedStudents(classItem.id, students).map((student) => {
+                                  {getSortedStudents(classItem.id, students).map((student, index) => {
                                     const realEmail = getEmailForPseudonym(classItem.id, student.email)
                                     const isIdentified = !!realEmail
 
@@ -614,8 +599,10 @@ export default function ClassesPage() {
                                         key={student.id}
                                         className={`border-b last:border-b-0 ${
                                           isIdentified
-                                            ? 'bg-green-50/50 dark:bg-green-950/10'
-                                            : ''
+                                            ? 'bg-green-50 dark:bg-green-950/20'
+                                            : index % 2 === 0
+                                            ? 'bg-background'
+                                            : 'bg-muted/30'
                                         }`}
                                       >
                                         <td className="p-3">
