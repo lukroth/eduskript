@@ -12,14 +12,10 @@ import {
   Plus,
   Users,
   Link as LinkIcon,
-  Copy,
   Check,
   ChevronDown,
   ChevronRight,
   Upload,
-  Mail,
-  Eye,
-  EyeOff,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -67,10 +63,6 @@ export default function ClassesPage() {
   // Per-class state for bulk import
   const [emailInputs, setEmailInputs] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState<Record<string, boolean>>({})
-
-  // Per-class state for lookup
-  const [lookupInputs, setLookupInputs] = useState<Record<string, string>>({})
-  const [showLookup, setShowLookup] = useState<Record<string, boolean>>({})
 
   // Check if user is a teacher
   useEffect(() => {
@@ -189,7 +181,7 @@ export default function ClassesPage() {
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
-  const handleBulkImport = async (classId: string) => {
+  const handleAddStudents = async (classId: string) => {
     const emailInput = emailInputs[classId] || ''
     if (!emailInput.trim()) return
 
@@ -214,7 +206,7 @@ export default function ClassesPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to import emails')
+        throw new Error('Failed to add students')
       }
 
       const data = await response.json()
@@ -226,7 +218,7 @@ export default function ClassesPage() {
       localStorage.setItem(`class_email_mapping_${classId}`, JSON.stringify(newMapping))
 
       alert(
-        `Successfully imported!\n\n` +
+        `Successfully added!\n\n` +
           `- ${data.imported} new pre-authorizations added\n` +
           `- ${data.alreadyMembers} already enrolled\n` +
           `- ${data.alreadyPreAuthorized} already pre-authorized`
@@ -236,45 +228,11 @@ export default function ClassesPage() {
       await loadClassDetails(classId)
       await loadClasses()
     } catch (error) {
-      console.error('Error importing emails:', error)
-      alert('Failed to import emails. Please try again.')
+      console.error('Error adding students:', error)
+      alert('Failed to add students. Please try again.')
     } finally {
       setImporting({ ...importing, [classId]: false })
     }
-  }
-
-  const getMappedResults = (classId: string) => {
-    const classData = classes.find((c) => c.id === classId)
-    const lookupInput = lookupInputs[classId] || ''
-    if (!classData || !lookupInput.trim()) return []
-
-    const emails = lookupInput
-      .split(/[\n,\s]+/)
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0 && e.includes('@'))
-
-    const emailMapping = classData.emailMapping || {}
-    const students = classData.students || []
-
-    return emails.map((email) => {
-      const pseudonymEmail = emailMapping[email]
-      if (!pseudonymEmail) {
-        return { email, status: 'not-imported', pseudonym: null }
-      }
-
-      const joined = students.find((s) => s.email === pseudonymEmail)
-      if (joined) {
-        return {
-          email,
-          status: 'joined',
-          pseudonym: pseudonymEmail,
-          displayName: joined.displayName,
-          joinedAt: joined.joinedAt,
-        }
-      }
-
-      return { email, status: 'pending', pseudonym: pseudonymEmail }
-    })
   }
 
   const getEmailForPseudonym = (classId: string, pseudonymEmail: string): string | null => {
@@ -382,9 +340,7 @@ export default function ClassesPage() {
               {classes.map((classItem) => {
                 const isExpanded = expandedClassId === classItem.id
                 const students = classItem.students || []
-                const mappedResults = showLookup[classItem.id]
-                  ? getMappedResults(classItem.id)
-                  : []
+                const emailMapping = classItem.emailMapping || {}
 
                 return (
                   <div key={classItem.id} className="border rounded-lg">
@@ -481,136 +437,55 @@ export default function ClassesPage() {
                           />
                           <div className="flex items-center justify-between">
                             <p className="text-xs text-muted-foreground">
-                              Students will be pre-authorized and auto-enrolled when they sign up
+                              Students will be pre-authorized. Already enrolled students will be highlighted below.
                             </p>
                             <Button
-                              onClick={() => handleBulkImport(classItem.id)}
+                              onClick={() => handleAddStudents(classItem.id)}
                               disabled={
                                 importing[classItem.id] || !emailInputs[classItem.id]?.trim()
                               }
                               size="sm"
                             >
-                              {importing[classItem.id] ? 'Importing...' : 'Import'}
+                              {importing[classItem.id] ? 'Adding...' : 'Add Students'}
                             </Button>
                           </div>
                         </div>
 
-                        {/* Enrolled Students with Lookup */}
+                        {/* Enrolled Students */}
                         <div className="space-y-3">
                           <Label className="text-base font-semibold flex items-center gap-2">
                             <Users className="w-4 h-4" />
                             Enrolled Students ({students.length})
                           </Label>
 
-                          {/* Student Lookup */}
-                          <div className="space-y-2 border rounded-lg p-3 bg-background">
-                            <Label className="text-sm flex items-center gap-2">
-                              <Mail className="w-3.5 h-3.5" />
-                              Lookup by Email
-                            </Label>
-                            <Textarea
-                              value={lookupInputs[classItem.id] || ''}
-                              onChange={(e) =>
-                                setLookupInputs({
-                                  ...lookupInputs,
-                                  [classItem.id]: e.target.value,
-                                })
-                              }
-                              placeholder="Paste email addresses to check status"
-                              rows={2}
-                              className="font-mono text-sm"
-                            />
-                            <Button
-                              onClick={() =>
-                                setShowLookup({
-                                  ...showLookup,
-                                  [classItem.id]: !showLookup[classItem.id],
-                                })
-                              }
-                              disabled={!lookupInputs[classItem.id]?.trim()}
-                              variant="outline"
-                              size="sm"
-                            >
-                              {showLookup[classItem.id] ? (
-                                <>
-                                  <EyeOff className="w-3.5 h-3.5 mr-1.5" />
-                                  Hide
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="w-3.5 h-3.5 mr-1.5" />
-                                  Check Status
-                                </>
-                              )}
-                            </Button>
-
-                            {showLookup[classItem.id] && mappedResults.length > 0 && (
-                              <div className="mt-3 border rounded overflow-hidden">
-                                <table className="w-full text-sm">
-                                  <thead className="bg-muted">
-                                    <tr>
-                                      <th className="text-left p-2 text-xs">Email</th>
-                                      <th className="text-left p-2 text-xs">Status</th>
-                                      <th className="text-left p-2 text-xs">Student ID</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {mappedResults.map((result, idx) => (
-                                      <tr key={idx} className="border-t">
-                                        <td className="p-2 font-mono text-xs">{result.email}</td>
-                                        <td className="p-2">
-                                          {result.status === 'joined' && (
-                                            <span className="text-green-600 font-medium text-xs">
-                                              ✓ Joined
-                                            </span>
-                                          )}
-                                          {result.status === 'pending' && (
-                                            <span className="text-yellow-600 font-medium text-xs">
-                                              ⏳ Pending
-                                            </span>
-                                          )}
-                                          {result.status === 'not-imported' && (
-                                            <span className="text-gray-500 text-xs">
-                                              Not imported
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td className="p-2 text-xs">
-                                          {result.status === 'joined' && result.displayName}
-                                          {result.status === 'pending' && 'Waiting...'}
-                                          {result.status === 'not-imported' && '-'}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Student List */}
                           {students.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-4">
-                              No students enrolled yet
+                              No students enrolled yet. Add student emails above or share the invite link.
                             </p>
                           ) : (
                             <div className="space-y-2">
                               {students.map((student) => {
                                 const realEmail = getEmailForPseudonym(classItem.id, student.email)
+                                const isIdentified = !!realEmail
+
                                 return (
                                   <div
                                     key={student.id}
-                                    className="flex items-center justify-between p-2 border rounded bg-background"
+                                    className={`flex items-center justify-between p-3 border rounded ${
+                                      isIdentified
+                                        ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
+                                        : 'bg-background'
+                                    }`}
                                   >
                                     <div className="flex-1">
                                       <div className="font-medium text-sm">{student.displayName}</div>
-                                      {realEmail ? (
-                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                      {isIdentified ? (
+                                        <div className="text-xs text-green-700 dark:text-green-400 mt-0.5">
                                           {realEmail}
                                         </div>
                                       ) : (
                                         <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                                          {student.pseudonym}
+                                          {student.pseudonym} • joined via invite link
                                         </div>
                                       )}
                                     </div>
