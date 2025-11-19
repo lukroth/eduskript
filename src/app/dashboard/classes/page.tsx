@@ -18,6 +18,9 @@ import {
   Upload,
   AlertCircle,
   CheckCircle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -28,6 +31,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  saveEmailMappings,
+  getEmailMappingsForClass,
+  getRealEmail,
+} from '@/lib/email-mapping-db'
 
 interface Student {
   id: string
@@ -80,6 +88,10 @@ export default function ClassesPage() {
   const [emailInputs, setEmailInputs] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState<Record<string, boolean>>({})
 
+  // Sorting state per class
+  const [sortConfig, setSortConfig] = useState<Record<string, { key: string; direction: 'asc' | 'desc' }>>({})
+
+
   // Check if user is a teacher
   useEffect(() => {
     if (status === 'loading') return
@@ -123,9 +135,8 @@ export default function ClassesPage() {
 
       const data = await studentsResponse.json()
 
-      // Load email mapping from localStorage
-      const stored = localStorage.getItem(`class_email_mapping_${classId}`)
-      const emailMapping = stored ? JSON.parse(stored) : {}
+      // Load email mapping from IndexedDB
+      const emailMapping = await getEmailMappingsForClass(classId)
 
       // Update the class with details
       setClasses((prev) =>
@@ -236,11 +247,8 @@ export default function ClassesPage() {
       const data = await response.json()
       console.log('Bulk import response:', data)
 
-      // Save the email-to-pseudonym mapping to localStorage
-      const stored = localStorage.getItem(`class_email_mapping_${classId}`)
-      const existingMapping = stored ? JSON.parse(stored) : {}
-      const newMapping = { ...existingMapping, ...data.mappings }
-      localStorage.setItem(`class_email_mapping_${classId}`, JSON.stringify(newMapping))
+      // Save the email-to-pseudonym mapping to IndexedDB
+      await saveEmailMappings(classId, data.mappings)
 
       setDialogType('success')
       setDialogTitle('Students Added Successfully')
@@ -275,6 +283,49 @@ export default function ClassesPage() {
       }
     }
     return null
+  }
+
+  const handleSort = (classId: string, key: string) => {
+    const currentSort = sortConfig[classId]
+    const direction = currentSort?.key === key && currentSort?.direction === 'asc' ? 'desc' : 'asc'
+    setSortConfig({ ...sortConfig, [classId]: { key, direction } })
+  }
+
+  const getSortedStudents = (classId: string, students: Student[]) => {
+    const sort = sortConfig[classId]
+    if (!sort) return students
+
+    return [...students].sort((a, b) => {
+      let aValue: string | number = ''
+      let bValue: string | number = ''
+
+      if (sort.key === 'name') {
+        aValue = a.displayName.toLowerCase()
+        bValue = b.displayName.toLowerCase()
+      } else if (sort.key === 'email') {
+        const aEmail = getEmailForPseudonym(classId, a.email)
+        const bEmail = getEmailForPseudonym(classId, b.email)
+        aValue = aEmail?.toLowerCase() || a.pseudonym.toLowerCase()
+        bValue = bEmail?.toLowerCase() || b.pseudonym.toLowerCase()
+      } else if (sort.key === 'joined') {
+        aValue = new Date(a.joinedAt).getTime()
+        bValue = new Date(b.joinedAt).getTime()
+      }
+
+      if (aValue < bValue) return sort.direction === 'asc' ? -1 : 1
+      if (aValue > bValue) return sort.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  const getSortIcon = (classId: string, columnKey: string) => {
+    const sort = sortConfig[classId]
+    if (sort?.key !== columnKey) {
+      return <ArrowUpDown className="w-3 h-3 opacity-50" />
+    }
+    return sort.direction === 'asc'
+      ? <ArrowUp className="w-3 h-3" />
+      : <ArrowDown className="w-3 h-3" />
   }
 
   if (loading) {
@@ -520,38 +571,80 @@ export default function ClassesPage() {
                               No students enrolled yet. Add student emails above or share the invite link.
                             </p>
                           ) : (
-                            <div className="space-y-2">
-                              {students.map((student) => {
-                                const realEmail = getEmailForPseudonym(classItem.id, student.email)
-                                const isIdentified = !!realEmail
+                            <div className="border rounded-lg overflow-hidden">
+                              <table className="w-full">
+                                <thead className="bg-muted/50 border-b">
+                                  <tr>
+                                    <th className="text-left p-3 font-medium text-sm">
+                                      <button
+                                        onClick={() => handleSort(classItem.id, 'name')}
+                                        className="flex items-center gap-2 hover:text-foreground"
+                                      >
+                                        Student Name
+                                        {getSortIcon(classItem.id, 'name')}
+                                      </button>
+                                    </th>
+                                    <th className="text-left p-3 font-medium text-sm">
+                                      <button
+                                        onClick={() => handleSort(classItem.id, 'email')}
+                                        className="flex items-center gap-2 hover:text-foreground"
+                                      >
+                                        Email / Pseudonym
+                                        {getSortIcon(classItem.id, 'email')}
+                                      </button>
+                                    </th>
+                                    <th className="text-left p-3 font-medium text-sm">
+                                      <button
+                                        onClick={() => handleSort(classItem.id, 'joined')}
+                                        className="flex items-center gap-2 hover:text-foreground"
+                                      >
+                                        Joined
+                                        {getSortIcon(classItem.id, 'joined')}
+                                      </button>
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {getSortedStudents(classItem.id, students).map((student) => {
+                                    const realEmail = getEmailForPseudonym(classItem.id, student.email)
+                                    const isIdentified = !!realEmail
 
-                                return (
-                                  <div
-                                    key={student.id}
-                                    className={`flex items-center justify-between p-3 border rounded ${
-                                      isIdentified
-                                        ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
-                                        : 'bg-background'
-                                    }`}
-                                  >
-                                    <div className="flex-1">
-                                      <div className="font-medium text-sm">{student.displayName}</div>
-                                      {isIdentified ? (
-                                        <div className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                                          {realEmail}
-                                        </div>
-                                      ) : (
-                                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                                          {student.pseudonym} • joined via invite link
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-right text-xs text-muted-foreground">
-                                      Joined {new Date(student.joinedAt).toLocaleDateString()}
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                                    return (
+                                      <tr
+                                        key={student.id}
+                                        className={`border-b last:border-b-0 ${
+                                          isIdentified
+                                            ? 'bg-green-50/50 dark:bg-green-950/10'
+                                            : ''
+                                        }`}
+                                      >
+                                        <td className="p-3">
+                                          <div className="font-medium text-sm">{student.displayName}</div>
+                                        </td>
+                                        <td className="p-3">
+                                          {isIdentified ? (
+                                            <div className="text-sm text-green-700 dark:text-green-400">
+                                              {realEmail}
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-muted-foreground font-mono">
+                                                {student.pseudonym}
+                                              </span>
+                                              <span className="text-xs text-muted-foreground">
+                                                • joined via invite
+                                              </span>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="p-3 text-sm text-muted-foreground">
+                                          {new Date(student.joinedAt).toLocaleDateString()}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>
