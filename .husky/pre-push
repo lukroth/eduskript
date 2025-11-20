@@ -22,10 +22,16 @@ pnpm test:run || exit 1
 echo "✅ Tests passed"
 echo ""
 
-# Build Docker image
-echo "🐳 Building Docker image..."
-pnpm docker:build || exit 1
-echo "✅ Docker build successful"
-echo ""
+# Build Docker image (only if Docker is available)
+if command -v docker >/dev/null 2>&1; then
+  echo "🐳 Building Docker image..."
+  pnpm docker:build || exit 1
+  echo "✅ Docker build successful"
+  echo ""
+else
+  echo "⚠️  Docker not found - skipping Docker build"
+  echo "   Install Docker to enable full deployment validation"
+  echo ""
+fi
 
 echo "🎉 All checks passed! Pushing..."
