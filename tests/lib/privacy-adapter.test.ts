@@ -80,8 +80,7 @@ describe('lib/privacy-adapter', () => {
       expect(isStudentSignup).toHaveBeenCalledWith('student@example.com', mockUser)
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          email: expect.stringContaining('student_'),
-          email: expect.stringContaining('@eduskript.local'),
+          email: expect.stringMatching(/^student_.*@eduskript\.local$/),
           name: expect.stringContaining('Student'),
           image: null, // Student images not stored
           accountType: 'student',

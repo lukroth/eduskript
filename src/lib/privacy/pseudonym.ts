@@ -119,17 +119,71 @@ export function isStudentEmail(email: string): boolean {
   return false
 }
 
+// Stoic philosophers for student nicknames
+const STOIC_PHILOSOPHERS = [
+  'Marcus Aurelius',
+  'Seneca',
+  'Epictetus',
+  'Zeno',
+  'Cleanthes',
+  'Chrysippus',
+  'Cato',
+  'Musonius Rufus',
+  'Diogenes',
+  'Posidonius',
+  'Panaetius',
+  'Hecato',
+  'Antipater',
+  'Aristo',
+  'Hierocles'
+]
+
+// Positive adjectives for student nicknames
+const ADJECTIVES = [
+  'Wise',
+  'Mighty',
+  'Brave',
+  'Noble',
+  'Curious',
+  'Thoughtful',
+  'Resilient',
+  'Steadfast',
+  'Earnest',
+  'Diligent',
+  'Keen',
+  'Astute',
+  'Serene',
+  'Resolute',
+  'Prudent',
+  'Disciplined',
+  'Virtuous',
+  'Patient',
+  'Focused',
+  'Determined'
+]
+
 /**
  * Generates a display name for a student without revealing their identity.
+ * Creates nicknames like "Wise Seneca" or "Mighty Epictetus" using stoic philosophers.
  *
- * @param pseudonym - The student's pseudonym
- * @returns A user-friendly display name
+ * @param pseudonym - The student's pseudonym (used as seed for consistent nickname)
+ * @returns A user-friendly display name with adjective + philosopher
  *
  * @example
- * getStudentDisplayName('a3f5b9c2d8e1f4a7...') // => 'student-a3f5b9c2'
+ * getStudentDisplayName('a3f5b9c2d8e1f4a7...') // => 'Wise Seneca'
+ * getStudentDisplayName('b2c4d6e8f0a1c3e5...') // => 'Mighty Epictetus'
  */
 export function getStudentDisplayName(pseudonym: string): string {
-  // Use first 8 characters for better uniqueness while keeping brevity
-  const shortId = pseudonym.substring(0, 8)
-  return `student-${shortId}`
+  // Use pseudonym as seed for deterministic selection (same pseudonym = same nickname)
+  // Convert first 8 characters of pseudonym to a number for indexing
+  const seed = parseInt(pseudonym.substring(0, 8), 16)
+
+  // Select adjective and philosopher based on the seed
+  const adjectiveIndex = seed % ADJECTIVES.length
+  const philosopherIndex = Math.floor(seed / ADJECTIVES.length) % STOIC_PHILOSOPHERS.length
+
+  const adjective = ADJECTIVES[adjectiveIndex]
+  const philosopher = STOIC_PHILOSOPHERS[philosopherIndex]
+
+  return `${adjective} ${philosopher}`
 }

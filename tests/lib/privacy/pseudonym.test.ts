@@ -200,32 +200,45 @@ describe('lib/privacy/pseudonym', () => {
   })
 
   describe('getStudentDisplayName', () => {
-    it('should generate display name from pseudonym', () => {
+    it('should generate display name with adjective and philosopher', () => {
       const pseudonym = 'a3f5b9c2d8e1f4a7'
       const displayName = getStudentDisplayName(pseudonym)
 
-      expect(displayName).toBe('Student a3f5')
+      // Should be format: "Adjective Philosopher Name"
+      expect(displayName).toBe('Brave Cleanthes')
     })
 
-    it('should handle short pseudonyms', () => {
-      const pseudonym = 'abc'
-      const displayName = getStudentDisplayName(pseudonym)
+    it('should generate consistent nicknames for same pseudonym', () => {
+      const pseudonym = 'a3f5b9c2d8e1f4a7'
+      const displayName1 = getStudentDisplayName(pseudonym)
+      const displayName2 = getStudentDisplayName(pseudonym)
 
-      expect(displayName).toBe('Student abc')
+      expect(displayName1).toBe(displayName2)
     })
 
-    it('should use first 4 characters', () => {
-      const pseudonym = '1234567890abcdef'
-      const displayName = getStudentDisplayName(pseudonym)
+    it('should generate different nicknames for different pseudonyms', () => {
+      const pseudo1 = '1234567890abcdef'
+      const pseudo2 = 'fedcba9876543210'
+      const name1 = getStudentDisplayName(pseudo1)
+      const name2 = getStudentDisplayName(pseudo2)
 
-      expect(displayName).toContain('1234')
+      expect(name1).not.toBe(name2)
     })
 
-    it('should have consistent format', () => {
+    it('should have consistent format with adjective and philosopher', () => {
       const pseudonym = generatePseudonym('student@example.com')
       const displayName = getStudentDisplayName(pseudonym)
 
-      expect(displayName).toMatch(/^Student [a-f0-9]+$/)
+      // Should match pattern: "Word Word" or "Word Word Word" (for multi-word philosophers)
+      expect(displayName).toMatch(/^[A-Z][a-z]+\s[A-Z]/)
+      expect(displayName.split(' ').length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('should use stoic philosophers and positive adjectives', () => {
+      // Test a few known pseudonyms to verify the selection works
+      expect(getStudentDisplayName('a3f5b9c2d8e1f4a7')).toBe('Brave Cleanthes')
+      expect(getStudentDisplayName('b2c4d6e8f0a1c3e5')).toBe('Wise Hecato')
+      expect(getStudentDisplayName('0000000000000001')).toBe('Wise Marcus Aurelius')
     })
   })
 
