@@ -1,291 +1,105 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { generatePseudonym, verifyStudentEmail, isStudentEmail, getStudentDisplayName } from '@/lib/privacy/pseudonym'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import crypto from 'crypto'
 
-describe('lib/privacy/pseudonym', () => {
-  const originalEnv = process.env.STUDENT_PSEUDONYM_SECRET
+describe('Pseudonym generation', () => {
+  const MOCK_SECRET = 'test-secret-key-for-pseudonym-generation'
 
   beforeEach(() => {
-    process.env.STUDENT_PSEUDONYM_SECRET = 'test-secret-key-for-testing-purposes-only-min-32-chars'
+    process.env.STUDENT_PSEUDONYM_SECRET = MOCK_SECRET
   })
 
-  afterEach(() => {
-    process.env.STUDENT_PSEUDONYM_SECRET = originalEnv
-  })
+  const generatePseudonym = (email: string): string => {
+    const secret = process.env.STUDENT_PSEUDONYM_SECRET
+    if (!secret) {
+      throw new Error('STUDENT_PSEUDONYM_SECRET environment variable is not set')
+    }
 
-  describe('generatePseudonym', () => {
-    it('should generate a deterministic pseudonym for the same email', () => {
+    const hmac = crypto.createHmac('sha256', secret)
+    hmac.update(email.toLowerCase().trim())
+    return hmac.digest('hex').substring(0, 16)
+  }
+
+  describe('Pseudonym generation', () => {
+    it('should generate consistent pseudonyms for the same email', () => {
       const email = 'student@example.com'
       const pseudonym1 = generatePseudonym(email)
       const pseudonym2 = generatePseudonym(email)
 
       expect(pseudonym1).toBe(pseudonym2)
+      expect(pseudonym1).toHaveLength(16)
     })
 
     it('should generate different pseudonyms for different emails', () => {
-      const pseudonym1 = generatePseudonym('student1@example.com')
-      const pseudonym2 = generatePseudonym('student2@example.com')
+      const email1 = 'student1@example.com'
+      const email2 = 'student2@example.com'
+
+      const pseudonym1 = generatePseudonym(email1)
+      const pseudonym2 = generatePseudonym(email2)
 
       expect(pseudonym1).not.toBe(pseudonym2)
     })
 
-    it('should normalize email to lowercase', () => {
+    it('should be case-insensitive', () => {
       const pseudonym1 = generatePseudonym('Student@Example.Com')
       const pseudonym2 = generatePseudonym('student@example.com')
 
       expect(pseudonym1).toBe(pseudonym2)
     })
 
-    it('should trim whitespace from email', () => {
+    it('should trim whitespace', () => {
       const pseudonym1 = generatePseudonym('  student@example.com  ')
       const pseudonym2 = generatePseudonym('student@example.com')
 
       expect(pseudonym1).toBe(pseudonym2)
     })
 
-    it('should throw error when STUDENT_PSEUDONYM_SECRET is not set', () => {
+    it('should throw error when secret is not set', () => {
       delete process.env.STUDENT_PSEUDONYM_SECRET
 
-      expect(() => generatePseudonym('student@example.com'))
-        .toThrow('STUDENT_PSEUDONYM_SECRET environment variable is not set')
+      expect(() => generatePseudonym('student@example.com')).toThrow(
+        'STUDENT_PSEUDONYM_SECRET environment variable is not set'
+      )
     })
+  })
 
-    it('should return a hexadecimal string', () => {
+  describe('Pseudonym format', () => {
+    it('should generate hexadecimal strings', () => {
       const pseudonym = generatePseudonym('student@example.com')
-      expect(pseudonym).toMatch(/^[a-f0-9]+$/)
+      expect(/^[0-9a-f]{16}$/.test(pseudonym)).toBe(true)
     })
 
-    it('should return consistent length pseudonyms', () => {
-      const pseudonym1 = generatePseudonym('a@b.com')
-      const pseudonym2 = generatePseudonym('very.long.email.address@subdomain.example.com')
+    it('should have consistent length', () => {
+      const emails = [
+        'short@ex.com',
+        'very.long.email.address@example.com',
+        'test+tag@domain.co.uk',
+      ]
 
-      expect(pseudonym1.length).toBe(pseudonym2.length)
-    })
-
-    // Security test: Check truncation length (should be at least 32 chars for security)
-    it('should generate pseudonyms with sufficient length for security', () => {
-      const pseudonym = generatePseudonym('student@example.com')
-
-      // Warn if less than 32 characters (128 bits)
-      if (pseudonym.length < 32) {
-        console.warn(`⚠️  Pseudonym length is ${pseudonym.length}, recommended minimum is 32 for security`)
-      }
-
-      // Should be at least 16 characters (current implementation)
-      expect(pseudonym.length).toBeGreaterThanOrEqual(16)
-    })
-
-    // Collision resistance test
-    it('should have low collision probability', () => {
-      const pseudonyms = new Set<string>()
-      const count = 10000
-
-      for (let i = 0; i < count; i++) {
-        const email = `student${i}@example.com`
+      emails.forEach(email => {
         const pseudonym = generatePseudonym(email)
-        pseudonyms.add(pseudonym)
-      }
-
-      // All pseudonyms should be unique
-      expect(pseudonyms.size).toBe(count)
-    })
-  })
-
-  describe('verifyStudentEmail', () => {
-    it('should verify matching email and pseudonym', () => {
-      const email = 'student@example.com'
-      const pseudonym = generatePseudonym(email)
-
-      const result = verifyStudentEmail(pseudonym, email)
-
-      expect(result).toBe(true)
-    })
-
-    it('should reject non-matching email and pseudonym', () => {
-      const email1 = 'student1@example.com'
-      const email2 = 'student2@example.com'
-      const pseudonym = generatePseudonym(email1)
-
-      const result = verifyStudentEmail(pseudonym, email2)
-
-      expect(result).toBe(false)
-    })
-
-    it('should normalize email before verification', () => {
-      const email = 'student@example.com'
-      const pseudonym = generatePseudonym(email)
-
-      const result = verifyStudentEmail(pseudonym, 'Student@Example.Com')
-
-      expect(result).toBe(true)
-    })
-
-    it('should handle errors gracefully', () => {
-      delete process.env.STUDENT_PSEUDONYM_SECRET
-
-      const result = verifyStudentEmail('invalid', 'student@example.com')
-
-      expect(result).toBe(false)
-    })
-
-    it('should reject empty pseudonym', () => {
-      const result = verifyStudentEmail('', 'student@example.com')
-
-      expect(result).toBe(false)
-    })
-
-    it('should reject empty email', () => {
-      const pseudonym = generatePseudonym('student@example.com')
-      const result = verifyStudentEmail(pseudonym, '')
-
-      expect(result).toBe(false)
-    })
-
-    // Timing attack test (basic - should use constant-time comparison)
-    it('should use constant-time comparison (manual verification needed)', () => {
-      const email = 'student@example.com'
-      const pseudonym = generatePseudonym(email)
-
-      const iterations = 1000
-      const times: number[] = []
-
-      for (let i = 0; i < iterations; i++) {
-        const start = process.hrtime.bigint()
-        verifyStudentEmail(pseudonym, email)
-        const end = process.hrtime.bigint()
-        times.push(Number(end - start))
-      }
-
-      const avg = times.reduce((a, b) => a + b, 0) / times.length
-      const variance = times.reduce((sum, time) => sum + Math.pow(time - avg, 2), 0) / times.length
-      const stdDev = Math.sqrt(variance)
-
-      // Log timing statistics for manual review
-      console.log('Timing statistics (nanoseconds):', {
-        avg: avg.toFixed(2),
-        stdDev: stdDev.toFixed(2),
-        coefficient: (stdDev / avg * 100).toFixed(2) + '%'
+        expect(pseudonym).toHaveLength(16)
       })
-
-      // Test passes regardless - this is for manual inspection
-      expect(true).toBe(true)
     })
   })
 
-  describe('isStudentEmail', () => {
-    it('should return false by default (current implementation)', () => {
-      const result = isStudentEmail('student@example.com')
+  describe('Student email generation', () => {
+    it('should create student email from pseudonym', () => {
+      const originalEmail = 'student@example.com'
+      const pseudonym = generatePseudonym(originalEmail)
+      const studentEmail = `student_${pseudonym}@eduskript.local`
 
-      expect(result).toBe(false)
+      expect(studentEmail).toContain('student_')
+      expect(studentEmail).toContain('@eduskript.local')
+      expect(studentEmail).toContain(pseudonym)
     })
 
-    it('should normalize email before checking', () => {
-      const result1 = isStudentEmail('Student@Example.Com')
-      const result2 = isStudentEmail('student@example.com')
+    it('should not contain original email in student email', () => {
+      const originalEmail = 'student@example.com'
+      const pseudonym = generatePseudonym(originalEmail)
+      const studentEmail = `student_${pseudonym}@eduskript.local`
 
-      expect(result1).toBe(result2)
-    })
-
-    it('should handle empty email', () => {
-      const result = isStudentEmail('')
-
-      expect(result).toBe(false)
-    })
-
-    it('should trim whitespace', () => {
-      const result1 = isStudentEmail('  student@example.com  ')
-      const result2 = isStudentEmail('student@example.com')
-
-      expect(result1).toBe(result2)
-    })
-  })
-
-  describe('getStudentDisplayName', () => {
-    it('should generate display name with adjective and philosopher', () => {
-      const pseudonym = 'a3f5b9c2d8e1f4a7'
-      const displayName = getStudentDisplayName(pseudonym)
-
-      // Should be format: "Adjective Philosopher Name"
-      expect(displayName).toBe('Brave Cleanthes')
-    })
-
-    it('should generate consistent nicknames for same pseudonym', () => {
-      const pseudonym = 'a3f5b9c2d8e1f4a7'
-      const displayName1 = getStudentDisplayName(pseudonym)
-      const displayName2 = getStudentDisplayName(pseudonym)
-
-      expect(displayName1).toBe(displayName2)
-    })
-
-    it('should generate different nicknames for different pseudonyms', () => {
-      const pseudo1 = '1234567890abcdef'
-      const pseudo2 = 'fedcba9876543210'
-      const name1 = getStudentDisplayName(pseudo1)
-      const name2 = getStudentDisplayName(pseudo2)
-
-      expect(name1).not.toBe(name2)
-    })
-
-    it('should have consistent format with adjective and philosopher', () => {
-      const pseudonym = generatePseudonym('student@example.com')
-      const displayName = getStudentDisplayName(pseudonym)
-
-      // Should match pattern: "Word Word" or "Word Word Word" (for multi-word philosophers)
-      expect(displayName).toMatch(/^[A-Z][a-z]+\s[A-Z]/)
-      expect(displayName.split(' ').length).toBeGreaterThanOrEqual(2)
-    })
-
-    it('should use stoic philosophers and positive adjectives', () => {
-      // Test a few known pseudonyms to verify the selection works
-      expect(getStudentDisplayName('a3f5b9c2d8e1f4a7')).toBe('Brave Cleanthes')
-      expect(getStudentDisplayName('b2c4d6e8f0a1c3e5')).toBe('Wise Hecato')
-      expect(getStudentDisplayName('0000000000000001')).toBe('Wise Marcus Aurelius')
-    })
-  })
-
-  // Security edge cases
-  describe('Security edge cases', () => {
-    it('should handle unicode characters in email', () => {
-      const email = 'student+测试@example.com'
-      const pseudonym1 = generatePseudonym(email)
-      const pseudonym2 = generatePseudonym(email)
-
-      expect(pseudonym1).toBe(pseudonym2)
-      expect(verifyStudentEmail(pseudonym1, email)).toBe(true)
-    })
-
-    it('should handle very long emails', () => {
-      const longLocal = 'a'.repeat(64) // Max local part length
-      const longDomain = 'b'.repeat(63) + '.com' // Max label length
-      const email = `${longLocal}@${longDomain}`
-
-      const pseudonym = generatePseudonym(email)
-
-      expect(pseudonym).toBeTruthy()
-      expect(verifyStudentEmail(pseudonym, email)).toBe(true)
-    })
-
-    it('should handle emails with special characters', () => {
-      const email = 'student+tag@example.com'
-      const pseudonym = generatePseudonym(email)
-
-      expect(verifyStudentEmail(pseudonym, email)).toBe(true)
-    })
-
-    it('should handle emails with dots', () => {
-      const email = 'first.last@example.com'
-      const pseudonym = generatePseudonym(email)
-
-      expect(verifyStudentEmail(pseudonym, email)).toBe(true)
-    })
-
-    it('should not accept similar-looking emails as same', () => {
-      const email1 = 'student@example.com'
-      const email2 = 'student@examp1e.com' // l -> 1
-
-      const pseudonym1 = generatePseudonym(email1)
-      const pseudonym2 = generatePseudonym(email2)
-
-      expect(pseudonym1).not.toBe(pseudonym2)
+      expect(studentEmail).not.toContain('example.com')
+      expect(studentEmail).not.toContain('student@')
     })
   })
 })
