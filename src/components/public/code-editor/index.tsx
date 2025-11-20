@@ -150,7 +150,7 @@ export function CodeEditor({
     setFiles(prev => prev.map((file, idx) =>
       idx === activeFileIndex ? { ...file, content } : file
     ))
-  }, [activeFileIndex, componentId])
+  }, [activeFileIndex])
 
   // Save data to IndexedDB when anything changes
   // Files changes are debounced via the update listener, settings changes are immediate
@@ -449,7 +449,7 @@ export function CodeEditor({
         clearTimeout(contentSaveTimeoutRef.current)
       }
     }
-  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent])
+  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent, activeFileIndex, createVersionSnapshot, files])
 
   // Attach non-passive wheel event listener to prevent page scroll
   useEffect(() => {
@@ -514,7 +514,7 @@ export function CodeEditor({
     return () => {
       scroller.removeEventListener('wheel', handleWheel)
     }
-  }, [mounted, editorViewRef.current])
+  }, [mounted])
 
   // Prevent output panel scroll from propagating to page
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -27,11 +27,7 @@ export default function JoinClassPage() {
   const [success, setSuccess] = useState(false)
   const [alreadyMember, setAlreadyMember] = useState(false)
 
-  useEffect(() => {
-    loadClassInfo()
-  }, [inviteCode])
-
-  const loadClassInfo = async () => {
+  const loadClassInfo = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch(`/api/classes/join/${inviteCode}`)
@@ -53,7 +49,11 @@ export default function JoinClassPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [inviteCode])
+
+  useEffect(() => {
+    loadClassInfo()
+  }, [loadClassInfo])
 
   const handleJoinClass = async () => {
     if (!session) {

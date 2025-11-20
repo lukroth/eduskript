@@ -268,12 +268,13 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                     {/* Image preview or file icon */}
                     <div className="flex-shrink-0">
                       {isImageFile(getFileName(file)) ? (
-                        <div className="w-8 h-8 rounded overflow-hidden bg-muted">
-                          {/* Use regular img tag to avoid Next.js Image optimization issues */}
-                          <img
+                        <div className="w-8 h-8 rounded overflow-hidden bg-muted relative">
+                          <Image
                             src={getFileUrl(file)}
                             alt={getFileName(file)}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
+                            unoptimized
                           />
                         </div>
                       ) : isExcalidrawFile(getFileName(file)) ? (

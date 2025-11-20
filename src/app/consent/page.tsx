@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -164,13 +165,13 @@ export default function ConsentPage() {
 
           <div className="text-xs text-center text-muted-foreground">
             By continuing, you agree to our{' '}
-            <a href="/privacy" className="underline hover:text-foreground">
+            <Link href="/privacy" className="underline hover:text-foreground">
               Privacy Policy
-            </a>{' '}
+            </Link>{' '}
             and{' '}
-            <a href="/terms" className="underline hover:text-foreground">
+            <Link href="/terms" className="underline hover:text-foreground">
               Terms of Service
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>

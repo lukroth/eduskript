@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useTheme } from 'next-themes'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AlignLeft, AlignCenter, AlignRight, WrapText } from 'lucide-react'
@@ -176,15 +177,16 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
       data-excalidraw={filename}
       style={currentWidth !== null ? { ...style, width: `${currentWidth}%` } : style}
     >
-      <img
+      <Image
         src={src}
         alt={caption}
-        loading="lazy"
-        decoding="async"
+        width={800}
+        height={600}
         onLoad={() => setImageLoaded(true)}
         className={`w-full h-auto rounded-md transition-opacity duration-200 ${
           imageLoaded ? 'opacity-100' : 'opacity-0'
         }`}
+        unoptimized
       />
       {caption && (
         <figcaption className="mt-2 text-sm text-center text-muted-foreground italic">

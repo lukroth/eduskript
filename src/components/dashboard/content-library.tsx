@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Droppable } from '@hello-pangea/dnd'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,36 +39,36 @@ export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const fetchContent = async () => {
-      if (!session?.user?.id) return
+  const fetchContent = useCallback(async () => {
+    if (!session?.user?.id) return
 
-      try {
-        // Fetch collections with author information
-        const collectionsResponse = await api.get('/api/collections?includeShared=true')
-        const collectionsJson = await handleJsonResponse(collectionsResponse)
-        const collectionsData = collectionsJson.data || []
-        setCollections(collectionsData)
+    try {
+      // Fetch collections with author information
+      const collectionsResponse = await api.get('/api/collections?includeShared=true')
+      const collectionsJson = await handleJsonResponse(collectionsResponse)
+      const collectionsData = collectionsJson.data || []
+      setCollections(collectionsData)
 
-        // Fetch skripts with author information
-        const skriptsResponse = await api.get('/api/skripts?includeShared=true')
-        const skriptsJson = await handleJsonResponse(skriptsResponse)
-        const skriptsData = skriptsJson.data || []
-        setSkripts(skriptsData)
+      // Fetch skripts with author information
+      const skriptsResponse = await api.get('/api/skripts?includeShared=true')
+      const skriptsJson = await handleJsonResponse(skriptsResponse)
+      const skriptsData = skriptsJson.data || []
+      setSkripts(skriptsData)
 
-        // Share data with parent component
-        onDataLoad?.({ collections: collectionsData, skripts: skriptsData })
-      } catch (error) {
-        console.error('Error fetching content:', error)
-        // API errors will be handled by the global error handler
-        // This catch is for any other unexpected errors
-      } finally {
-        setLoading(false)
-      }
+      // Share data with parent component
+      onDataLoad?.({ collections: collectionsData, skripts: skriptsData })
+    } catch (error) {
+      console.error('Error fetching content:', error)
+      // API errors will be handled by the global error handler
+      // This catch is for any other unexpected errors
+    } finally {
+      setLoading(false)
     }
+  }, [session?.user?.id, onDataLoad])
 
+  useEffect(() => {
     fetchContent()
-  }, [session?.user?.id])
+  }, [fetchContent])
 
   // Filter content based on search term
   const filteredCollections = collections.filter(collection =>

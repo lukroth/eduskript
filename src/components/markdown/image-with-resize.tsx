@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AlignLeft, AlignCenter, AlignRight, WrapText } from 'lucide-react'
 
@@ -126,7 +127,7 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     }
     setIsDragging(false)
     dragStartRef.current = null // Clear drag state
-  }, [isDragging, effectiveWidth, currentAlign, currentWrap, updateMarkdown])
+  }, [isDragging, effectiveWidth, currentAlign, currentWrap, updateMarkdown, onWidthChange])
 
   const handleAlignChange = useCallback((alignment: 'left' | 'center' | 'right') => {
     setCurrentAlign(alignment)
@@ -171,15 +172,17 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
       style={currentWidth !== null ? { ...style, width: `${currentWidth}%` } : style}
     >
       {/* Image */}
-      <img
-        ref={imageRef}
-        src={src}
-        alt={alt}
-        title={title}
-        loading="lazy"
-        decoding="async"
-        className="w-full h-auto rounded-md"
-      />
+      <div ref={imageRef}>
+        <Image
+          src={src}
+          alt={alt || ''}
+          title={title}
+          width={800}
+          height={600}
+          className="w-full h-auto rounded-md"
+          unoptimized
+        />
+      </div>
 
       {/* Caption */}
       {alt && (

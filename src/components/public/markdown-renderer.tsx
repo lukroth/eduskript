@@ -100,6 +100,7 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
     rootsRef.current.clear()
 
     const codeEditorElements = contentRef.current.querySelectorAll('code-editor')
+    const newRoots = new Map<Element, { root: ReturnType<typeof createRoot>, props: any }>()
 
     codeEditorElements.forEach((element) => {
       const language = element.getAttribute('data-language') as 'python' | 'javascript' || 'python'
@@ -126,15 +127,18 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
       root.render(<CodeEditor {...props} />)
 
       // Store root and props for re-rendering on theme change
-      rootsRef.current.set(wrapper, { root, props })
+      newRoots.set(wrapper, { root, props })
     })
 
+    // Update the ref with new roots
+    rootsRef.current = newRoots
+
     return () => {
-      // Clean up on unmount
-      rootsRef.current.forEach(({ root }) => {
+      // Clean up on unmount - use the captured newRoots
+      newRoots.forEach(({ root }) => {
         root.unmount()
       })
-      rootsRef.current.clear()
+      newRoots.clear()
     }
   }, [html])
 
