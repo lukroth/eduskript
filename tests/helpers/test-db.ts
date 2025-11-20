@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { execSync } from 'child_process'
 import { randomBytes } from 'crypto'
 import { vi } from 'vitest'
@@ -42,13 +43,14 @@ export async function createTestDatabase(): Promise<{
       },
     })
 
+    // Create LibSQL adapter for this test database
+    const adapter = new PrismaLibSql({
+      url: `file:${dbPath}`
+    })
+
     // Create Prisma client for this database
     const prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: `file:${dbPath}`,
-        },
-      },
+      adapter,
     })
 
     await prisma.$connect()

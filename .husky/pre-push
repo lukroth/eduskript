@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-push validation..."
+echo ""
+
+# Run type checking
+echo "📘 Type checking..."
+pnpm type-check || exit 1
+echo "✅ Types valid"
+echo ""
+
+# Run linting
+echo "🧹 Linting..."
+pnpm lint || exit 1
+echo "✅ Lint passed"
+echo ""
+
+# Run tests
+echo "🧪 Running tests..."
+pnpm test:run || exit 1
+echo "✅ Tests passed"
+echo ""
+
+# Build Docker image
+echo "🐳 Building Docker image..."
+pnpm docker:build || exit 1
+echo "✅ Docker build successful"
+echo ""
+
+echo "🎉 All checks passed! Pushing..."

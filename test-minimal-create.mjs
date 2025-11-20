@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
 
-const prisma = new PrismaClient({ log: ['query', 'error', 'warn'] })
+const adapter = new PrismaLibSql({
+  url: `file:${process.env.DATABASE_URL?.replace('file:', '') || './prisma/data/dev.db'}`
+})
+const prisma = new PrismaClient({ adapter, log: ['query', 'error', 'warn'] })
 
 async function testMinimalCreate() {
   try {

@@ -19,6 +19,9 @@ We use pnpm.
 - `pnpm build` - Build for production (includes Prisma generation)
 - `pnpm start` - Start production server
 - `pnpm lint` - Run ESLint
+- `pnpm type-check` - Run TypeScript type checking without building
+- `pnpm validate` - Run type-check, lint, and tests (quick validation)
+- `pnpm pre-push` - Run full validation including Docker build (strict validation)
 
 ### Docker Operations
 - `pnpm docker:build` - Build Docker image with git metadata
@@ -38,12 +41,13 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Collaboration**: Teachers can partner and share content with granular permissions
 
 ### Technology Stack
-- **Framework**: Next.js 16 with App Router and TypeScript
-- **Database**: SQLite with Prisma ORM (6.11.0)
+- **Framework**: Next.js 16 with App Router and TypeScript (ES2023, ES Modules)
+- **Database**: SQLite with Prisma ORM 7.x and LibSQL adapter
 - **Authentication**: NextAuth.js with JWT strategy, supporting credentials + OAuth (GitHub/Google)
 - **Styling**: TailwindCSS with Radix UI components
 - **Editor**: CodeMirror 6 with multiple language support
 - **Markdown**: Unified/Remark/Rehype pipeline with KaTeX math and syntax highlighting
+- **Quality Assurance**: Husky pre-push hooks with strict validation (type-check, lint, tests, Docker build)
 
 ### Database Schema Key Points
 - **Multi-tenant**: Each user has a subdomain (e.g., `teacher.eduskript.org`)
@@ -140,14 +144,22 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Version Control**: Automatic page versioning with restore capability
 
 ### Deployment Configuration
-- **Docker**: Includes multi-stage build with git metadata injection
-- **Next.js**: Configured for standalone output
-- **Database**: SQLite for development, migrations handled by Prisma
-- **Environment**: Node.js 22.x, uses pnpm package manager
+- **Docker**: Clean multi-stage build with Prisma 7.x and LibSQL adapter
+- **Next.js**: Configured for standalone output with ES Modules
+- **Database**: SQLite with LibSQL client for optimal performance
+- **Prisma**: Version 7.x with driver adapters (no version conflicts!)
+- **Environment**: Node.js 22.x, pnpm package manager, TypeScript ES2023
 
-## Testing
-- No specific test framework is currently configured
-- Test database operations using `pnpm db:studio` for inspection
+## Testing & Quality Assurance
+- **Test Framework**: Vitest 4.x with React Testing Library
+- **Coverage**: v8 coverage provider targeting 80%+ coverage
+- **Test Types**: Unit tests, integration tests, API tests, component tests
+- **Pre-Push Validation**: Automated via Husky hooks
+  - TypeScript type checking (`pnpm type-check`)
+  - ESLint validation (`pnpm lint`)
+  - Full test suite (`pnpm test:run`)
+  - Docker build verification (`pnpm docker:build`)
+- **Manual Validation**: Run `pnpm validate` for quick check (skips Docker build)
 
 ## Current Development Focus
 **COMPLETED**: Page builder and dashboard experience are fully implemented and production-ready:
@@ -168,3 +180,62 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - Visual permission matrix showing users vs. content permissions
 - "Share with Collaborators" quick actions and workflows
 - Don't mark tasks as complete unless I say so
+
+## Recent Upgrades (2025-11-20)
+
+### ✅ Prisma 7.x Migration
+The project has been successfully upgraded from Prisma 6.11.0 to Prisma 7.x with LibSQL adapter:
+
+**Changes Made:**
+- Upgraded `@prisma/client` and `prisma` to 7.0.0
+- Installed `@prisma/adapter-libsql` and `@libsql/client` for SQLite driver
+- Created `prisma.config.ts` for Prisma 7.x configuration
+- Updated `schema.prisma` generator to `prisma-client` with explicit output path
+- Migrated project to ES Modules (`"type": "module"` in package.json)
+- Updated TypeScript target from ES2017 to ES2023
+- Refactored all Prisma client instantiations (40+ files) to use LibSQL adapter:
+  - `src/lib/prisma.ts` - Main application client
+  - `tests/helpers/test-db.ts` - Test database utilities
+  - All utility scripts (*.mjs files)
+  - Seed files (`prisma/seed.ts`, `prisma/seed-admin.js`)
+
+**Docker Improvements:**
+- **Removed version hack**: No longer copying entire `.pnpm` store to force Prisma version
+- **Clean solution**: Project uses Prisma 7.x, Docker uses Prisma 7.x - no conflicts!
+- **Simplified Dockerfile**: Only copy necessary packages (@prisma, @libsql, dotenv)
+- **Updated start.sh**: Use `pnpm prisma migrate deploy` (standard approach)
+
+**Benefits:**
+- Modern Prisma architecture with driver adapters
+- No more Prisma version conflicts in Docker
+- Better performance with LibSQL adapter
+- Clean, maintainable deployment setup
+- Future-proof for Prisma ecosystem
+
+### ✅ Strict Pre-Push Workflow
+Implemented comprehensive quality gates to ensure code quality before pushing:
+
+**Setup:**
+- Installed Husky 9.x for git hooks management
+- Created `.husky/pre-push` hook with strict validation
+- Added validation scripts to package.json:
+  - `type-check`: TypeScript validation without building
+  - `validate`: Quick check (types + lint + tests)
+  - `pre-push`: Full validation (types + lint + tests + Docker build)
+
+**Pre-Push Checks:**
+1. **Type Checking**: `tsc --noEmit` - Ensures TypeScript types are valid
+2. **Linting**: `eslint . --max-warnings=-1` - No lint warnings allowed
+3. **Tests**: `vitest run` - All tests must pass
+4. **Docker Build**: Full Docker image build - Ensures deployment readiness
+
+**Usage:**
+- Automatic: Runs before every `git push`
+- Manual: Run `pnpm pre-push` to test before committing
+- Quick check: Run `pnpm validate` (skips Docker build for speed)
+
+**Benefits:**
+- Catch issues before they reach the repository
+- Ensure Docker builds work before deployment
+- Maintain high code quality standards
+- Reduce CI/CD failures and deployment issues

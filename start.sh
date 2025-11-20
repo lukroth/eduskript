@@ -7,9 +7,8 @@ sudo chown -R nextjs:nodejs /app/data /app/uploads
 sudo chmod -R 755 /app/data /app/uploads
 
 echo "Starting database migration..."
-# Run Prisma migrations (apply all pending migration files)
-# Use local prisma from node_modules to ensure version matches package.json (6.11.0, not latest 7.x)
-node_modules/.bin/prisma migrate deploy
+# Run Prisma migrations (Prisma 7.x with LibSQL adapter)
+pnpm prisma migrate deploy
 
 echo "Seeding admin user if needed..."
 # Create admin user if it doesn't exist
