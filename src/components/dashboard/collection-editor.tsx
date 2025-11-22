@@ -10,6 +10,7 @@ import { CollectionSettingsModal } from './collection-settings-modal'
 import { SortableSkripts } from './sortable-skripts'
 import { CollectionAccessManager } from '@/components/permissions/CollectionAccessManager'
 import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
+import { useAlertDialog } from '@/hooks/use-alert-dialog'
 import { ArrowLeft, BookOpen, FileText, Users } from 'lucide-react'
 import { UserPermissions, CollectionWithAuthors } from '@/types'
 
@@ -60,6 +61,7 @@ export function CollectionEditor({ collection, userPermissions, currentUserId }:
   const [isLoading, setIsLoading] = useState(false)
   const [isPublished, setIsPublished] = useState(collection.isPublished)
   const router = useRouter()
+  const alert = useAlertDialog()
 
   const handleSkriptCreated = () => {
     // Force a complete page refresh to ensure data is updated
@@ -105,12 +107,36 @@ export function CollectionEditor({ collection, userPermissions, currentUserId }:
 
       const updatedCollection = await response.json()
       setIsPublished(updatedCollection.isPublished)
-      
+
       // Optionally show success message or refresh
       window.location.reload()
     } catch (error) {
       console.error('Error publishing collection:', error)
       // You might want to show an error toast here
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteCollection = async () => {
+    if (!confirm(`Are you sure you want to delete the collection "${collection.title}"? Skripts in this collection will not be deleted, but will lose their association with this collection.`)) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/collections/${collection.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        router.push('/dashboard/collections')
+      } else {
+        alert.showError('Failed to delete collection')
+      }
+    } catch (error) {
+      console.error('Error deleting collection:', error)
+      alert.showError('Failed to delete collection')
     } finally {
       setIsLoading(false)
     }
@@ -136,15 +162,22 @@ export function CollectionEditor({ collection, userPermissions, currentUserId }:
         <div className="flex gap-2">
           {userPermissions.canEdit && (
             <>
-              <CollectionSettingsModal 
+              <CollectionSettingsModal
                 collection={collection}
                 onCollectionUpdated={handleCollectionUpdated}
               />
-              <Button 
+              <Button
                 onClick={handlePublish}
                 disabled={isLoading}
               >
                 {isLoading ? 'Publishing...' : (isPublished ? 'Unpublish' : 'Publish')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteCollection}
+                disabled={isLoading}
+              >
+                Delete Collection
               </Button>
             </>
           )}
