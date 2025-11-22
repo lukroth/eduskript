@@ -18,6 +18,7 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
   const [mounted, setMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const rootsRef = useRef<Map<Element, { root: any, props: any }>>(new Map())
+  const fileListRef = useRef<Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>>([])
 
   // Get the actual theme (resolve 'system' to actual theme)
   const resolvedTheme = theme === 'system' ? systemTheme : theme
@@ -45,8 +46,8 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
             if (response.ok) {
               const data = await response.json()
               fileList = data.files || []
-              console.log('[MarkdownRenderer] Fetched files:', fileList.map(f => f.name))
-              console.log('[MarkdownRenderer] Full file data:', fileList)
+              fileListRef.current = fileList // Store for lookup during hydration
+              console.log('[MarkdownRenderer] Fetched files:', fileList.map(f => ({ name: f.name, url: f.url })))
             } else {
               console.error('[MarkdownRenderer] Failed to fetch files:', response.statusText)
             }
@@ -102,14 +103,38 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
     const codeEditorElements = contentRef.current.querySelectorAll('code-editor')
     const newRoots = new Map<Element, { root: ReturnType<typeof createRoot>, props: any }>()
 
+    console.log('[MarkdownRenderer] Hydrating code editors, found:', codeEditorElements.length)
+
     codeEditorElements.forEach((element) => {
-      const language = element.getAttribute('data-language') as 'python' | 'javascript' || 'python'
+      const language = element.getAttribute('data-language') as 'python' | 'javascript' | 'sql' || 'python'
       const code = element.getAttribute('data-code') || ''
       const id = element.getAttribute('data-id')
       const showCanvas = element.getAttribute('data-show-canvas') !== 'false'
+      const db = element.getAttribute('data-db') // Database name for SQL editors
+
+      console.log('[MarkdownRenderer] Hydrating editor:', { language, hasDb: !!db, db })
 
       // Decode HTML entities
       const decodedCode = decodeHtmlEntities(code)
+
+      // Look up database file URL from file list if db name is provided
+      let sqlDatabaseUrl: string | undefined
+      if (db && language === 'sql') {
+        console.log('[MarkdownRenderer] SQL editor detected, looking up database:', {
+          db,
+          fileListLength: fileListRef.current.length,
+          fileNames: fileListRef.current.map(f => f.name)
+        })
+        // Try to find file with this name (with or without extension)
+        const dbFile = fileListRef.current.find(f => {
+          const nameWithoutExt = f.name.replace(/\.(sqlite|db)$/i, '')
+          const matches = nameWithoutExt === db || f.name === db
+          console.log('[MarkdownRenderer] Checking file:', { fileName: f.name, dbParam: db, nameWithoutExt, matches })
+          return matches
+        })
+        sqlDatabaseUrl = dbFile?.url
+        console.log('[MarkdownRenderer] Database lookup result:', { db, found: !!dbFile, url: sqlDatabaseUrl, fileId: dbFile?.id })
+      }
 
       // Create a wrapper div and replace the custom element
       const wrapper = document.createElement('div')
@@ -121,7 +146,8 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
         id: id || undefined,
         language,
         initialCode: decodedCode,
-        showCanvas
+        showCanvas,
+        db: sqlDatabaseUrl  // Pass database URL if found
       }
 
       root.render(<CodeEditor {...props} />)

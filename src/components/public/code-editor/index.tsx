@@ -33,7 +33,7 @@ interface CodeEditorProps {
   language?: 'python' | 'javascript' | 'sql'
   initialCode?: string
   showCanvas?: boolean
-  sqlDatabase?: string // Path to SQL database for SQL language
+  db?: string // Path to SQL database for SQL language
   schemaImage?: string // Optional schema image for SQL
 }
 
@@ -46,7 +46,7 @@ export function CodeEditor({
   language = 'python',
   initialCode = '# Write your code here\nprint("Hello, World!")',
   showCanvas = true,
-  sqlDatabase = '/sql/netflixdb.sqlite',
+  db = '/sql/netflixdb.sqlite',
   schemaImage
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
@@ -81,9 +81,18 @@ export function CodeEditor({
   // Keystroke counter for version creation
   const keystrokeCountRef = useRef(0)
 
+  // Helper to get file extension based on language
+  const getFileExtension = (lang: 'python' | 'javascript' | 'sql'): string => {
+    switch (lang) {
+      case 'python': return '.py'
+      case 'javascript': return '.js'
+      case 'sql': return '.sql'
+    }
+  }
+
   // Initialize default data
   const defaultData: CodeEditorData = {
-    files: [{ name: 'main.py', content: initialCode }],
+    files: [{ name: `main${getFileExtension(language)}`, content: initialCode }],
     activeFileIndex: 0,
     fontSize: 14,
     editorWidth: 50,
@@ -105,8 +114,8 @@ export function CodeEditor({
   const currentCode = files[activeFileIndex]?.content || initialCode
   const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(currentCode)
   const hasMatplotlib = language === 'python' && /import\s+matplotlib|from\s+matplotlib/.test(currentCode)
-  // SQL schema: explicit prop OR auto-detected from database path
-  const hasSqlSchema = language === 'sql' && (schemaImage || (sqlDatabase && sqlDatabase.replace(/\.(sqlite|db)$/i, '.svg')))
+  // SQL schema: provided via schemaImage prop (auto-detected in markdown renderer)
+  const hasSqlSchema = language === 'sql' && !!schemaImage
   const hasGraphics = hasTurtleModule || hasMatplotlib || hasSqlSchema
   const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
@@ -119,20 +128,44 @@ export function CodeEditor({
   // Canvas pan and zoom state
   const [canvasTransform, setCanvasTransform] = useState(defaultData.canvasTransform ?? { x: 0, y: 0, scale: 1 })
 
-  // Restore saved data when it loads
+  // Store the original initial code for reset functionality
+  // This is the source of truth from the markdown and should never change
+  const originalInitialCode = useRef(initialCode)
   const hasLoadedData = useRef(false)
+
+  // Update original code when initialCode prop changes (markdown was edited)
+  useEffect(() => {
+    originalInitialCode.current = initialCode
+  }, [initialCode])
+
   useEffect(() => {
     // Only restore once when data first loads
     if (!isLoading && savedData && !hasLoadedData.current) {
       hasLoadedData.current = true
 
-      if (savedData.files) setFiles(savedData.files)
-      if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
-      if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
-      if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
-      if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+      // Check if the markdown content has changed since the data was saved
+      // If the first file's content from saved data matches the original initialCode,
+      // it's safe to restore. Otherwise, prefer the new markdown content.
+      const savedFirstFileContent = savedData.files?.[0]?.content
+      const markdownHasChanged = savedFirstFileContent && savedFirstFileContent !== initialCode
+
+      if (markdownHasChanged) {
+        // Markdown was updated - don't restore old saved content
+        // But do restore other settings like fontSize, editorWidth, etc.
+        console.log('Markdown content changed - using new content from page')
+        if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
+        if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
+        if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+      } else {
+        // Markdown unchanged - safe to restore everything
+        if (savedData.files) setFiles(savedData.files)
+        if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
+        if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
+        if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
+        if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+      }
     }
-  }, [isLoading, savedData, componentId, pageId])
+  }, [isLoading, savedData, componentId, pageId, initialCode])
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
 
@@ -258,29 +291,21 @@ export function CodeEditor({
 
   // Load SQL database when in SQL mode
   useEffect(() => {
-    if (language === 'sql' && sqlDatabase && mounted) {
+    if (language === 'sql' && db && mounted) {
       // Dynamic import to avoid SSR issues
       import('@/lib/sql-executor.client').then(({ loadDatabase }) => {
-        loadDatabase(sqlDatabase).catch((error) => {
+        loadDatabase(db).catch((error) => {
           addOutput(`Failed to load database: ${error.message}`, OutputLevel.ERROR)
         })
       })
     }
-  }, [language, sqlDatabase, mounted])
+  }, [language, db, mounted])
 
-  // Auto-detect and display schema image in graphics pane for SQL mode
+  // Display schema image in graphics pane for SQL mode (if provided)
+  // Note: Schemas are now Excalidraw drawings stored with databases in the file system
+  // Users create schemas via the "Create Schema" button in the file browser
   useEffect(() => {
-    if (language === 'sql' && mounted && canvasRef.current) {
-      // Determine schema image path: explicit prop or auto-detect from database path
-      let schemaImagePath = schemaImage
-
-      if (!schemaImagePath && sqlDatabase) {
-        // Auto-detect: replace .sqlite/.db extension with .svg
-        schemaImagePath = sqlDatabase.replace(/\.(sqlite|db)$/i, '.svg')
-      }
-
-      if (!schemaImagePath) return
-
+    if (language === 'sql' && mounted && canvasRef.current && schemaImage) {
       // Check if schema image exists
       const img = new Image()
       img.onload = () => {
@@ -291,7 +316,7 @@ export function CodeEditor({
 
         // Create and append the schema image
         const schemaImg = document.createElement('img')
-        schemaImg.src = schemaImagePath!
+        schemaImg.src = schemaImage
         schemaImg.alt = 'Database Schema'
         schemaImg.style.width = '100%'
         schemaImg.style.height = 'auto'
@@ -312,9 +337,9 @@ export function CodeEditor({
         setCanvasVisible(false)
       }
 
-      img.src = schemaImagePath
+      img.src = schemaImage
     }
-  }, [language, schemaImage, sqlDatabase, mounted])
+  }, [language, schemaImage, mounted])
 
   // Lazy load Pyodide on first run
   const ensurePyodideLoaded = async () => {
@@ -637,9 +662,10 @@ export function CodeEditor({
   // Add a new file
   const addNewFile = () => {
     const fileNumber = files.length + 1
+    const ext = getFileExtension(language)
     const newFile: PythonFile = {
-      name: `file${fileNumber}.py`,
-      content: '# New file\n'
+      name: `file${fileNumber}${ext}`,
+      content: language === 'sql' ? '-- New file\n' : '# New file\n'
     }
     setFiles(prev => [...prev, newFile])
     setActiveFileIndex(files.length)
@@ -660,7 +686,9 @@ export function CodeEditor({
   // Start renaming a file
   const startRename = (index: number) => {
     setRenamingIndex(index)
-    setRenameValue(files[index].name.replace(/\.py$/, ''))
+    const ext = getFileExtension(language)
+    const extPattern = new RegExp(`\\${ext}$`)
+    setRenameValue(files[index].name.replace(extPattern, ''))
   }
 
   // Confirm rename
@@ -670,9 +698,10 @@ export function CodeEditor({
       return
     }
 
-    const newName = renameValue.trim().endsWith('.py')
+    const ext = getFileExtension(language)
+    const newName = renameValue.trim().endsWith(ext)
       ? renameValue.trim()
-      : renameValue.trim() + '.py'
+      : renameValue.trim() + ext
 
     // Check for duplicate names
     if (files.some((f, idx) => idx !== index && f.name === newName)) {
@@ -751,19 +780,38 @@ export function CodeEditor({
     setOutput([]) // Clear previous output
 
     try {
+      // Ensure database is loaded
+      if (!db) {
+        addOutput('No database configured for this SQL editor', OutputLevel.ERROR)
+        return
+      }
+
       // Dynamic import to avoid SSR issues
       const { executeSqlQuery } = await import('@/lib/sql-executor.client')
-      const result = await executeSqlQuery(query)
+      const result = await executeSqlQuery(query, db)
 
       if (result.success && result.results) {
-        // Add output with SQL results
-        const message = `Query executed successfully in ${result.executionTime?.toFixed(2)}ms`
-        setOutput([{
-          message,
-          level: OutputLevel.OUTPUT,
-          timestamp: Date.now(),
-          sqlResults: result.results
-        }])
+        // Check if query returned any rows
+        const hasRows = result.results.length > 0 && result.results[0].values.length > 0
+
+        if (hasRows) {
+          // Add output with SQL results
+          const message = `Query executed successfully in ${result.executionTime?.toFixed(2)}ms`
+          setOutput([{
+            message,
+            level: OutputLevel.OUTPUT,
+            timestamp: Date.now(),
+            sqlResults: result.results
+          }])
+        } else {
+          // Query succeeded but returned no rows
+          const message = `Query executed successfully in ${result.executionTime?.toFixed(2)}ms\nNo rows returned.`
+          setOutput([{
+            message,
+            level: OutputLevel.WARNING,
+            timestamp: Date.now()
+          }])
+        }
       } else {
         addOutput(result.error || 'Unknown error occurred', OutputLevel.ERROR)
       }
@@ -803,17 +851,19 @@ export function CodeEditor({
         read: (filename: string) => {
           // Extract just the base filename (remove directory paths)
           const baseName = filename.split('/').pop() || filename
+          const ext = getFileExtension(language)
+          const extPattern = new RegExp(`\\${ext}$`)
 
-          // Try to match with or without .py extension
+          // Try to match with or without extension
           const userFile = files.find(f => {
             // Direct match
             if (f.name === baseName || f.name === filename) return true
 
-            // Try adding .py extension
-            if (f.name === baseName + '.py' || f.name === filename + '.py') return true
+            // Try adding extension
+            if (f.name === baseName + ext || f.name === filename + ext) return true
 
-            // Try removing .py extension
-            const nameWithoutExt = f.name.replace(/\.py$/, '')
+            // Try removing extension
+            const nameWithoutExt = f.name.replace(extPattern, '')
             if (nameWithoutExt === baseName || nameWithoutExt === filename) return true
 
             return false
@@ -1082,23 +1132,35 @@ plots
     addOutput('Program stopped', OutputLevel.WARNING)
   }
 
-  // Reset code
+  // Reset code to original markdown content
   const resetCode = () => {
+    // Reset to the original markdown content
+    const originalContent = originalInitialCode.current
+
+    // Update files state
+    setFiles([{ name: `main${getFileExtension(language)}`, content: originalContent }])
+    setActiveFileIndex(0)
+
+    // Update editor view
     if (editorViewRef.current) {
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
           to: editorViewRef.current.state.doc.length,
-          insert: initialCode,
+          insert: originalContent,
         },
       })
     }
+
     setOutput([])
-    if (canvasRef.current) {
+    // Only clear canvas for Python graphics (not SQL schemas)
+    if (canvasRef.current && language !== 'sql') {
       canvasRef.current.innerHTML = ''
     }
     // Reset to center position
     resetCanvasView()
+
+    console.log('Reset to original markdown content')
   }
 
   // Canvas pan and zoom handlers
@@ -1179,8 +1241,7 @@ plots
             }}
           >
             {/* File Tabs */}
-            {language === 'python' && (
-              <div className="flex items-center justify-between gap-1 px-2 py-1 border-b bg-muted/10">
+            <div className="flex items-center justify-between gap-1 px-2 py-1 border-b bg-muted/10">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1">
                   {files.map((file, index) => (
                     <div key={index} className="flex items-center">
@@ -1262,8 +1323,7 @@ plots
                     <ZoomIn className="w-3 h-3" />
                   </Button>
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* CodeMirror Editor */}
             <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative">

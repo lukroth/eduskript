@@ -140,10 +140,13 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - `src/lib/utils.ts` - Utility functions
 
 ### Editor Features
-- **Multiple Editors**: CodeMirror-based with language-specific highlighting
+- **Multiple Editors**: CodeMirror-based with language-specific highlighting (Python, JavaScript, SQL)
+- **Multi-File Support**: All code editors support multiple files with language-appropriate extensions (.py, .js, .sql)
 - **Markdown Pipeline**: Supports GFM, math (KaTeX), and custom remark plugins
 - **File Handling**: Upload and reference files within skript content
 - **Version Control**: Automatic page versioning with restore capability
+- **Interactive SQL**: Client-side SQL execution using SQL.js with database file management
+- **Schema Visualization**: Automatic Excalidraw schema detection with theme-aware rendering
 
 ### Deployment Configuration
 - **Docker**: Clean multi-stage build with Prisma 7.x and PostgreSQL adapter
@@ -184,7 +187,234 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - "Share with Collaborators" quick actions and workflows
 - Don't mark tasks as complete unless I say so
 
+## SQL Database Management
+
+### Overview
+Eduskript supports interactive SQL learning through client-side database execution using SQL.js (SQLite compiled to WebAssembly). Students can run SQL queries directly in the browser against real database files uploaded by teachers.
+
+### Architecture
+
+**Client-Side Execution:**
+- **SQL.js**: Loaded from CDN via script tag (avoids Next.js 16 + Turbopack build issues)
+- **Database Caching**: Map-based cache allows multiple databases on the same page
+- **No Server Execution**: All SQL runs in the browser - secure and scalable
+- **File Storage**: Databases stored as regular skript files with content-addressed deduplication
+
+**Key Files:**
+- `src/lib/sql-executor.client.ts` - SQL.js integration and query execution
+- `src/components/public/code-editor/index.tsx` - Interactive SQL editor with multi-file support
+- `src/components/markdown/markdown-renderer.tsx` - SQL editor rendering in markdown
+- `src/lib/remark-plugins/code-editor.ts` - Transforms code blocks to interactive editors
+- `src/lib/file-storage.ts` - Database file upload and retrieval with public access support
+
+### Usage in Markdown
+
+**Basic SQL Editor:**
+````markdown
+```sql editor db="netflix.db"
+SELECT * FROM tv_show LIMIT 10;
+```
+````
+
+**With Explicit Schema Image:**
+````markdown
+```sql editor db="world_bank_indicators.db" schema-image="world_bank-schema"
+SELECT country_code, indicator_value
+FROM indicators
+WHERE indicator_code = 'NY.GDP.MKTP.CD';
+```
+````
+
+### Database File Management
+
+**Uploading Database Files:**
+1. In page editor, drag database file (.db, .sqlite) over CodeMirror editor
+2. Select "Insert SQL editor" from popup menu
+3. File is uploaded to skript storage with content-addressed hashing
+4. Markdown references database by human-readable filename (e.g., `db="netflix.db"`)
+
+**File Resolution:**
+- Markdown uses `db="filename"` syntax
+- System resolves filename to file URL via fileList lookup
+- Supports both `.db` and `.sqlite` extensions (tries both if file renamed)
+- Public access automatically granted for files in published skripts
+
+### Schema Visualization
+
+**Excalidraw Integration:**
+- Create database schema diagrams in Excalidraw
+- Export both light and dark theme SVGs
+- Naming convention: `{database-name}-schema.excalidraw.{light|dark}.svg`
+- Auto-detection: System automatically finds matching schema for database
+- Theme-aware: Displays light schema in light mode, dark schema in dark mode
+
+**Example:**
+For database `netflix.db`, create:
+- `netflix-schema.excalidraw.light.svg`
+- `netflix-schema.excalidraw.dark.svg`
+
+System will automatically display the appropriate schema next to the SQL editor.
+
+**Manual Schema Specification:**
+````markdown
+```sql editor db="netflix.db" schema-image="custom-schema"
+SELECT * FROM tv_show;
+```
+````
+
+### Query Features
+
+**Default Limits:**
+- SELECT queries automatically get `LIMIT 100` if no LIMIT specified
+- Prevents overwhelming results for large datasets
+- Users can override by specifying their own LIMIT
+
+**Result Display:**
+- Tables rendered in canvas panel
+- Multiple result sets supported
+- Execution time displayed
+- "No rows returned" warning for empty results
+- Error messages shown in output panel
+
+**Multiple Databases:**
+- Each editor independently loads its specified database
+- Map-based caching prevents conflicts between editors
+- Students can compare queries across different databases on same page
+
+### Multi-File SQL Support
+
+**Feature:**
+All code editors (Python, JavaScript, SQL) support multiple files with language-appropriate extensions.
+
+**SQL Specific:**
+- Default filename: `main.sql`
+- New files: `file2.sql`, `file3.sql`, etc.
+- Students can organize multiple queries in separate files
+- Each file executes independently
+- Useful for storing different solutions or query variations
+
+**File Operations:**
+- Add new file: `+` button in file tabs
+- Rename file: Double-click filename
+- Remove file: `X` button (can't remove last file)
+- Switch files: Click filename tab
+
+### Persistent User Data
+
+**IndexedDB Storage:**
+- Each editor's state persisted per page/editor ID
+- Stores: code content, active file, font size, editor width, canvas transform
+- Auto-save on changes (debounced)
+- Version history with manual snapshots
+
+**Reset Behavior:**
+- Reset button restores original markdown content
+- Detects when markdown changed vs cached data
+- Preserves user settings (font size, layout) when markdown unchanged
+- Always resets to current page content (not stale cache)
+
+**Version Control:**
+- Manual version creation with labels
+- Auto-version every 500 keystrokes
+- Restore previous versions
+- Delete unwanted versions
+- Filter autosaves in history view
+
+### Security & Permissions
+
+**Public Access:**
+- Database files in published skripts are publicly accessible
+- No authentication required for students viewing published content
+- Authors maintain full control over their skript files
+
+**File Serving:**
+- Content-addressed storage (SHA256 hash)
+- Automatic deduplication (same file uploaded multiple times uses same storage)
+- Extension mismatch handling (renamed files from .db to .sqlite still work)
+- Immutable caching (1 year max-age with ETag based on hash)
+
+### Implementation Details
+
+**SQL.js Loading:**
+```typescript
+// Loaded from CDN to avoid Next.js build issues
+script.src = 'https://sql.js.org/dist/sql-wasm.js'
+// WASM files also from CDN
+locateFile: (file) => `https://sql.js.org/dist/${file}`
+```
+
+**Database Caching:**
+```typescript
+// Multiple databases supported simultaneously
+const databaseCache = new Map<string, SqlJsDatabase>()
+
+// Load and cache
+export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
+  const cached = databaseCache.get(dbPath)
+  if (cached) return cached
+  // ... fetch and cache new database
+}
+```
+
+**Query Execution:**
+```typescript
+// Execute against specific database
+export async function executeSqlQuery(
+  query: string,
+  dbPath: string
+): Promise<SqlExecutionResult> {
+  const database = databaseCache.get(dbPath)
+  if (!database) throw new Error('No database loaded')
+
+  const queryWithLimit = applyDefaultLimit(query)
+  const results = database.exec(queryWithLimit)
+  return { success: true, results, executionTime }
+}
+```
+
+**Markdown Pipeline:**
+```typescript
+// In markdown: ```sql editor db="netflix.db"```
+// Remark plugin converts to: <code-editor data-db="netflix.db" />
+// React component resolves filename to URL via fileList
+const dbFile = markdownContext.fileList.find(f =>
+  f.name === db || f.name.replace(/\.(sqlite|db)$/i, '') === db
+)
+const dbUrl = dbFile?.url // e.g., /api/files/abc123
+```
+
 ## Recent Upgrades
+
+### ✅ Interactive SQL Database Management (2025-11-22)
+Complete implementation of client-side SQL execution with database file management:
+
+**Changes Made:**
+- Integrated SQL.js (SQLite WASM) loaded from CDN for client-side execution
+- Implemented Map-based database caching for multiple simultaneous databases
+- Added database file upload with drag-drop insertion into markdown
+- Created automatic Excalidraw schema detection with theme-aware rendering
+- Enabled multi-file support for all languages (Python, JavaScript, SQL)
+- Implemented query result display with execution time and empty result warnings
+- Added default LIMIT 100 to prevent overwhelming query results
+- Fixed file extension mismatch handling (.db ↔ .sqlite)
+- Updated public file access permissions for published skripts
+- Integrated with existing user data persistence and version control
+
+**Features:**
+- Students run SQL queries directly in browser (no server execution needed)
+- Teachers upload database files (.db, .sqlite) as skript resources
+- Automatic schema diagram display synced with theme (light/dark)
+- Multiple SQL editors on same page with different databases
+- Language-aware file extensions (main.py, main.sql, main.js)
+- Persistent user state (code, settings, layout) across sessions
+- Reset always restores to current markdown content (not cached version)
+
+**Benefits:**
+- Scalable SQL education (no server load for query execution)
+- Secure (students can't access server or other databases)
+- Visual learning (schema diagrams integrated with query editor)
+- Organized code (multiple files per editor for different solutions)
+- Seamless UX (drag-drop file insertion, auto-detection of schemas)
 
 ### ✅ Subdomain Routing Removal (2025-11-22)
 Complete migration from subdomain-based to username-based path routing:

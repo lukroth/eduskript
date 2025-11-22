@@ -33,10 +33,11 @@ declare global {
 
 // SQL.js singleton instance
 let sqlInstance: SqlJsStatic | null = null
-let currentDatabase: SqlJsDatabase | null = null
-let currentDatabasePath: string | null = null
 let scriptLoaded = false
 let scriptLoading: Promise<void> | null = null
+
+// Database instances stored by path (allows multiple databases to be open simultaneously)
+const databaseCache = new Map<string, SqlJsDatabase>()
 
 export interface SqlResultSet {
   columns: string[]
@@ -50,14 +51,10 @@ export interface SqlExecutionResult {
   executionTime?: number
 }
 
-// Available databases
-export const AVAILABLE_DATABASES = [
-  { name: 'Netflix', path: '/sql/netflixdb.sqlite', description: 'Movie and TV show data' },
-  { name: 'Chinook', path: '/sql/chinook.db', description: 'Digital media store data' },
-  { name: 'Employees & Buildings', path: '/sql/buildings_employees.db', description: 'Workplace data' },
-  { name: 'Sales', path: '/sql/sales.db', description: 'Sales and customers data' },
-  { name: 'World Bank Indicators', path: '/sql/world_bank_indicators.db', description: 'Economic indicators' },
-] as const
+// Note: Databases are now stored per-skript in the file storage system.
+// The database path can be:
+// 1. A file API path: /api/files/[fileId]
+// 2. A database name that will be resolved to a file in the current skript
 
 /**
  * Load sql.js library from CDN via script tag
@@ -119,18 +116,13 @@ async function initializeSqlJs(): Promise<SqlJsStatic> {
 
 /**
  * Load a database from the given path
+ * Returns the database instance (cached if already loaded)
  */
-export async function loadDatabase(dbPath: string): Promise<void> {
-  // If the same database is already loaded, do nothing
-  if (currentDatabase && currentDatabasePath === dbPath) {
-    return
-  }
-
-  // Close existing database if any
-  if (currentDatabase) {
-    currentDatabase.close()
-    currentDatabase = null
-    currentDatabasePath = null
+export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
+  // Check cache first
+  const cached = databaseCache.get(dbPath)
+  if (cached) {
+    return cached
   }
 
   // Initialize SQL.js if needed
@@ -146,22 +138,28 @@ export async function loadDatabase(dbPath: string): Promise<void> {
   const uInt8Array = new Uint8Array(arrayBuffer)
 
   // Create database from file
-  currentDatabase = new sql.Database(uInt8Array)
-  currentDatabasePath = dbPath
+  const database = new sql.Database(uInt8Array)
+
+  // Store in cache
+  databaseCache.set(dbPath, database)
 
   // Verify database with a test query
-  const versionQuery = currentDatabase.exec('SELECT sqlite_version();')
-  console.log('Database loaded. SQLite version:', versionQuery[0]?.values[0][0] || 'Unknown')
+  const versionQuery = database.exec('SELECT sqlite_version();')
+  console.log(`Database loaded (${dbPath}). SQLite version:`, versionQuery[0]?.values[0][0] || 'Unknown')
+
+  return database
 }
 
 /**
- * Execute a SQL query against the currently loaded database
+ * Execute a SQL query against a specific database
  */
-export async function executeSqlQuery(query: string): Promise<SqlExecutionResult> {
+export async function executeSqlQuery(query: string, dbPath: string): Promise<SqlExecutionResult> {
   const startTime = performance.now()
 
   try {
-    if (!currentDatabase) {
+    // Get or load the database
+    const database = databaseCache.get(dbPath)
+    if (!database) {
       throw new Error('No database loaded. Please select a database first.')
     }
 
@@ -169,7 +167,7 @@ export async function executeSqlQuery(query: string): Promise<SqlExecutionResult
     const queryWithLimit = applyDefaultLimit(query)
 
     // Execute the query
-    const results = currentDatabase.exec(queryWithLimit)
+    const results = database.exec(queryWithLimit)
 
     const executionTime = performance.now() - startTime
 
@@ -217,10 +215,11 @@ function applyDefaultLimit(sql: string): string {
 }
 
 /**
- * Get information about the current database (tables and their schemas)
+ * Get information about a specific database (tables and their schemas)
  */
-export async function getDatabaseSchema(): Promise<SqlExecutionResult> {
-  if (!currentDatabase) {
+export async function getDatabaseSchema(dbPath: string): Promise<SqlExecutionResult> {
+  const database = databaseCache.get(dbPath)
+  if (!database) {
     return {
       success: false,
       error: 'No database loaded',
@@ -229,7 +228,7 @@ export async function getDatabaseSchema(): Promise<SqlExecutionResult> {
 
   try {
     // Get all tables
-    const tables = currentDatabase.exec(`
+    const tables = database.exec(`
       SELECT name FROM sqlite_master
       WHERE type='table'
       AND name NOT LIKE 'sqlite_%'
@@ -249,19 +248,20 @@ export async function getDatabaseSchema(): Promise<SqlExecutionResult> {
 }
 
 /**
- * Get the current database path
+ * Close a specific database connection
  */
-export function getCurrentDatabasePath(): string | null {
-  return currentDatabasePath
+export function closeDatabase(dbPath: string): void {
+  const database = databaseCache.get(dbPath)
+  if (database) {
+    database.close()
+    databaseCache.delete(dbPath)
+  }
 }
 
 /**
- * Close the current database connection
+ * Close all database connections
  */
-export function closeDatabase(): void {
-  if (currentDatabase) {
-    currentDatabase.close()
-    currentDatabase = null
-    currentDatabasePath = null
-  }
+export function closeAllDatabases(): void {
+  databaseCache.forEach(db => db.close())
+  databaseCache.clear()
 }

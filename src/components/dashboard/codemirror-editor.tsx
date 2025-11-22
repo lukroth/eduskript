@@ -21,6 +21,12 @@ interface CodeMirrorEditorProps {
   fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean}>
   fileListLoading?: boolean
   onFileUpload?: () => void
+  onFileDrop?: (file: {
+    id: string
+    name: string
+    url?: string
+    isDirectory?: boolean
+  }, position: number, screenX: number, screenY: number) => void
 }
 
 const CodeMirrorEditor = function CodeMirrorEditor({
@@ -29,7 +35,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   skriptId,
   isReadOnly = false,
   fileList,
-  onFileUpload
+  onFileUpload,
+  onFileDrop
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -105,7 +112,13 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     if (fileData) {
       try {
         const file = JSON.parse(fileData)
-        insertFileAtPosition(file, dropPosition)
+        // Use onFileDrop callback if available (allows showing insertion menu)
+        if (onFileDrop && dropPosition !== null) {
+          onFileDrop(file, dropPosition, e.clientX, e.clientY)
+        } else {
+          // Fallback to direct insertion
+          insertFileAtPosition(file, dropPosition)
+        }
         return
       } catch (error) {
         console.error('Error parsing file data:', error)

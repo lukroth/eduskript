@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Paintbrush, TextCursor } from 'lucide-react'
+import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Paintbrush, TextCursor, Database, FileCode, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
@@ -10,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from 'next-themes'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface FileItem {
   id: string
@@ -27,9 +28,11 @@ interface FileItem {
   updatedAt?: Date
 }
 
+export type FileInsertionType = 'embed' | 'link' | 'sql-editor'
+
 interface FileBrowserProps {
   skriptId?: string
-  onFileSelect?: (file: FileItem) => void
+  onFileSelect?: (file: FileItem, insertionType: FileInsertionType) => void
   className?: string
   onUploadComplete?: () => void
   files: FileItem[]
@@ -67,6 +70,8 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
         return <FileText className="w-5 h-5 text-destructive" />
       case 'zip': case 'rar': case '7z': case 'tar':
         return <Archive className="w-5 h-5 text-yellow-500" />
+      case 'sqlite': case 'db':
+        return <Database className="w-5 h-5 text-cyan-500" />
       default:
         return <File className="w-5 h-5 text-icon-muted" />
     }
@@ -74,6 +79,21 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
 
   const isExcalidrawFile = (filename: string) => {
     return filename.endsWith('.excalidraw')
+  }
+
+  const isDatabaseFile = (filename: string) => {
+    return filename.endsWith('.sqlite') || filename.endsWith('.db')
+  }
+
+  const getDatabaseSchemaName = (dbFilename: string) => {
+    // Remove .sqlite or .db extension and add -schema.excalidraw
+    const baseName = dbFilename.replace(/\.(sqlite|db)$/i, '')
+    return `${baseName}-schema.excalidraw`
+  }
+
+  const findSchemaForDatabase = (dbFile: FileItem) => {
+    const schemaName = getDatabaseSchemaName(getFileName(dbFile))
+    return files.find(f => getFileName(f) === schemaName)
   }
 
   // Filter out auto-generated SVG files (they're paired with .excalidraw files)
@@ -86,7 +106,12 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   }
 
   const getDisplayFiles = () => {
-    return files.filter(f => !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType) && shouldShowFile(getFileName(f)))
+    return files.filter(f => {
+      const filename = getFileName(f)
+      // Filter out .excalidraw files (they're internal, not for direct use)
+      if (filename.endsWith('.excalidraw')) return false
+      return !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType) && shouldShowFile(filename)
+    })
   }
 
   const formatFileSize = (bytes: number) => {
@@ -332,6 +357,33 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                           <Paintbrush className="w-4 h-4" />
                         </button>
                       )}
+                      {isDatabaseFile(getFileName(file)) && onExcalidrawEdit && (() => {
+                        const schema = findSchemaForDatabase(file)
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (schema) {
+                                onExcalidrawEdit(schema)
+                              } else {
+                                // Create new schema file
+                                const schemaName = getDatabaseSchemaName(getFileName(file))
+                                // We'll create a placeholder file object that the handler can use
+                                onExcalidrawEdit({
+                                  id: '', // Empty ID signals new file
+                                  name: schemaName,
+                                  filename: schemaName,
+                                  skriptId: file.skriptId
+                                })
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-orange-500 hover:text-orange-600 transition-opacity"
+                            title={schema ? "Edit schema" : "Create schema"}
+                          >
+                            <Paintbrush className="w-4 h-4" />
+                          </button>
+                        )
+                      })()}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

@@ -22,6 +22,7 @@ interface SkriptWithAuthors extends Skript {
   authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   collectionSkripts: Array<{
     collection: {
+      slug: string
       authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
     }
   }>
@@ -184,6 +185,9 @@ export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryPro
                     )
                     const isViewOnly = !permissions.canEdit
 
+                    // Get the first collection slug (skripts can be in multiple collections)
+                    const collectionSlug = skript.collectionSkripts[0]?.collection?.slug
+
                     return (
                       <DraggableSkript
                         key={skript.id}
@@ -197,6 +201,7 @@ export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryPro
                         isViewOnly={isViewOnly}
                         index={index}
                         slug={skript.slug}
+                        collectionSlug={collectionSlug}
                       />
                     )
                   })}

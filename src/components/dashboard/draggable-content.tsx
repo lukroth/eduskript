@@ -32,6 +32,7 @@ interface DraggableSkriptProps extends BaseContentProps {
   authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   currentUserId: string
   slug?: string
+  collectionSlug?: string
 }
 
 export function DraggableCollection({ 
@@ -130,17 +131,18 @@ export function DraggableCollection({
   )
 }
 
-export function DraggableSkript({ 
-  id, 
-  title, 
-  description, 
-  pageCount, 
-  authors, 
-  currentUserId, 
+export function DraggableSkript({
+  id,
+  title,
+  description,
+  pageCount,
+  authors,
+  currentUserId,
   isViewOnly = false,
   className,
   index = 0,
-  slug
+  slug,
+  collectionSlug
 }: DraggableSkriptProps) {
   // Separate authors by permission
   const editableBy = authors.filter(author => 
@@ -169,8 +171,8 @@ export function DraggableSkript({
           )}
         >
           <CardContent className="p-4 relative">
-            {!isViewOnly && slug && (
-              <Link href={`/dashboard/skripts/${slug}`} className="absolute top-2 right-2 z-10">
+            {!isViewOnly && slug && collectionSlug && (
+              <Link href={`/dashboard/collections/${collectionSlug}/skripts/${slug}`} className="absolute top-2 right-2 z-10">
                 <Button
                   size="sm"
                   variant="ghost"

@@ -468,7 +468,7 @@ export async function listAllFiles({
 /**
  * Get file by ID with permission check
  */
-export async function getFileById(fileId: string, userId: string): Promise<{
+export async function getFileById(fileId: string, userId?: string): Promise<{
   id: string
   name: string
   hash?: string
@@ -483,7 +483,12 @@ export async function getFileById(fileId: string, userId: string): Promise<{
     include: {
       skript: {
         include: {
-          authors: true
+          authors: true,
+          pages: {
+            select: {
+              isPublished: true
+            }
+          }
         }
       }
     }
@@ -494,8 +499,13 @@ export async function getFileById(fileId: string, userId: string): Promise<{
   }
 
   // Check permissions
-  const hasPermission = file.skript.authors.some(author => author.userId === userId)
-  if (!hasPermission) {
+  // Allow access if:
+  // 1. User is an author of the skript
+  // 2. File belongs to a skript with at least one published page (public access)
+  const hasAuthorPermission = userId && file.skript.authors.some(author => author.userId === userId)
+  const hasPublicAccess = file.skript.pages.some(page => page.isPublished)
+
+  if (!hasAuthorPermission && !hasPublicAccess) {
     throw new Error('Permission denied')
   }
 
@@ -509,7 +519,36 @@ export async function getFileById(fileId: string, userId: string): Promise<{
   }
 
   const extension = getFileExtension(file.name)!
-  const physicalPath = getPhysicalPath(file.hash!, extension)
+  let physicalPath = getPhysicalPath(file.hash!, extension)
+
+  // Handle case where file was renamed and extension changed
+  // Try to find the actual physical file with different extensions
+  try {
+    await fs.access(physicalPath)
+  } catch {
+    // File doesn't exist with current extension, try common alternatives
+    const alternatives = extension === 'db' ? ['sqlite', 'db'] :
+                        extension === 'sqlite' ? ['db', 'sqlite'] :
+                        [extension]
+
+    let found = false
+    for (const alt of alternatives) {
+      const altPath = getPhysicalPath(file.hash!, alt)
+      try {
+        await fs.access(altPath)
+        physicalPath = altPath
+        found = true
+        break
+      } catch {
+        continue
+      }
+    }
+
+    if (!found) {
+      // File truly doesn't exist
+      console.warn(`Physical file not found for ${file.id} (${file.name})`)
+    }
+  }
 
   return {
     id: file.id,

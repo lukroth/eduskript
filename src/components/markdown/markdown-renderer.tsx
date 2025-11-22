@@ -184,13 +184,44 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
   const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
   const providedId = (props['dataId'] as string) || (props['data-id'] as string)
   const showCanvas = (props['dataShowCanvas'] as string) || (props['data-show-canvas'] as string)
-  const sqlDatabase = (props['dataSqlDatabase'] as string) || (props['data-sql-database'] as string)
+  const db = (props['dataDb'] as string) || (props['data-db'] as string) // Database filename from markdown
   const schemaImage = (props['dataSchemaImage'] as string) || (props['data-schema-image'] as string)
 
   // Auto-assign ID if not provided (counting from 0 for each page)
   const id = providedId || `${editorCounter++}`
 
   const decodedCode = decodeHtmlEntities(code)
+
+  // Look up database file URL from file list if db name is provided
+  let dbUrl: string | undefined
+  let schemaImageUrl: string | undefined
+
+  if (db && language === 'sql' && markdownContext?.fileList) {
+    // Try to find file with this name (with or without extension)
+    const dbFile = markdownContext.fileList.find(f => {
+      const nameWithoutExt = f.name.replace(/\.(sqlite|db)$/i, '')
+      return nameWithoutExt === db || f.name === db
+    })
+    dbUrl = dbFile?.url
+
+    // Auto-detect schema image with Excalidraw naming convention
+    // Pattern: database-schema.excalidraw.{light|dark}.svg
+    if (!schemaImage && db) {
+      const dbBasename = db.replace(/\.(sqlite|db)$/i, '')
+      const theme = resolvedTheme === 'dark' ? 'dark' : 'light'
+      const schemaFilename = `${dbBasename}-schema.excalidraw.${theme}.svg`
+
+      const schemaFile = markdownContext.fileList.find(f => f.name === schemaFilename)
+      schemaImageUrl = schemaFile?.url
+    } else if (schemaImage) {
+      // If explicit schema image provided, look it up in file list
+      const schemaFile = markdownContext.fileList.find(f => {
+        const nameWithoutExt = f.name.replace(/\.svg$/i, '')
+        return nameWithoutExt === schemaImage || f.name === schemaImage
+      })
+      schemaImageUrl = schemaFile?.url
+    }
+  }
 
   return (
     <div {...props}>
@@ -201,8 +232,8 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
         language={language as 'python' | 'javascript' | 'sql'}
         initialCode={decodedCode}
         showCanvas={showCanvas !== 'false'}
-        sqlDatabase={sqlDatabase}
-        schemaImage={schemaImage}
+        db={dbUrl}
+        schemaImage={schemaImageUrl}
       />
     </div>
   )

@@ -11,9 +11,6 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     let { id: fileId } = await params
 
@@ -28,7 +25,8 @@ export async function GET(
     }
 
     // Get file info with permission check
-    const file = await getFileById(fileId, session.user.id)
+    // If no session, try to get file for public access (will check if skript is published)
+    const file = await getFileById(fileId, session?.user?.id)
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }

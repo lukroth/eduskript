@@ -12,6 +12,12 @@ interface MarkdownEditorProps {
     url?: string
     isDirectory?: boolean
   }) => void
+  onFileDrop?: (file: {
+    id: string
+    name: string
+    url?: string
+    isDirectory?: boolean
+  }, position: number, screenX: number, screenY: number) => void
   skriptId?: string
   domain?: string
   isReadOnly?: boolean

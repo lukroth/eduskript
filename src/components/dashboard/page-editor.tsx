@@ -14,7 +14,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image, Link2, FileCode } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 interface PageVersion {
@@ -77,6 +77,17 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     updatedAt: Date
   }>>([])
   const [fileListLoading, setFileListLoading] = useState(false)
+
+  // File insertion menu state (includes drop position and screen coordinates)
+  const [insertionMenuFile, setInsertionMenuFile] = useState<{
+    id: string
+    name: string
+    url?: string
+    isDirectory?: boolean
+    position?: number // Character position in editor
+    x?: number // Screen X coordinate
+    y?: number // Screen Y coordinate
+  } | null>(null)
 
   // Excalidraw editor state
   const [excalidrawEditorOpen, setExcalidrawEditorOpen] = useState(false)
@@ -152,18 +163,35 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     name: string
     url?: string
     isDirectory?: boolean
-  }) => {
+    position?: number
+  }, insertionType: 'embed' | 'link' | 'sql-editor' = 'embed') => {
     if (file.isDirectory) return // Don't insert directories
 
     let insertText = ''
 
-    // Determine the type of insert based on file extension
+    // Determine the type of insert based on file extension and insertion type
     const extension = file.name.split('.').pop()?.toLowerCase()
 
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
-      // Image - use regular markdown syntax with just filename for path resolution
-      const altText = file.name.replace(/\.[^/.]+$/, '')
-      insertText = `![${altText}](${file.name})`
+    // Handle databases specially
+    if (['sqlite', 'db'].includes(extension || '')) {
+      if (insertionType === 'sql-editor') {
+        // SQL Editor block with database reference
+        // Use the full filename (human-readable)
+        insertText = `\`\`\`sql editor db="${file.name}"\nSELECT * FROM table_name LIMIT 10;\n\`\`\``
+      } else {
+        // Link to database file
+        insertText = `[${file.name}](${file.url || file.name})`
+      }
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
+      // Images
+      if (insertionType === 'embed') {
+        // Embedded image
+        const altText = file.name.replace(/\.[^/.]+$/, '')
+        insertText = `![${altText}](${file.name})`
+      } else {
+        // Link to image
+        insertText = `[${file.name}](${file.url || file.name})`
+      }
     } else if (extension === 'excalidraw') {
       // Excalidraw drawing - use image syntax with just filename
       insertText = `![](${file.name})`
@@ -178,8 +206,14 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       insertText = `[${file.name}](${file.url || file.name})`
     }
 
-    // Insert the text at the current cursor position
-    setContent((prev: string) => prev + '\n\n' + insertText)
+    // Insert the text at the specified position or append to end
+    if (file.position !== undefined) {
+      setContent((prev: string) => {
+        return prev.slice(0, file.position) + insertText + prev.slice(file.position)
+      })
+    } else {
+      setContent((prev: string) => prev + '\n\n' + insertText)
+    }
     setHasUnsavedChanges(true)
   }
 
@@ -208,9 +242,21 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     }
   }
 
-  // Handle opening Excalidraw editor for existing file
-  const handleExcalidrawEdit = async (file: { id: string; name: string; url?: string }) => {
+  // Handle opening Excalidraw editor for existing file or creating new file
+  const handleExcalidrawEdit = async (file: { id: string; name: string; url?: string; skriptId?: string }) => {
     try {
+      // If file ID is empty, it's a new file - open editor with empty data
+      if (!file.id) {
+        setExcalidrawEditFile({
+          id: '',
+          name: file.name,
+          excalidrawData: null, // null means create new
+          skriptId: file.skriptId || skript.id
+        })
+        setExcalidrawEditorOpen(true)
+        return
+      }
+
       // Fetch the existing .excalidraw file data with cache busting
       const baseUrl = file.url || `/api/files/${file.id}`
       const fileUrl = `${baseUrl}?v=${Date.now()}`
@@ -255,9 +301,13 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       if (response.ok) {
         const result = await response.json()
         console.log('[handleExcalidrawSave] Success:', result)
-        refreshFileList()
+
+        // Close modal and clear state first
         setExcalidrawEditorOpen(false)
         setExcalidrawEditFile(null)
+
+        // Then refresh file list
+        await refreshFileList()
       } else {
         const error = await response.json()
         console.error('[handleExcalidrawSave] Error response:', error)
@@ -478,6 +528,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           files={fileList}
           loading={fileListLoading}
           onFileSelect={(file) => {
+            // Files are inserted via drag and drop, not click
+            // This is just for backwards compatibility with other file types
             handleFileInsert(file)
             refreshFileList()
           }}
@@ -501,6 +553,22 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
             onChange={handleContentChange}
             onSave={handleSave}
             onFileInsert={handleFileInsert}
+            onFileDrop={(file, position, screenX, screenY) => {
+              // Check if file has multiple insertion options
+              const extension = file.name.split('.').pop()?.toLowerCase()
+              const hasMultipleOptions =
+                ['sqlite', 'db'].includes(extension || '') || // databases: sql-editor or link
+                ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '') // images: embed or link
+
+              if (hasMultipleOptions) {
+                // Show insertion menu with position and screen coordinates
+                setInsertionMenuFile({ ...file, position, x: screenX, y: screenY })
+              } else {
+                // Insert directly with default option
+                handleFileInsert({ ...file, position })
+                refreshFileList()
+              }
+            }}
             skriptId={skript.id}
             domain={(session?.user as { username?: string })?.username || undefined}
             fileList={fileList}
@@ -550,6 +618,84 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           }}
         />
       )}
+      {/* File Insertion Menu - Compact Popup at Cursor */}
+      {insertionMenuFile && (() => {
+        const extension = insertionMenuFile.name.split('.').pop()?.toLowerCase()
+        const isDatabase = ['sqlite', 'db'].includes(extension || '')
+        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')
+
+        return (
+          <>
+            {/* Backdrop to close menu */}
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setInsertionMenuFile(null)}
+            />
+            {/* Compact menu positioned at cursor */}
+            <div
+              className="fixed z-50 bg-popover border border-border rounded-md shadow-lg py-1 min-w-[140px]"
+              style={{
+                left: `${insertionMenuFile.x || 0}px`,
+                top: `${insertionMenuFile.y || 0}px`,
+              }}
+            >
+              {isDatabase && (
+                <>
+                  <button
+                    className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                    onClick={() => {
+                      handleFileInsert(insertionMenuFile, 'sql-editor')
+                      setInsertionMenuFile(null)
+                      refreshFileList()
+                    }}
+                  >
+                    <FileCode className="w-3.5 h-3.5" />
+                    SQL Editor
+                  </button>
+                  <button
+                    className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                    onClick={() => {
+                      handleFileInsert(insertionMenuFile, 'link')
+                      setInsertionMenuFile(null)
+                      refreshFileList()
+                    }}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    File Link
+                  </button>
+                </>
+              )}
+              {isImage && (
+                <>
+                  <button
+                    className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                    onClick={() => {
+                      handleFileInsert(insertionMenuFile, 'embed')
+                      setInsertionMenuFile(null)
+                      refreshFileList()
+                    }}
+                  >
+                    <Image className="w-3.5 h-3.5" />
+                    Embed Image
+                  </button>
+                  <button
+                    className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                    onClick={() => {
+                      handleFileInsert(insertionMenuFile, 'link')
+                      setInsertionMenuFile(null)
+                      refreshFileList()
+                    }}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    File Link
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )
+      })()}
+
       <AlertDialogModal
         open={alert.open}
         onOpenChange={alert.setOpen}
