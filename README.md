@@ -2,7 +2,41 @@
 
 A comprehensive, multi-tenant education platform built with Next.js, TypeScript, Prisma, and NextAuth. Eduskript allows teachers to create and manage educational content using markdown with advanced features like versioning, LaTeX math, and syntax highlighting.
 
+## Quick Start
+
+Get started in under 2 minutes:
+
+```bash
+# Clone the repository
+git clone https://github.com/marcchehab/eduskript.git
+cd eduskript
+
+# Install dependencies
+pnpm install
+
+# Setup development environment (auto-configures PostgreSQL + Next.js with unique ports)
+pnpm setup
+
+# Start the development server
+pnpm dev
+```
+
+The setup script will:
+- ✅ Find available ports for PostgreSQL (5432-5532) and Next.js (3000-3100)
+- ✅ Create `.env.local` with worktree-specific configuration
+- ✅ Start PostgreSQL in Docker with a unique container name
+- ✅ Run database migrations
+- ✅ Seed the admin user (`eduadmin@eduskript.org` / `letseducate`)
+
+**Worktree Support**: Each worktree gets unique ports automatically - run multiple feature branches simultaneously without conflicts!
+
 ## Recent Updates (2025-11-22)
+
+### ✅ Worktree-Safe Development Setup
+- **Automatic port detection** - No more port collision issues when running multiple worktrees
+- **One-command setup** - `pnpm setup` handles everything: PostgreSQL, migrations, seeding
+- **Unique containers** - Each worktree gets its own PostgreSQL container and volume
+- **Developer-friendly** - Clear output, helpful error messages, idempotent script
 
 ### ✅ Simplified Routing Architecture
 - **Removed subdomain routing** - Simplified to path-based routing only (`eduskript.org/username/...`)

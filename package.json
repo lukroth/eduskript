@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "setup": "bash scripts/setup-dev.sh",
     "dev": "next dev --turbopack",
     "dev:https": "node server.mjs",
     "build": "DATABASE_URL=${DATABASE_URL:-postgresql://dummy:dummy@localhost:5432/dummy} prisma generate && next build --webpack",
@@ -19,8 +20,6 @@
     "db:migrate": "prisma migrate deploy",
     "devdb:push": "prisma db push",
     "db:reset": "prisma migrate reset --force",
-    "devdb:fresh": "rm -f ./data/dev.db ./prisma/data/dev.db && prisma db push",
-    "dev:reset": "pnpm devdb:fresh && node prisma/seed-admin.js",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "docker:build": "docker build --build-arg GIT_COMMIT_SHA=$(git rev-parse HEAD) --build-arg GIT_COMMIT_MESSAGE=\"$(git log -1 --pretty=%B)\" --build-arg BUILD_TIME=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\") -t eduskript .",
