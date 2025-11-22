@@ -21,7 +21,6 @@ interface AnnotationToolbarProps {
   onPenColorChange: (penIndex: number, color: string) => void
   penSizes: [number, number, number]
   onPenSizeChange: (penIndex: number, size: number) => void
-  zoom: number
   onResetZoom: () => void
 }
 
@@ -36,7 +35,6 @@ export function AnnotationToolbar({
   onPenColorChange,
   penSizes,
   onPenSizeChange,
-  zoom,
   onResetZoom
 }: AnnotationToolbarProps) {
   // Save confirm preference to localStorage
