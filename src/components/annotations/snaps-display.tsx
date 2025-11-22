@@ -324,6 +324,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
 
             {/* Expanded image */}
             <div className="overflow-auto max-h-[calc(90vh-4rem)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={expandedSnap.imageUrl}
                 alt={expandedSnap.name}

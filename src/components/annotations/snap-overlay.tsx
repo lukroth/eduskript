@@ -237,7 +237,7 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
     setIsDragging(false)
     setStartPos(null)
     setCurrentPos(null)
-  }, [isDragging, startPos, currentPos, onCapture, onCancel, nextSnapNumber])
+  }, [isDragging, startPos, currentPos, onCapture, onCancel, nextSnapNumber, zoom])
 
   // Calculate selection rectangle for display
   const selectionRect = startPos && currentPos ? {
