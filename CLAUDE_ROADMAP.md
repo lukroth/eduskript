@@ -9,6 +9,17 @@
 
 ## 🎯 Priority List
 
+Migration stuff:
+- our editor shouldn't have a fixed height, there are sometimes two lines of programming and that's all.
+- our editor generally should be resizable (that is the entire container with editor, graphics pane and output)
+- our editor's horizontal divider between editor and output pane should be draggable to adjust the size of them. it's also too thick
+- we should be able to hide the files selection for very small example programs, e.g. with ```python editor single or something like this
+- in the preview, when i write stuff our editor is probably being redrawn each time (even if i write in a different paragraph). this results in flashing.
+- We should add the same font as informatikgarten.ch (check the setup): roboto slab and barlow condensed. 
+- add the h1 component from informatikgarten.ch
+- add the strong element from informatikgarten.ch
+
+
 **Core LMS Features:**
 - **Add toggle to classes for teachers to not allow anonymous students**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions

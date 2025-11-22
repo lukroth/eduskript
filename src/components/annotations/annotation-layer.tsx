@@ -47,8 +47,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [stylusModeActive, setStylusModeActive] = useState(false)
   const [activePen, setActivePen] = useState(0)
   const [zoom, setZoom] = useState(1.0)
-  const [panX, setPanX] = useState(0)
-  const [panY, setPanY] = useState(0)
+  // Use refs for pan to avoid re-renders on every mouse move
+  const panXRef = useRef(0)
+  const panYRef = useRef(0)
+  const rafIdRef = useRef<number | null>(null)
   const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
   const initialPinchDistanceRef = useRef<number | null>(null)
   const initialZoomRef = useRef(1.0)
@@ -688,6 +690,25 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     return Math.max(minPanX, Math.min(maxPanX, newPanX))
   }, [zoom, viewportWidth, sidebarWidth])
 
+  // Helper function to apply pan transform using RAF (no re-renders)
+  const applyPanTransform = useCallback((newPanX: number, newPanY: number) => {
+    panXRef.current = newPanX
+    panYRef.current = newPanY
+
+    // Cancel any pending RAF
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+    }
+
+    // Apply transform in next frame
+    rafIdRef.current = requestAnimationFrame(() => {
+      if (mainRef.current) {
+        mainRef.current.style.transform = `scale(${zoom}) translate(${newPanX}px, ${newPanY}px)`
+      }
+      rafIdRef.current = null
+    })
+  }, [zoom])
+
   // Custom pinch-zoom and pan handling
   const handleTouchStart = useCallback((e: TouchEvent) => {
     // Track all touches
@@ -702,8 +723,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       singleTouchStartRef.current = {
         x: touch.clientX,
         y: touch.clientY,
-        panX,
-        panY
+        panX: panXRef.current,
+        panY: panYRef.current
       }
     }
 
@@ -723,9 +744,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       initialPinchDistanceRef.current = distance
       initialPinchCenterRef.current = { x: centerX, y: centerY }
       initialZoomRef.current = zoom
-      initialPanRef.current = { x: panX, y: panY }
+      initialPanRef.current = { x: panXRef.current, y: panYRef.current }
     }
-  }, [zoom, panX, panY, mode])
+  }, [zoom, mode])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     // Update touch positions
@@ -746,8 +767,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
-      setPanX(newPanX)
-      setPanY(newPanY)
+      applyPanTransform(newPanX, newPanY)
     }
 
     // Handle pinch zoom and pan (2 fingers)
@@ -792,11 +812,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       newPanX = calculateHorizontalLimit(newPanX, newZoom)
       newPanY = calculateScrollLimits(newPanY, newZoom)
 
+      // Update refs (transform will be applied by zoom useEffect)
+      panXRef.current = newPanX
+      panYRef.current = newPanY
       setZoom(newZoom)
-      setPanX(newPanX)
-      setPanY(newPanY)
     }
-  }, [zoom, calculateScrollLimits, calculateHorizontalLimit])
+  }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Remove ended touches
@@ -841,16 +862,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       const mouseX = e.clientX
       const mouseY = e.clientY
-      let newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoom) + panX
-      let newPanY = (mouseY - originY) * (1 / newZoom - 1 / zoom) + panY
+      let newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoom) + panXRef.current
+      let newPanY = (mouseY - originY) * (1 / newZoom - 1 / zoom) + panYRef.current
 
       // Apply limits
       newPanX = calculateHorizontalLimit(newPanX, newZoom)
       newPanY = calculateScrollLimits(newPanY, newZoom)
 
+      // Update refs (transform will be applied by zoom useEffect)
+      panXRef.current = newPanX
+      panYRef.current = newPanY
       setZoom(newZoom)
-      setPanX(newPanX)
-      setPanY(newPanY)
     }
     // Trackpad two-finger pan / mousewheel scroll (no ctrl key)
     else {
@@ -858,17 +880,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       // Convert scroll to pan (deltaX and deltaY are in pixels)
       // This handles both trackpad pan and regular mousewheel scroll
-      let newPanX = panX - e.deltaX / zoom
-      let newPanY = panY - e.deltaY / zoom
+      let newPanX = panXRef.current - e.deltaX / zoom
+      let newPanY = panYRef.current - e.deltaY / zoom
 
       // Apply limits
       newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
-      setPanX(newPanX)
-      setPanY(newPanY)
+      applyPanTransform(newPanX, newPanY)
     }
-  }, [zoom, panX, panY, calculateScrollLimits, calculateHorizontalLimit])
+  }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
   // Handle middle mouse button drag for desktop
   const handleMouseDown = useCallback((e: MouseEvent) => {
@@ -878,12 +899,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       middleMouseDragRef.current = {
         x: e.clientX,
         y: e.clientY,
-        panX,
-        panY
+        panX: panXRef.current,
+        panY: panYRef.current
       }
       document.body.style.cursor = 'grabbing'
     }
-  }, [panX, panY])
+  }, [])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (middleMouseDragRef.current) {
@@ -896,10 +917,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       newPanX = calculateHorizontalLimit(newPanX)
       newPanY = calculateScrollLimits(newPanY)
 
-      setPanX(newPanX)
-      setPanY(newPanY)
+      applyPanTransform(newPanX, newPanY)
     }
-  }, [zoom, calculateScrollLimits, calculateHorizontalLimit])
+  }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
     if (middleMouseDragRef.current && e.button === 1) {
@@ -915,14 +935,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [])
 
-  // Apply zoom/pan transform to <main> element
+  // Apply zoom transform to <main> element (pan is handled via applyPanTransform)
   useEffect(() => {
     if (mainRef.current) {
-      mainRef.current.style.transform = `scale(${zoom}) translate(${panX}px, ${panY}px)`
+      mainRef.current.style.transform = `scale(${zoom}) translate(${panXRef.current}px, ${panYRef.current}px)`
       mainRef.current.style.transformOrigin = 'top center'
       mainRef.current.style.transition = 'none'
     }
-  }, [zoom, panX, panY])
+  }, [zoom])
 
   // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
   useEffect(() => {

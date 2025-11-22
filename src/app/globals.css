@@ -306,11 +306,11 @@ body {
 }
 
 .prose-theme h2 {
-  @apply text-2xl mb-4;
+  @apply text-2xl mt-8 mb-4;
 }
 
 .prose-theme h3 {
-  @apply text-xl mb-2;
+  @apply text-xl mt-6 mb-2;
 }
 
 .prose-theme h4 {
@@ -449,10 +449,6 @@ body {
   position: relative;
 }
 
-/* Annotation section with subtle gradient border */
-.annotation-section {
-  position: relative;
-}
 
 /* Invert annotation canvas and color picker in dark mode */
 .dark .annotation-canvas {

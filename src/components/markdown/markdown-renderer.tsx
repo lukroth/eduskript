@@ -21,7 +21,6 @@ import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
 import { remarkCodeEditor } from '@/lib/remark-plugins/code-editor'
 import { remarkCallouts } from '@/lib/remark-plugins/callouts'
 import { rehypeCodemirrorHighlight } from '@/lib/rehype-plugins/codemirror-highlight'
-import { rehypeWrapSections } from '@/lib/rehype-plugins/wrap-sections'
 import { rehypeSourceLine } from '@/lib/rehype-plugins/source-line'
 import rehypeSlug from 'rehype-slug'
 import { useTheme } from 'next-themes'
@@ -291,6 +290,9 @@ const calloutIcons: Record<string, React.ComponentType<{ className?: string }>> 
 
 // Blockquote component with callout support
 function BlockquoteComponent({ children, className, ...props }: React.HTMLAttributes<HTMLQuoteElement>) {
+  // Always call hooks first, before any conditional returns
+  const [isOpen, setIsOpen] = useState(!className?.includes('callout-folded'))
+
   // Check if this is a callout blockquote
   const isCallout = className?.includes('callout')
 
@@ -305,7 +307,6 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
 
   // Check if it's foldable
   const isFoldable = className?.includes('callout-foldable')
-  const [isOpen, setIsOpen] = useState(!className?.includes('callout-folded'))
 
   const handleToggle = (e: React.MouseEvent) => {
     if (!isFoldable) return
@@ -357,18 +358,6 @@ const rehypeReactComponents = {
   h4: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={4} {...props} />,
   h5: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={5} {...props} />,
   h6: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={6} {...props} />,
-  section: (props: React.HTMLAttributes<HTMLElement>) => (
-    <section
-      {...props}
-      style={{
-        position: 'relative',
-        paddingBottom: '2rem',
-        ...props.style
-      }}
-    >
-      {props.children}
-    </section>
-  ),
   div: DivComponent,
 }
 
@@ -412,10 +401,8 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkCodeEditor) // Convert code blocks with "editor" meta to interactive editors
           .use(remarkCallouts) // Transform Obsidian-style callouts
           .use(remarkRehype, { allowDangerousHtml: true }) // Need allowDangerousHtml for custom elements
-          // Add IDs to headings (needed for sections)
+          // Add IDs to headings
           .use(rehypeSlug)
-          // Wrap headings + content into sections for annotations
-          .use(rehypeWrapSections)
           // Add KaTeX math rendering
           .use(rehypeKatex)
           // Add source line markers BEFORE transformations happen
