@@ -240,8 +240,15 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const dpr = window.devicePixelRatio || 1
       // Include zoom in resolution calculation for crisp rendering at any zoom level
       const totalScale = dpr * zoom
-      const scaledWidth = width * totalScale
-      const scaledHeight = height * totalScale
+
+      // Prevent canvas from exceeding browser limits (typically 32,767 pixels)
+      const MAX_CANVAS_DIMENSION = 32767
+      const maxScaleX = MAX_CANVAS_DIMENSION / width
+      const maxScaleY = MAX_CANVAS_DIMENSION / height
+      const maxSafeScale = Math.min(maxScaleX, maxScaleY, totalScale)
+
+      const scaledWidth = width * maxSafeScale
+      const scaledHeight = height * maxSafeScale
 
       // Only reset canvas if dimensions actually changed
       if (canvas.width !== scaledWidth || canvas.height !== scaledHeight) {
@@ -252,7 +259,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         // Scale context so drawing coordinates stay in CSS pixels
         const ctx = canvas.getContext('2d')
         if (ctx) {
-          ctx.scale(totalScale, totalScale)
+          ctx.scale(maxSafeScale, maxSafeScale)
         }
 
         // Redraw existing paths at new resolution

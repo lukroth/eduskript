@@ -19,6 +19,7 @@ import { rehypeImageWrapper } from './rehype-plugins/image-wrapper'
 import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
 import { remarkCodeEditor } from './remark-plugins/code-editor'
 import { remarkCallouts } from './remark-plugins/callouts'
+import { rehypeUnwrapBlockElements } from './rehype-plugins/unwrap-block-elements'
 
 export interface ProcessedMarkdown {
   content: string
@@ -73,6 +74,7 @@ export async function processMarkdown(
 
   const rehypePlugins: PluggableList = [
     [remarkRehype, { allowDangerousHtml: true }],
+    rehypeUnwrapBlockElements, // Fix block elements inside paragraphs (must come early)
     rehypeSlug, // Add IDs to headings
     rehypeHeadingSectionIds, // Add data-section-id for annotations (must come after rehypeSlug)
     [rehypeAutolinkHeadings, {
