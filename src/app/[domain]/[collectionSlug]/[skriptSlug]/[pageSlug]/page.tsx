@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { AnnotatableContent } from '@/components/public/annotatable-content'
 import { ExportPDF } from '@/components/public/export-pdf'
-import { Comments } from '@/components/public/comments'
+// import { Comments } from '@/components/public/comments'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 
@@ -411,12 +411,13 @@ export default async function PublicPage({ params }: PageProps) {
             />
           </div>
 
-          <div className="mt-8">
+          {/* Comments temporarily disabled - keep component for future use */}
+          {/* <div className="mt-8">
             <Comments
               pageId={page.id}
               pageTitle={page.title}
             />
-          </div>
+          </div> */}
         </div>
       </PublicSiteLayout>
     )

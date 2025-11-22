@@ -6,6 +6,9 @@ export function ReadingProgress() {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
+    let rafId: number | null = null
+    let lastProgress = 0
+
     const updateProgress = () => {
       // Find the article element (contains the actual content)
       const article = document.querySelector('article.prose-theme')
@@ -30,18 +33,42 @@ export function ReadingProgress() {
 
       // Clamp between 0 and 100
       const clampedProgress = Math.max(0, Math.min(100, scrollPercent))
-      setProgress(clampedProgress)
+
+      // Only update state if progress changed by at least 0.1%
+      if (Math.abs(clampedProgress - lastProgress) > 0.1) {
+        lastProgress = clampedProgress
+        setProgress(clampedProgress)
+      }
     }
 
-    // Update on animation frame for smooth updates during pan/zoom
-    let rafId: number
-    const animationLoop = () => {
-      updateProgress()
-      rafId = requestAnimationFrame(animationLoop)
+    // Throttled update using RAF
+    const scheduleUpdate = () => {
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          updateProgress()
+          rafId = null
+        })
+      }
     }
-    rafId = requestAnimationFrame(animationLoop)
 
-    return () => cancelAnimationFrame(rafId)
+    // Update on scroll/pan events instead of continuous RAF loop
+    window.addEventListener('scroll', scheduleUpdate, { passive: true })
+    window.addEventListener('wheel', scheduleUpdate, { passive: true })
+    window.addEventListener('touchmove', scheduleUpdate, { passive: true })
+    window.addEventListener('resize', scheduleUpdate)
+
+    // Initial update
+    updateProgress()
+
+    return () => {
+      window.removeEventListener('scroll', scheduleUpdate)
+      window.removeEventListener('wheel', scheduleUpdate)
+      window.removeEventListener('touchmove', scheduleUpdate)
+      window.removeEventListener('resize', scheduleUpdate)
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
   }, [])
 
   return (

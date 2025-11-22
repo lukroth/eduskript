@@ -35,6 +35,8 @@ Migration stuff:
 **Pending iPad Improvements:**
 - **Excalidraw Touch Support** - Implement long-press for pen/eraser toolbox (hover doesn't work on iPad)
 
+Very low: Comments by students (maybe per class)
+
 ---
 
 ## 📝 Notes & Considerations
