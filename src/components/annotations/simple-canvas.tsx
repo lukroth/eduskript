@@ -48,6 +48,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const activeTouchPointersRef = useRef<Set<number>>(new Set()) // Track only touch/mouse (not pen) for multi-touch detection
     const eraserRedrawRafRef = useRef<number | null>(null) // RAF ID for throttling eraser redraws
     const eraserCursorRef = useRef<HTMLDivElement>(null) // Ref to eraser cursor element for direct DOM manipulation
+    const canvasRectRef = useRef<DOMRect | null>(null) // Cache canvas bounding rect to avoid layout thrashing
+    const drawRafRef = useRef<number | null>(null) // RAF ID for throttling draw operations
+    const pendingPointsRef = useRef<number>(0) // Track number of points added since last RAF draw
 
     // Update eraser cursor state and apply styles directly (no React re-render)
     const updateEraserCursor = useCallback((isActive: boolean) => {
@@ -250,6 +253,46 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       }
     }, [redrawCanvas])
 
+    // Throttled draw for new strokes using RAF to smooth out Chrome's batched events
+    const scheduleIncrementalDraw = useCallback(() => {
+      if (drawRafRef.current === null) {
+        drawRafRef.current = requestAnimationFrame(() => {
+          const canvas = canvasRef.current
+          const ctx = canvas?.getContext('2d')
+          if (!canvas || !ctx || pendingPointsRef.current === 0) {
+            drawRafRef.current = null
+            return
+          }
+
+          // Draw all pending segments since last RAF
+          const points = currentPathRef.current
+          const startIdx = Math.max(0, points.length - pendingPointsRef.current - 1)
+
+          // Set context properties once
+          ctx.strokeStyle = strokeColor
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.globalCompositeOperation = 'source-over'
+
+          // Draw all pending segments
+          for (let i = startIdx + 1; i < points.length; i++) {
+            const lastPoint = points[i - 1]
+            const currentPoint = points[i]
+            const lineWidth = strokeWidth * currentPoint.pressure
+
+            ctx.lineWidth = lineWidth
+            ctx.beginPath()
+            ctx.moveTo(lastPoint.x, lastPoint.y)
+            ctx.lineTo(currentPoint.x, currentPoint.y)
+            ctx.stroke()
+          }
+
+          pendingPointsRef.current = 0
+          drawRafRef.current = null
+        })
+      }
+    }, [strokeColor, strokeWidth])
+
     // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
       const canvas = canvasRef.current
@@ -368,8 +411,18 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         return
       }
 
+      // Chrome fix: Explicitly capture pointer for pen input to ensure we get all move events
+      // Without this, Chrome may stop sending pointermove events after the first few
+      if (isStylusInput) {
+        canvas.setPointerCapture(e.pointerId)
+      }
+
       isDrawingRef.current = true
+
+      // Cache bounding rect on pointer down to avoid layout recalculations during move
       const rect = canvas.getBoundingClientRect()
+      canvasRectRef.current = rect
+
       // Convert screen coordinates to canvas coordinates
       // The canvas CSS size matches the scaled section size, so we need to scale down to internal coordinates
       const x = (e.clientX - rect.left) * (width / rect.width)
@@ -383,6 +436,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
       // But always allow stylus to proceed regardless of touch count
       const isStylusInput = e.pointerType === 'pen'
+
       if (!isStylusInput && activeTouchPointersRef.current.size > 1) {
         return
       }
@@ -407,14 +461,22 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
-      const rect = canvas.getBoundingClientRect()
+      // Use cached rect to avoid layout thrashing (rect cached in startDrawing)
+      const rect = canvasRectRef.current || canvas.getBoundingClientRect()
 
       // Get all coalesced events for higher sampling rate
       // Falls back to single event if getCoalescedEvents is not supported
-      const events = e.nativeEvent.getCoalescedEvents?.() || [e.nativeEvent]
+      // Chrome fix: getCoalescedEvents sometimes returns empty array, so ensure we have at least the main event
+      const coalescedEvents = e.nativeEvent.getCoalescedEvents?.() || []
+      const events = coalescedEvents.length > 0 ? coalescedEvents : [e.nativeEvent]
+
+      // Log coalesced event count to understand Chrome vs Firefox behavior
+      if (coalescedEvents.length > 1) {
+        console.log('[Canvas] Coalesced events:', coalescedEvents.length, 'total path points:', currentPathRef.current.length)
+      }
 
       // Process each coalesced event to capture all intermediate points
-      events.forEach((event) => {
+      events.forEach((event, index) => {
         // Convert screen coordinates to canvas coordinates
         // The canvas CSS size matches the scaled section size, so we need to scale down to internal coordinates
         const x = (event.clientX - rect.left) * (width / rect.width)
@@ -430,11 +492,11 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
           // Check for stroke collisions and only redraw when marking NEW strokes
           let markedNewStroke = false
-          pathsRef.current.forEach((stroke, index) => {
+          pathsRef.current.forEach((stroke, strokeIndex) => {
             if (stroke.mode !== 'erase' && isPointNearStroke(x, y, stroke)) {
               // Only mark as new if it wasn't already marked
-              if (!strokesMarkedForDeletionRef.current.has(index)) {
-                strokesMarkedForDeletionRef.current.add(index)
+              if (!strokesMarkedForDeletionRef.current.has(strokeIndex)) {
+                strokesMarkedForDeletionRef.current.add(strokeIndex)
                 markedNewStroke = true
               }
             }
@@ -444,39 +506,42 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
             scheduleEraserRedraw()
           }
         } else {
-          // Draw segment with pressure-sensitive width for draw mode
-          const points = currentPathRef.current
-          if (points.length >= 2) {
-            const lastPoint = points[points.length - 2]
-            const currentPoint = points[points.length - 1]
-
-            const lineWidth = strokeWidth * currentPoint.pressure
-
-            ctx.beginPath()
-            ctx.strokeStyle = strokeColor
-            ctx.lineWidth = lineWidth
-            ctx.lineCap = 'round'
-            ctx.lineJoin = 'round'
-            ctx.globalCompositeOperation = 'source-over'
-
-            ctx.moveTo(lastPoint.x, lastPoint.y)
-            ctx.lineTo(currentPoint.x, currentPoint.y)
-            ctx.stroke()
-          }
+          // For draw mode: Add to pending for RAF rendering
+          // This smooths out Chrome's batched coalesced events
+          pendingPointsRef.current++
         }
       })
-    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, scheduleEraserRedraw, updateEraserCursorPosition, updateEraserCursor])
+
+      // For draw mode, schedule RAF-based drawing for pending points
+      // This smooths out Chrome's batched coalesced events
+      if (currentModeRef.current === 'draw' && pendingPointsRef.current > 0) {
+        scheduleIncrementalDraw()
+      }
+    }, [mode, width, height, isPointNearStroke, scheduleEraserRedraw, scheduleIncrementalDraw, updateEraserCursorPosition])
 
     const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
       // Remove pointer from tracking
       if (e) {
         activePointersRef.current.delete(e.pointerId)
         activeTouchPointersRef.current.delete(e.pointerId)
+
+        // Chrome fix: Release pointer capture if we captured it
+        const canvas = canvasRef.current
+        if (canvas && e.pointerType === 'pen') {
+          try {
+            canvas.releasePointerCapture(e.pointerId)
+          } catch (err) {
+            // Ignore errors if pointer wasn't captured
+          }
+        }
       }
 
       if (!isDrawingRef.current) return
 
       isDrawingRef.current = false
+
+      // Reset pending points counter
+      pendingPointsRef.current = 0
 
       // If we just finished an eraser stroke, delete all marked strokes
       if (currentModeRef.current === 'erase') {
@@ -512,6 +577,14 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       }
 
       if (currentPathRef.current.length > 0 && mode !== 'view') {
+        // Log stroke statistics
+        const strokePointCount = currentPathRef.current.length
+        console.log('[Canvas] Stroke completed', {
+          points: strokePointCount,
+          pointerType: e?.pointerType,
+          browser: navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Chrome'
+        })
+
         // Determine which section this stroke belongs to based on first point
         const firstPoint = currentPathRef.current[0]
         const sectionId = determineSectionFromY(firstPoint.y, headingPositions) || 'unknown'
@@ -545,6 +618,17 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Clean up when pointer is cancelled
       activePointersRef.current.delete(e.pointerId)
       activeTouchPointersRef.current.delete(e.pointerId)
+
+      // Chrome fix: Release pointer capture if we captured it
+      const canvas = canvasRef.current
+      if (canvas && e.pointerType === 'pen') {
+        try {
+          canvas.releasePointerCapture(e.pointerId)
+        } catch (err) {
+          // Ignore errors if pointer wasn't captured
+        }
+      }
+
       if (isDrawingRef.current) {
         isDrawingRef.current = false
         currentPathRef.current = []
@@ -580,6 +664,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         if (eraserRedrawRafRef.current !== null) {
           cancelAnimationFrame(eraserRedrawRafRef.current)
         }
+        if (drawRafRef.current !== null) {
+          cancelAnimationFrame(drawRafRef.current)
+        }
       }
     }, [])
 
@@ -601,9 +688,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
             // Fixed width and height to match canvas internal dimensions
             width: `${width}px`,
             height: `${height}px`,
-            // Always allow pinch-zoom for crisp annotation rendering at any zoom level
-            // Multi-touch detection prevents drawing during pinch gestures
-            touchAction: 'pan-x pan-y pinch-zoom',
+            // Chrome fix: touchAction must be 'none' for pen input to work properly
+            // Chrome won't send pointermove events for pen if touchAction allows panning
+            // Multi-touch detection in the event handlers prevents drawing during pinch gestures
+            touchAction: 'none',
             cursor: mode === 'erase' ? 'none' : (mode === 'draw' ? 'crosshair' : 'default'),
             // Only receive events when in draw/erase mode OR when stylus mode is active
             // This allows text selection in view mode without stylus mode
