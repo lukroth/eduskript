@@ -295,57 +295,49 @@ body {
   }
 }
 
-/* Custom prose styles that respect our theme */
-.prose-theme {
-  @apply max-w-none;
-  color: hsl(var(--prose-text));
-}
-
 /*
- * Responsive width for prose content INSIDE #paper
+ * Responsive paper container
  *
- * Key dimensions:
- * - Paper width: 1280px (fixed)
- * - Paper padding: 224px each side (px-56)
- * - Prose max width: 832px (1280 - 224*2)
+ * #paper is the canvas boundary - canvas always matches its bounds exactly.
+ * Width is responsive, centered with mx-auto.
+ * Combined padding (canvas boundary + text readability) all on #paper.
  *
- * Behavior:
- * - Left edge stays fixed at paper padding (224px from paper left)
- * - Right edge moves left when viewport shrinks
- * - Text reflows to narrower width while annotations stay aligned
- *
- * On desktop (>=1024px): viewing_area = 100vw - sidebar_width
- * On mobile (<1024px): viewing_area = 100vw (sidebar overlays, --sidebar-width = 0)
+ * On desktop (>=1024px): width = 100vw - sidebar_width
+ * On mobile (<1024px): width = 100vw (sidebar overlays)
  */
-#paper .prose-theme {
-  --paper-padding: 96px;  /* p-24 = 6rem = 96px */
-  --prose-max-width: 1088px;  /* 1280 - 96*2 */
+.paper-responsive {
+  max-width: 1280px;
+  width: calc(100vw - var(--sidebar-width, 0px));
+  position: relative;
 
-  max-width: var(--prose-max-width);
-  /* Width shrinks when viewport - sidebar - padding < max-width */
-  width: calc(100vw - var(--sidebar-width, 0px) - var(--paper-padding));
-
-  /* Responsive horizontal padding for text readability */
-  @apply px-24; /* 96px on large screens */
+  /* Combined horizontal padding: canvas boundary + text readability */
+  /* 96px (p-24) + 96px (px-24) = 192px on large screens */
+  @apply px-48;
 }
 
 /* Responsive padding adjustments for smaller screens */
 @media (max-width: 1280px) {
-  #paper .prose-theme {
-    @apply px-16; /* 64px */
+  .paper-responsive {
+    @apply px-32; /* 128px */
   }
 }
 
 @media (max-width: 1024px) {
-  #paper .prose-theme {
-    @apply px-8; /* 32px */
+  .paper-responsive {
+    @apply px-16; /* 64px */
   }
 }
 
 @media (max-width: 768px) {
-  #paper .prose-theme {
-    @apply px-4; /* 16px */
+  .paper-responsive {
+    @apply px-8; /* 32px */
   }
+}
+
+/* Custom prose styles that respect our theme */
+.prose-theme {
+  @apply max-w-none;
+  color: hsl(var(--prose-text));
 }
 
 /* Remove top margin from first content element to align canvas properly */

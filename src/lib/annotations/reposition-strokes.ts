@@ -100,14 +100,20 @@ export function determineSectionFromY(
 }
 
 /**
- * Repositions strokes based on new heading positions
+ * Repositions strokes based on new heading positions and padding changes
  * Returns repositioned strokes and count of orphaned strokes
  */
 export function repositionStrokes(
   strokes: StrokeData[],
   currentHeadingPositions: HeadingPosition[],
-  oldHeadingOffsets: Record<string, number>
+  oldHeadingOffsets: Record<string, number>,
+  currentPaddingLeft?: number,
+  oldPaddingLeft?: number
 ): RepositionResult {
+  // Calculate horizontal delta from padding change
+  const deltaX = (currentPaddingLeft !== undefined && oldPaddingLeft !== undefined)
+    ? currentPaddingLeft - oldPaddingLeft
+    : 0
   const repositioned: StrokeData[] = []
   let orphanedCount = 0
 
@@ -143,19 +149,20 @@ export function repositionStrokes(
       return
     }
 
-    // Calculate offset delta (how much the section moved)
-    const delta = currentHeading.offsetY - oldOffsetY
+    // Calculate offset delta (how much the section moved vertically)
+    const deltaY = currentHeading.offsetY - oldOffsetY
 
-    // If no movement needed, keep stroke as-is
-    if (delta === 0) {
+    // If no movement needed (both X and Y), keep stroke as-is
+    if (deltaY === 0 && deltaX === 0) {
       repositioned.push(stroke)
       return
     }
 
-    // Transform all points by the delta
+    // Transform all points by the deltas
     const transformedPoints = stroke.points.map(point => ({
       ...point,
-      y: point.y + delta
+      x: point.x + deltaX,
+      y: point.y + deltaY
     }))
 
     // Update stroke with new data

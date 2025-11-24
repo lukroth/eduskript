@@ -34,6 +34,7 @@ export interface AnnotationData {
   canvasData: string                      // JSON stringified stroke data
   headingOffsets: Record<string, number>  // Section positioning
   pageVersion: string                     // Content hash for version tracking
+  paddingLeft?: number                    // Paper left padding when saved (for horizontal repositioning)
 }
 
 /**

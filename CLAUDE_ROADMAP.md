@@ -10,9 +10,6 @@
 ## 🎯 Priority List
 
 
-Typography:
-- make paper bigger, increase padding. currently px-24, at least px-36. adapt all calculations. make canvas fill entire paper, so far padding-y areas are missing
-
 annotations:
 - press hold toolbox pen
 

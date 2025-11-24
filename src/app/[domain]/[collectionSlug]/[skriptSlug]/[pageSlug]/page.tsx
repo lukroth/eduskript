@@ -363,7 +363,7 @@ export default async function PublicPage({ params }: PageProps) {
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
         typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       >
-        <div id="paper" className="w-[1280px] p-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
+        <div id="paper" className="paper-responsive mx-auto py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
           {/* Preview mode indicator for unpublished content */}
           {(!collection.isPublished || !skript.isPublished || !page.isPublished) && isAuthor && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">

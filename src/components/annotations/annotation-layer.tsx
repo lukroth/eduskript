@@ -96,6 +96,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [pageHeight, setPageHeight] = useState(0)
   const [orphanedStrokesCount, setOrphanedStrokesCount] = useState(0)
   const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
+  const [storedPaddingLeft, setStoredPaddingLeft] = useState<number | undefined>(undefined)
+  const [currentPaddingLeft, setCurrentPaddingLeft] = useState<number>(0)
   const [snaps, setSnaps] = useState<Snap[]>([])
 
   // Pen priority: pen always wins, ignore other inputs for 200ms after last pen event
@@ -112,7 +114,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (paper) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPaperElement(paper)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setPaperWidth(paper.getBoundingClientRect().width)
 
       // Ensure paper has position:relative for absolute canvas positioning
@@ -170,10 +172,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         if (strokes.length > 0) {
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setHasAnnotations(true)
-           
+
           setCanvasData(annotationData.canvasData)
-           
+
           setStoredHeadingOffsets(annotationData.headingOffsets || {})
+          setStoredPaddingLeft(annotationData.paddingLeft)
         }
       } catch (error) {
         console.error('Error parsing canvas data:', error)
@@ -192,7 +195,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [headingPositions, storedHeadingOffsets])
 
-  // Apply repositioning when heading positions change (only if needed)
+  // Apply repositioning when heading positions or padding change (only if needed)
   useEffect(() => {
     if (!canvasData || headingPositions.length === 0 || Object.keys(storedHeadingOffsets).length === 0) return
 
@@ -205,25 +208,34 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         headingPositions.map(h => [h.sectionId, h.offsetY])
       )
 
-      // Only reposition if stored offsets differ from current offsets
-      const needsReposition = Object.keys(storedHeadingOffsets).some(
+      // Only reposition if stored offsets differ from current offsets OR padding changed
+      const needsVerticalReposition = Object.keys(storedHeadingOffsets).some(
         key => storedHeadingOffsets[key] !== currentOffsets[key]
       )
+      const needsHorizontalReposition = storedPaddingLeft !== undefined &&
+        Math.abs(currentPaddingLeft - storedPaddingLeft) > 1 // Allow 1px tolerance
 
-      if (needsReposition) {
-        const result = repositionStrokes(strokes, headingPositions, storedHeadingOffsets)
+      if (needsVerticalReposition || needsHorizontalReposition) {
+        const result = repositionStrokes(
+          strokes,
+          headingPositions,
+          storedHeadingOffsets,
+          currentPaddingLeft,
+          storedPaddingLeft
+        )
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCanvasData(JSON.stringify(result.strokes))
-         
+
         setOrphanedStrokesCount(result.orphanedCount)
-        // Update stored offsets so we don't reposition again
-         
+        // Update stored values so we don't reposition again
+
         setStoredHeadingOffsets(currentOffsets)
+        setStoredPaddingLeft(currentPaddingLeft)
       }
     } catch (error) {
       console.error('Error checking repositioning:', error)
     }
-  }, [headingPositions, storedHeadingOffsets, canvasData])
+  }, [headingPositions, storedHeadingOffsets, canvasData, currentPaddingLeft, storedPaddingLeft])
 
   // Helper function to recalculate heading positions and paper dimensions
   const recalculateHeadingPositions = useCallback(() => {
@@ -253,6 +265,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       const paddingLeft = parseFloat(style.paddingLeft) || 0
       const paddingTop = parseFloat(style.paddingTop) || 0
+
+      // Track current padding for horizontal repositioning
+      setCurrentPaddingLeft(paddingLeft)
 
       // Get article element (parent of contentRef)
       const articleElement = contentRef.current.parentElement
@@ -391,7 +406,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const data: AnnotationData = {
         canvasData,
         headingOffsets,
-        pageVersion
+        pageVersion,
+        paddingLeft: currentPaddingLeft
       }
 
       setSaveState('saving')
@@ -410,7 +426,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       // Reset to idle after showing error briefly
       setTimeout(() => setSaveState('idle'), 3000)
     }
-  }, [canvasData, pageVersion, headingPositions, updateAnnotationData])
+  }, [canvasData, pageVersion, headingPositions, currentPaddingLeft, updateAnnotationData])
 
   // Save on unmount (navigation away)
   useEffect(() => {
@@ -695,62 +711,47 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     return Math.max(minPanY, Math.min(maxPanY, newPanY))
   }, [viewportHeight])
 
-  // Calculate horizontal pan limits based on .prose-theme positioning
-  // The centering/alignment is based on prose-theme (text content), not paper (canvas)
+  // Calculate horizontal pan limits based on #paper
+  // #paper is responsive and centered by CSS, so at zoom 1.0 no pan needed
+  // Only need panning when zoomed in (scaled paper wider than viewport)
   const calculateHorizontalLimit = useCallback((newPanX: number, newZoom?: number) => {
     if (!mainRef.current) return newPanX
 
     const currentZoom = newZoom ?? zoomRef.current
 
-    // Use .prose-theme for positioning logic (not #paper)
-    const proseElement = document.querySelector('.prose-theme') as HTMLElement
-    if (!proseElement) return newPanX
+    const paperElement = document.getElementById('paper')
+    if (!paperElement) return newPanX
 
     // Remove transform to get natural position
     const currentTransform = mainRef.current.style.transform
     mainRef.current.style.transform = 'none'
 
-    // Measure both main and prose elements
     const mainRect = mainRef.current.getBoundingClientRect()
-    const proseRect = proseElement.getBoundingClientRect()
+    const paperRect = paperElement.getBoundingClientRect()
 
     mainRef.current.style.transform = currentTransform
 
-    // The transform origin is "top center" of the MAIN element, not viewport
+    // Transform origin is "top center" of main element
     const originX = (mainRect.left + mainRect.right) / 2
     const leftBoundary = sidebarWidth
 
-    const naturalLeft = proseRect.left
-    const naturalRight = proseRect.right
-
-    // Calculate where the prose-theme edges WILL BE after zoom transformation
-    // With transform-origin at center (originX), edges transform as:
-    // transformedPos = originX + (naturalPos - originX) * zoom
-    const transformedLeft = originX + (naturalLeft - originX) * currentZoom
-    const transformedRight = originX + (naturalRight - originX) * currentZoom
+    // Calculate where paper edges will be after zoom
+    const transformedLeft = originX + (paperRect.left - originX) * currentZoom
+    const transformedRight = originX + (paperRect.right - originX) * currentZoom
     const transformedWidth = transformedRight - transformedLeft
 
     const availableWidth = viewportWidth - leftBoundary
 
-    // If prose-theme fits in viewport, center it and lock panning
+    // If paper fits in viewport, lock horizontal pan (CSS handles centering)
     if (transformedWidth <= availableWidth) {
+      // Keep paper centered - calculate pan to center it
       const transformedCenter = (transformedLeft + transformedRight) / 2
       const desiredCenter = leftBoundary + availableWidth / 2
-      // How much do we need to pan to move transformedCenter to desiredCenter?
-      // Pan is applied after zoom, so: screenPos = transformedPos + panX * zoom
-      const centerPanX = (desiredCenter - transformedCenter) / currentZoom
-      return centerPanX
+      return (desiredCenter - transformedCenter) / currentZoom
     }
 
-    // Prose-theme is wider than viewport - allow panning to see all content
-    // Content can slide UNDER the sidebar when panning to see right side
-
-    // Max pan (content shifted right): prose-theme LEFT edge at sidebar
-    // This is the "home" position - left edge visible
+    // Paper is wider than viewport (zoomed in) - allow panning
     const maxPanX = (leftBoundary - transformedLeft) / currentZoom
-
-    // Min pan (content shifted left): prose-theme RIGHT edge at viewport right
-    // This allows content to slide under sidebar to see right side
     const minPanX = (viewportWidth - transformedRight) / currentZoom
 
     return Math.max(minPanX, Math.min(maxPanX, newPanX))
@@ -1047,25 +1048,25 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${panXRef.current}px, ${panYRef.current}px)`
   }, [])
 
-  // Reposition on resize - reuses calculateHorizontalLimit for consistency
+  // Reposition on resize or sidebar change - reuses calculateHorizontalLimit for consistency
   useEffect(() => {
     const handleResize = () => {
-      // Small delay to let React/CSS update first
+      // Delay to let CSS transitions complete (sidebar animation is ~300ms)
       setTimeout(() => {
         const newPanX = calculateHorizontalLimit(panXRef.current)
         if (mainRef.current) {
           panXRef.current = newPanX
           mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${newPanX}px, ${panYRef.current}px)`
         }
-      }, 50)
+      }, 350)
     }
 
-    // Initial position after mount
+    // Reposition when sidebar changes or on initial mount
     handleResize()
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [calculateHorizontalLimit])
+  }, [calculateHorizontalLimit, sidebarWidth])
 
 
   // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
