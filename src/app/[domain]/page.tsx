@@ -288,7 +288,7 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
       </PublicSiteLayout>
     )
   } catch (error) {
-    console.error('Error fetching teacher site:', error)
+    console.error('Error fetching teacher site for domain:', domain, 'Error:', error)
     notFound()
   }
 }
