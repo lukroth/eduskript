@@ -26,7 +26,7 @@ export function Navigation() {
                 </Link>
                 <Button
                   variant="outline"
-                  onClick={() => signOut()}
+                  onClick={() => signOut({ callbackUrl: '/' })}
                 >
                   Sign Out
                 </Button>

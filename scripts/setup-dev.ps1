@@ -156,7 +156,7 @@ Write-Host ""
 
 # Seed admin user
 Write-Info "[8/8] Seeding admin user..."
-node prisma/seed-admin-sql.mjs | Out-Null
+node scripts/seed-admin-sql.mjs | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Admin user might already exist"
 } else {

@@ -12,7 +12,8 @@ We use pnpm.
 - `pnpm db:migrate` - Deploy migrations (for production)
 - `pnpm db:studio` - Open Prisma Studio for database inspection
 - `pnpm db:reset` - Reset database and run migrations
-- `pnpm db:fresh` - Fresh start: removes SQLite files and pushes schema
+- `pnpm db:local` - Start local PostgreSQL in Docker (background)
+- `pnpm db:local:stop` - Stop local PostgreSQL and remove containers
 
 ### Development & Build
 - `pnpm dev` - Start development server with Turbopack
@@ -21,13 +22,7 @@ We use pnpm.
 - `pnpm lint` - Run ESLint
 - `pnpm type-check` - Run TypeScript type checking without building
 - `pnpm validate` - Run type-check, lint, and tests (quick validation)
-- `pnpm pre-push` - Run full validation including Docker build (strict validation)
-
-### Docker Operations
-- `pnpm docker:build` - Build Docker image with git metadata
-- `pnpm docker:run` - Run application in Docker (dev compose)
-- `pnpm docker:stop` - Stop Docker containers
-- `pnpm docker:logs` - View Docker container logs
+- `pnpm pre-push` - Run full validation (type-check, lint, tests, build)
 
 ## Architecture Overview
 
@@ -47,7 +42,7 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Styling**: TailwindCSS with Radix UI components
 - **Editor**: CodeMirror 6 with multiple language support
 - **Markdown**: Unified/Remark/Rehype pipeline with KaTeX math and syntax highlighting
-- **Quality Assurance**: Husky pre-push hooks with strict validation (type-check, lint, tests, Docker build)
+- **Quality Assurance**: Husky pre-push hooks with strict validation (type-check, lint, tests, build)
 
 ### Database Schema Key Points
 - **Multi-tenant**: Each user has a unique username for URL paths (e.g., `eduskript.org/teacher`)
@@ -466,9 +461,9 @@ interface MarkdownContext {
 - **Theme not switching**: CSS classes not applied or images not duplicated
 
 ### Deployment Configuration
-- **Docker**: Clean multi-stage build with Prisma 7.x and PostgreSQL adapter
+- **Platform**: Deployed on Koyeb (managed PostgreSQL + Next.js hosting)
 - **Next.js**: Configured for standalone output with ES Modules
-- **Database**: PostgreSQL with pg adapter for production, Docker PostgreSQL for local dev
+- **Database**: PostgreSQL with pg adapter (Koyeb managed PostgreSQL for production)
 - **Prisma**: Version 7.x with driver adapters (no version conflicts!)
 - **Environment**: Node.js 22.x, pnpm package manager, TypeScript ES2023
 - **Local Development**: `docker-compose.local.yml` for PostgreSQL database
@@ -481,8 +476,8 @@ interface MarkdownContext {
   - TypeScript type checking (`pnpm type-check`)
   - ESLint validation (`pnpm lint`)
   - Full test suite (`pnpm test:run`)
-  - Docker build verification (`pnpm docker:build`)
-- **Manual Validation**: Run `pnpm validate` for quick check (skips Docker build)
+  - Production build verification (`pnpm build`)
+- **Manual Validation**: Run `pnpm validate` for quick check (skips build)
 
 ## Current Development Focus
 **COMPLETED**: Page builder and dashboard experience are fully implemented and production-ready:
@@ -786,22 +781,16 @@ The project has been successfully upgraded from Prisma 6.11.0 to Prisma 7.x with
   - `src/lib/prisma.ts` - Main application client with `@prisma/adapter-pg`
   - `tests/helpers/test-db.ts` - Test database utilities
   - All utility scripts (*.mjs files)
-  - Seed files (`prisma/seed.ts`, `prisma/seed-admin.js`)
+  - Seed files (`prisma/seed.ts`, `scripts/seed-admin.js`)
 - Created `docker-compose.local.yml` for local PostgreSQL development
-
-**Docker Improvements:**
-- **Removed version hack**: No longer copying entire `.pnpm` store to force Prisma version
-- **Clean solution**: Project uses Prisma 7.x, Docker uses Prisma 7.x - no conflicts!
-- **Simplified Dockerfile**: Only copy necessary packages (@prisma, @libsql, dotenv)
-- **Updated start.sh**: Use `pnpm prisma migrate deploy` (standard approach)
 
 **Benefits:**
 - Modern Prisma architecture with driver adapters
-- No more Prisma version conflicts in Docker
+- No more Prisma version conflicts
 - Better performance with PostgreSQL adapter
 - Clean, maintainable deployment setup
 - Future-proof for Prisma ecosystem
-- Production-ready PostgreSQL support
+- Production-ready PostgreSQL support (now on Koyeb)
 
 ### ✅ Strict Pre-Push Workflow
 Implemented comprehensive quality gates to ensure code quality before pushing:
@@ -812,21 +801,21 @@ Implemented comprehensive quality gates to ensure code quality before pushing:
 - Added validation scripts to package.json:
   - `type-check`: TypeScript validation without building
   - `validate`: Quick check (types + lint + tests)
-  - `pre-push`: Full validation (types + lint + tests + Docker build)
+  - `pre-push`: Full validation (types + lint + tests + build)
 
 **Pre-Push Checks:**
 1. **Type Checking**: `tsc --noEmit` - Ensures TypeScript types are valid
 2. **Linting**: `eslint . --max-warnings=-1` - No lint warnings allowed
 3. **Tests**: `vitest run` - All tests must pass
-4. **Docker Build**: Full Docker image build - Ensures deployment readiness
+4. **Build**: Full production build - Ensures build succeeds
 
 **Usage:**
 - Automatic: Runs before every `git push`
 - Manual: Run `pnpm pre-push` to test before committing
-- Quick check: Run `pnpm validate` (skips Docker build for speed)
+- Quick check: Run `pnpm validate` (skips build for speed)
 
 **Benefits:**
 - Catch issues before they reach the repository
-- Ensure Docker builds work before deployment
+- Ensure production builds work before deployment
 - Maintain high code quality standards
-- Reduce CI/CD failures and deployment issues
+- Reduce deployment failures

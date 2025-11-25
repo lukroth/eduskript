@@ -11,41 +11,32 @@
 
 
 Editor:
-- [x] ~~our editor shouldn't have a fixed height~~ → **Implemented**: Auto-adjusts height based on code lines (min 200px, max 600px)
-- [x] ~~our editor generally should be resizable~~ → **Implemented**: Resize handle on bottom-right corner
-- [x] ~~our editor's horizontal divider between editor and output pane should be draggable~~ → **Implemented**: Draggable divider, made thinner (h-1 instead of w-2)
-- [x] ~~we should be able to hide the files selection~~ → **Implemented**: Use ` ```python editor single` to hide file tabs
 - [ ] editor is still flashing. your notes: ~~editor flashing in preview~~ → **Implemented**: CodeEditor wrapped in React.memo to prevent unnecessary re-renders
-- [x] ~~output pane should collapse when empty~~ → **Implemented**: No min-height, panel only shows when there's output
-- [x] ~~kernel messages clutter output~~ → **Implemented**: Removed loading/success messages from output
-- [x] ~~indicate successful run~~ → **Implemented**: Run button flashes green with ✓ on success
-- [x] ~~kernel indicator~~ → **Implemented**: Python snake icon (🐍) in top-right with dropdown to view/restart/switch kernel
 
 Migration stuff:
 - add the strong element from informatikgarten.ch
+- **SQL** - port sql.js component to our editor. already done, just check again if it works
+- Implement long-press for pen/eraser toolbox (hover doesn't work on iPad). already done, just check again if it works well.
 
 consider going back to sqlite (cost & speed)
 - security implications? 
 - backup?
 - full text search implications
-- the main reason i now switched to postgres is because i thought we need a "real" database. but i notice now, maybe sqlite is quite alright for the time being until we have many many customers. it's probably cheaper to run and easy to backup. let'
+- the main reason i now switched to postgres is because i thought we need a "real" database. but i notice now, maybe sqlite is better for the time being until we have many many customers. it's probably cheaper to run and easy to backup. let'
 - lets consider pros and cons! remember we can still delete all data without worrying.
 
 
-**Core LMS Features:**
+**LMS Features:**
 - **Add toggle to classes for teachers to not allow anonymous students**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
 - **Video Hosting** - Swiss-compliant video upload and embedding
-- **SQL** - port sql.js component to our editor.
 
 **Infrastructure:**
 - **Backup System** - Easy database exports and UI to restore if necessary
-- **Plugin System** - Extensible component architecture, MDX support
 - **Marketplace / Sharing** - Content sharing and selling platform
+- **Plugin System** - Extensible component architecture, MDX support
 
-**Pending iPad Improvements:**
-- **Excalidraw Touch Support** - Implement long-press for pen/eraser toolbox (hover doesn't work on iPad)
 
 Very low: Comments by students (maybe per class)
 

@@ -22,7 +22,7 @@ echo ""
 
 echo "Seeding admin user if needed..."
 # Create admin user if it doesn't exist
-node prisma/seed-admin.js || echo "⚠ Admin seed failed, continuing..."
+node scripts/seed-admin.js || echo "⚠ Admin seed failed, continuing..."
 echo ""
 
 echo "Starting Next.js application..."

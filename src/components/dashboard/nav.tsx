@@ -24,7 +24,7 @@ export function DashboardNav() {
           <ThemeToggle />
           <Button
             variant="outline"
-            onClick={() => signOut()}
+            onClick={() => signOut({ callbackUrl: '/' })}
           >
             Sign Out
           </Button>

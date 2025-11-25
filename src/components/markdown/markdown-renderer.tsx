@@ -271,7 +271,7 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
   return (
     <div {...props}>
       <CodeEditor
-        key={`${id}-${resolvedTheme}`}
+        key={id}
         id={id}
         pageId={markdownContext?.pageId}
         language={language as 'python' | 'javascript' | 'sql'}

@@ -210,7 +210,7 @@ fi
 # Seed admin user
 echo ""
 echo -e "${BLUE}→${NC} Seeding admin user..."
-if node prisma/seed-admin-sql.mjs; then
+if node scripts/seed-admin-sql.mjs; then
     echo -e "${GREEN}✓${NC} Admin user seeded (or already exists)"
 else
     echo -e "${YELLOW}⚠${NC} Admin user seeding failed - user might already exist"

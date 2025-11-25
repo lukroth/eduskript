@@ -160,7 +160,7 @@ echo.
 
 REM Seed admin user
 echo [8/8] Seeding admin user...
-call node prisma/seed-admin-sql.mjs >nul 2>&1
+call node scripts/seed-admin-sql.mjs >nul 2>&1
 if errorlevel 1 (
     echo [WARNING] Admin user might already exist
 ) else (
