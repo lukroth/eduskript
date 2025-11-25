@@ -12,6 +12,7 @@
 
 Editor:
 - [ ] editor is still flashing. your notes: ~~editor flashing in preview~~ → **Implemented**: CodeEditor wrapped in React.memo to prevent unnecessary re-renders
+- [ ] then the output appears anew, let's add it to the height of the editor rather than take up space of the editor. that's not very intuitive.
 
 Migration stuff:
 - add the strong element from informatikgarten.ch

@@ -252,7 +252,7 @@ export function PublicSiteLayout({
                 </Button>
                 <AuthButton />
                 <PublicThemeToggle />
-                <FontSizeControls />
+                <FontSizeControls orientation="vertical" />
               </div>
             ) : (
               /* Expanded sidebar header */

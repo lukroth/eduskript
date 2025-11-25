@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { MarkdownRenderer } from '@/components/markdown/markdown-renderer'
 import type { MarkdownContext } from '@/lib/markdown'
 
@@ -16,10 +17,11 @@ export function InteractivePreview({
   fileList,
   theme = 'light'
 }: InteractivePreviewProps) {
-  const context: MarkdownContext = {
+  // Memoize context to prevent recreating on every render
+  const context: MarkdownContext = useMemo(() => ({
     fileList,
     theme,
-  }
+  }), [fileList, theme])
 
   return (
     <div className="prose-theme" key="markdown-preview">

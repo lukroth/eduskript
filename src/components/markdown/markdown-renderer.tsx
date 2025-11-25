@@ -218,8 +218,16 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
   return <div className={className} {...props}>{children}</div>
 }
 
-// Counter for auto-numbering code editors without explicit IDs
-let editorCounter = 0
+// Simple hash function for generating stable IDs
+function hashCode(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36)
+}
 
 function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
   const { resolvedTheme } = useTheme()
@@ -232,8 +240,8 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
   const schemaImage = (props['dataSchemaImage'] as string) || (props['data-schema-image'] as string)
   const single = (props['dataSingle'] as string) || (props['data-single'] as string)
 
-  // Auto-assign ID if not provided (counting from 0 for each page)
-  const id = providedId || `${editorCounter++}`
+  // Auto-assign ID if not provided - use content hash for stable IDs across renders
+  const id = providedId || `editor-${hashCode(code)}-${language}`
 
   const decodedCode = decodeHtmlEntities(code)
 
@@ -429,9 +437,6 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
     const processContent = async () => {
       try {
         setError(null)
-
-        // Reset editor counter for this page render
-        editorCounter = 0
 
         // Build the processing pipeline
         const processor = unified()

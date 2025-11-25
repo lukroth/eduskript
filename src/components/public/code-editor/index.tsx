@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
 import { EditorState, Annotation } from '@codemirror/state'
@@ -119,6 +120,8 @@ export const CodeEditor = memo(function CodeEditor({
   const [activeKernel, setActiveKernel] = useState<'skulpt' | 'pyodide' | null>(null)
   const [kernelLoading, setKernelLoading] = useState(false)
   const [showKernelMenu, setShowKernelMenu] = useState(false)
+  const [kernelMenuPosition, setKernelMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const kernelButtonRef = useRef<HTMLButtonElement>(null)
   const kernelMenuRef = useRef<HTMLDivElement>(null)
 
   // Close kernel menu when clicking outside
@@ -1413,7 +1416,17 @@ plots
                 <>
                   <div className="w-px h-4 bg-border mx-1" />
                   <button
-                    onClick={() => setShowKernelMenu(!showKernelMenu)}
+                    ref={kernelButtonRef}
+                    onClick={() => {
+                      if (!showKernelMenu && kernelButtonRef.current) {
+                        const rect = kernelButtonRef.current.getBoundingClientRect()
+                        setKernelMenuPosition({
+                          top: rect.bottom + 4,
+                          left: rect.right - 160 // 160px is menu width
+                        })
+                      }
+                      setShowKernelMenu(!showKernelMenu)
+                    }}
                     className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
                       kernelLoading
                         ? 'bg-yellow-500/20 animate-pulse'
@@ -1439,9 +1452,15 @@ plots
                     </svg>
                   </button>
 
-                  {/* Kernel Menu Dropdown */}
-                  {showKernelMenu && (
-                    <div className="absolute top-8 right-0 bg-popover border rounded-lg shadow-lg p-2 min-w-[160px] z-50">
+                  {/* Kernel Menu Dropdown - Rendered via Portal */}
+                  {showKernelMenu && kernelMenuPosition && typeof document !== 'undefined' && createPortal(
+                    <div
+                      className="fixed bg-popover border rounded-lg shadow-lg p-2 min-w-[160px] z-[9999]"
+                      style={{
+                        top: `${kernelMenuPosition.top}px`,
+                        left: `${kernelMenuPosition.left}px`
+                      }}
+                    >
                       <div className="text-xs text-muted-foreground mb-2 px-2">
                         {activeKernel ? (
                           <span>Kernel: <strong className="text-foreground capitalize">{activeKernel}</strong></span>
@@ -1471,7 +1490,8 @@ plots
                       >
                         Pyodide <span className="text-xs text-muted-foreground">(numpy, etc)</span>
                       </button>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </>
               )}

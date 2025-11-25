@@ -15,7 +15,11 @@ const MAX_SIZE = 28
 const DEFAULT_SIZE = 19  // ~14pt
 const STEP = 2
 
-export function FontSizeControls() {
+interface FontSizeControlsProps {
+  orientation?: 'horizontal' | 'vertical'
+}
+
+export function FontSizeControls({ orientation = 'horizontal' }: FontSizeControlsProps) {
   const [fontSize, setFontSize] = useState(DEFAULT_SIZE)
   const [mounted, setMounted] = useState(false)
 
@@ -70,16 +74,24 @@ export function FontSizeControls() {
   const canIncrease = fontSize < MAX_SIZE
   const canDecrease = fontSize > MIN_SIZE
 
+  const isVertical = orientation === 'vertical'
+
   return (
     <TooltipProvider>
-      <div className="flex items-center rounded-full border border-border bg-card">
+      <div className={`flex border border-border bg-card ${
+        isVertical
+          ? 'flex-col rounded-lg'
+          : 'items-center rounded-full'
+      }`}>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               onClick={handleDecrease}
               disabled={!canDecrease}
               aria-label="Decrease font size"
-              className="p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-full"
+              className={`p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                isVertical ? 'rounded-t-lg' : 'rounded-l-full'
+              }`}
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -89,7 +101,7 @@ export function FontSizeControls() {
           </TooltipContent>
         </Tooltip>
 
-        <div className="w-[1px] h-4 bg-border" />
+        <div className={isVertical ? 'h-[1px] w-4 bg-border mx-auto' : 'w-[1px] h-4 bg-border'} />
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -97,7 +109,9 @@ export function FontSizeControls() {
               onClick={handleIncrease}
               disabled={!canIncrease}
               aria-label="Increase font size"
-              className="p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-r-full"
+              className={`p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                isVertical ? 'rounded-b-lg' : 'rounded-r-full'
+              }`}
             >
               <Plus className="h-4 w-4" />
             </button>
