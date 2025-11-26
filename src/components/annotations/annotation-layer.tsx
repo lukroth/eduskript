@@ -111,7 +111,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   useEffect(() => {
     const paper = document.getElementById('paper')
     if (paper) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Getting DOM element
       setPaperElement(paper)
 
       setPaperWidth(paper.getBoundingClientRect().width)
@@ -123,7 +123,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Track annotating state in ref for event handlers (avoids stale closure issues)
   const isAnnotatingRef = useRef(false)
-  isAnnotatingRef.current = mode !== 'view' || stylusModeActive
+  useEffect(() => {
+    isAnnotatingRef.current = mode !== 'view' || stylusModeActive
+  }, [mode, stylusModeActive])
 
   // Add annotation-active class to paper when in draw/erase mode (prevents text selection on iOS Safari)
   useEffect(() => {
@@ -205,7 +207,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   useEffect(() => {
     if (pageVersion && annotationData) {
       const mismatch = annotationData.pageVersion !== pageVersion
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading stored state
       setVersionMismatch(mismatch)
     } else {
        
@@ -227,7 +229,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         const strokes: StrokeData[] = JSON.parse(annotationData.canvasData)
 
         if (strokes.length > 0) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading stored state
           setHasAnnotations(true)
 
           setCanvasData(annotationData.canvasData)
@@ -247,7 +249,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const currentOffsets = Object.fromEntries(
         headingPositions.map(h => [h.sectionId, h.offsetY])
       )
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initializing state
       setStoredHeadingOffsets(currentOffsets)
     }
   }, [headingPositions, storedHeadingOffsets])
@@ -280,7 +282,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           currentPaddingLeft,
           storedPaddingLeft
         )
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Repositioning stored data
         setCanvasData(JSON.stringify(result.strokes))
 
         setOrphanedStrokesCount(result.orphanedCount)
