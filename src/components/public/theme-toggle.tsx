@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
 export function PublicThemeToggle() {
-  const { theme, setTheme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -24,11 +24,11 @@ export function PublicThemeToggle() {
 
   return (
     <button
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
       className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors"
-      title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+      title={`Switch to ${resolvedTheme === 'light' ? 'dark' : 'light'} mode`}
     >
-      {theme === 'light' ? (
+      {resolvedTheme === 'light' ? (
         <Moon className="w-4 h-4 text-foreground" />
       ) : (
         <Sun className="w-4 h-4 text-foreground" />
