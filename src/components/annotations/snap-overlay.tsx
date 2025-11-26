@@ -26,12 +26,15 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
   const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start dragging on left click
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only start dragging on left click/primary button
     if (e.button !== 0) return
 
     const rect = overlayRef.current?.getBoundingClientRect()
     if (!rect) return
+
+    // Capture pointer to receive all events during drag
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
 
     setIsDragging(true)
     // Account for zoom transform - divide by zoom to get logical coordinates
@@ -45,7 +48,7 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
     })
   }, [zoom])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging || !startPos) return
 
     const rect = overlayRef.current?.getBoundingClientRect()
@@ -58,7 +61,10 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
     })
   }, [isDragging, startPos, zoom])
 
-  const handleMouseUp = useCallback(async (e: React.MouseEvent) => {
+  const handlePointerUp = useCallback(async (e: React.PointerEvent) => {
+    // Release pointer capture
+    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+
     if (!isDragging || !startPos || !currentPos) {
       setIsDragging(false)
       setStartPos(null)
@@ -184,7 +190,6 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
               }
             `
             fontFaceRules.push(fontFace)
-            console.log(`Embedded ${fontInfo.family} (${fontInfo.weight}) as base64`)
           } catch (err) {
             console.warn(`Failed to embed ${fontInfo.family}:`, err)
             // Fallback to URL if base64 fails
@@ -200,8 +205,6 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
           }
         }
       }
-
-      console.log('Font CSS length:', fontFaceRules.join('\n').length, 'characters')
 
       // Also add CSS variable mappings that Next.js uses
       const cssVariables = `
@@ -268,7 +271,6 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       // Firefox sometimes needs more explicit font application
       const needsExplicitFonts = navigator.userAgent.toLowerCase().includes('firefox')
       if (needsExplicitFonts) {
-        console.log('Firefox detected, applying explicit font styles')
 
         // Get the typography mode from data attribute
         const typography = document.querySelector('[data-typography]')?.getAttribute('data-typography') || 'modern'
@@ -302,6 +304,24 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
           const htmlEl = el as HTMLElement
           htmlEl.style.fontFamily = 'monospace'
         })
+      }
+
+      // Remove or replace broken images to prevent capture failure
+      // html-to-image fails if ANY image resource fails to load
+      const images = paperClone.querySelectorAll('img')
+      for (const img of Array.from(images)) {
+        const imgEl = img as HTMLImageElement
+        // Check if image failed to load or has missing-file in src
+        if (imgEl.src.includes('missing-file') || !imgEl.complete || imgEl.naturalWidth === 0) {
+          // Replace with a placeholder or remove
+          imgEl.style.display = 'none'
+        }
+      }
+
+      // Also remove video elements (they can't be captured anyway)
+      const videos = paperClone.querySelectorAll('video, source')
+      for (const video of Array.from(videos)) {
+        video.remove()
       }
 
       // Append the paper clone to the wrapper
@@ -389,14 +409,26 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       // Force a reflow to ensure fonts are applied
       wrapper.offsetHeight
 
-      // Additional wait for rendering to ensure base64 fonts are applied
-      await new Promise(resolve => setTimeout(resolve, 300))
-
       // Capture as JPEG with quality compression
       // Works with SVG, PNG
       const imageUrl = await toJpeg(wrapper, {
-        quality: 0.3,  
-        skipFonts: true
+        quality: 0.3,
+        skipFonts: true,
+        // Filter out problematic elements that might cause capture to fail
+        filter: (node: Element) => {
+          // Skip video elements
+          if (node.tagName === 'VIDEO' || node.tagName === 'SOURCE') {
+            return false
+          }
+          // Skip images with missing-file or broken sources
+          if (node.tagName === 'IMG') {
+            const img = node as HTMLImageElement
+            if (img.src.includes('missing-file') || img.src.includes('.mp4')) {
+              return false
+            }
+          }
+          return true
+        }
       } as any)
 
       // Clean up: remove the temporary wrapper (only if not in debug mode)
@@ -449,11 +481,12 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       ref={overlayRef}
       className="fixed inset-0 z-50 cursor-crosshair"
       style={{
-        backgroundColor: 'rgba(0, 0, 0, 0.1)'
+        backgroundColor: 'rgba(0, 0, 0, 0.1)',
+        touchAction: 'none' // Prevent browser handling of touch events
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
       onContextMenu={(e) => {
         e.preventDefault()
         onCancel()

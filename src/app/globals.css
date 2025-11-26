@@ -307,8 +307,9 @@ body {
   /* Don't set explicit width - let block element flow naturally */
   box-sizing: border-box;
   position: relative;
-  /* Prevent content from causing horizontal overflow */
-  overflow-x: hidden;
+  /* Use clip instead of hidden - clips overflow without creating a scroll container */
+  /* This prevents paper from capturing scroll events, letting parent handle all scrolling */
+  overflow: clip;
 
   /* Combined horizontal padding: canvas boundary + text readability */
   /* 96px (p-24) + 96px (px-24) = 192px on large screens */

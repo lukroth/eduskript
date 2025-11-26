@@ -47,15 +47,17 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     setExpandedSnapId(prev => prev === id ? null : id)
   }
 
-  const handleDragStart = (e: React.MouseEvent, snapId: string) => {
+  const handleDragStart = (e: React.PointerEvent, snapId: string) => {
     e.preventDefault()
     e.stopPropagation()
+    // Capture pointer for drag
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     setDraggingId(snapId)
     dragStart.current = { x: e.clientX, y: e.clientY }
     setDragOffset({ x: 0, y: 0 })
   }
 
-  const handleDragMove = useCallback((e: MouseEvent) => {
+  const handleDragMove = useCallback((e: PointerEvent) => {
     const offsetX = (e.clientX - dragStart.current.x) / zoom
     const offsetY = (e.clientY - dragStart.current.y) / zoom
     setDragOffset({ x: offsetX, y: offsetY })
@@ -94,9 +96,11 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     })
   }, [draggingId, snaps, onReorderSnaps])
 
-  const handleResizeStart = (e: React.MouseEvent, snap: Snap) => {
+  const handleResizeStart = (e: React.PointerEvent, snap: Snap) => {
     e.preventDefault()
     e.stopPropagation()
+    // Capture pointer for resize
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     setResizingId(snap.id)
     resizeStart.current = {
       x: e.clientX,
@@ -107,7 +111,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     setResizeDelta({ width: 0, height: 0 })
   }
 
-  const handleResizeMove = useCallback((e: MouseEvent) => {
+  const handleResizeMove = useCallback((e: PointerEvent) => {
     const deltaX = (e.clientX - resizeStart.current.x) / zoom
     const deltaY = (e.clientY - resizeStart.current.y) / zoom
     setResizeDelta({ width: deltaX, height: deltaY })
@@ -144,26 +148,26 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     })
   }, [resizingId, snaps, onReorderSnaps])
 
-  // Add/remove mouse event listeners for dragging
+  // Add/remove pointer event listeners for dragging
   useEffect(() => {
     if (draggingId) {
-      window.addEventListener('mousemove', handleDragMove)
-      window.addEventListener('mouseup', handleDragEnd)
+      window.addEventListener('pointermove', handleDragMove)
+      window.addEventListener('pointerup', handleDragEnd)
       return () => {
-        window.removeEventListener('mousemove', handleDragMove)
-        window.removeEventListener('mouseup', handleDragEnd)
+        window.removeEventListener('pointermove', handleDragMove)
+        window.removeEventListener('pointerup', handleDragEnd)
       }
     }
   }, [draggingId, handleDragMove, handleDragEnd])
 
-  // Add/remove mouse event listeners for resizing
+  // Add/remove pointer event listeners for resizing
   useEffect(() => {
     if (resizingId) {
-      window.addEventListener('mousemove', handleResizeMove)
-      window.addEventListener('mouseup', handleResizeEnd)
+      window.addEventListener('pointermove', handleResizeMove)
+      window.addEventListener('pointerup', handleResizeEnd)
       return () => {
-        window.removeEventListener('mousemove', handleResizeMove)
-        window.removeEventListener('mouseup', handleResizeEnd)
+        window.removeEventListener('pointermove', handleResizeMove)
+        window.removeEventListener('pointerup', handleResizeEnd)
       }
     }
   }, [resizingId, handleResizeMove, handleResizeEnd])
@@ -210,7 +214,8 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
             {/* Snap name/title with drag handle */}
             <div
               className="px-3 py-2 bg-muted/30 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing"
-              onMouseDown={(e) => {
+              style={{ touchAction: 'none' }}
+              onPointerDown={(e) => {
                 // Only start drag if not clicking on the title text or input
                 const target = e.target as HTMLElement
                 if (!target.closest('.snap-title')) {
@@ -235,7 +240,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
                     }
                   }}
                   onBlur={() => handleSaveEdit(snap.id)}
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   className="snap-title px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   autoFocus
                 />
@@ -245,7 +250,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
                     e.stopPropagation()
                     handleStartEdit(snap)
                   }}
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   className="snap-title text-sm font-medium text-foreground cursor-text hover:text-primary transition-colors"
                   title="Click to rename"
                 >
@@ -278,7 +283,8 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
             {/* Resize handle */}
             <div
               className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
-              onMouseDown={(e) => handleResizeStart(e, snap)}
+              style={{ touchAction: 'none' }}
+              onPointerDown={(e) => handleResizeStart(e, snap)}
               title="Drag to resize"
             >
               <svg

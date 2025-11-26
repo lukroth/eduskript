@@ -1158,14 +1158,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         />
       )}
 
-      {/* Snaps display - shows all captured snaps */}
-      <SnapsDisplay
-        snaps={snaps}
-        onRemoveSnap={handleRemoveSnap}
-        onRenameSnap={handleRenameSnap}
-        onReorderSnaps={handleReorderSnaps}
-        zoom={zoom}
-      />
+      {/* Snaps display - portaled into paper for correct absolute positioning */}
+      {paperElement && createPortal(
+        <SnapsDisplay
+          snaps={snaps}
+          onRemoveSnap={handleRemoveSnap}
+          onRenameSnap={handleRenameSnap}
+          onReorderSnaps={handleReorderSnaps}
+          zoom={zoom}
+        />,
+        paperElement
+      )}
     </>
   )
 }
