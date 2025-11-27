@@ -82,11 +82,9 @@ export function PageBuilderInterface() {
                             if (skriptResponse.ok) {
                               const skriptData = await skriptResponse.json()
                               skriptPermissions = skriptData.permissions || skriptPermissions
-                            } else {
-                              console.warn(`Failed to fetch permissions for skript ${cs.skript.id}: ${skriptResponse.status}`)
                             }
-                          } catch (error) {
-                            console.error(`Error fetching permissions for skript ${cs.skript.id}:`, error)
+                          } catch {
+                            // Silently use default permissions
                           }
 
                           return {
@@ -115,8 +113,8 @@ export function PageBuilderInterface() {
                       skripts: collectionSkripts.sort((a: { order: number }, b: { order: number }) => a.order - b.order)
                     }
                   }
-                } catch (error) {
-                  console.error(`Error fetching collection details:`, error)
+                } catch {
+                  // Silently use fallback
                 }
                 
                 return {
@@ -157,8 +155,8 @@ export function PageBuilderInterface() {
                       }
                     }
                   }
-                } catch (error) {
-                  console.error(`Error fetching skript details:`, error)
+                } catch {
+                  // Silently continue
                 }
                 return null
               })
@@ -179,8 +177,8 @@ export function PageBuilderInterface() {
             setExpandedCollections(collectionsToExpand)
           }
         }
-      } catch (error) {
-        console.error('Error loading page layout:', error)
+      } catch {
+        // Silent error - will show empty page builder
       } finally {
         setLoading(false)
       }
@@ -216,41 +214,26 @@ export function PageBuilderInterface() {
         : items.filter(item => item.type === 'collection')
       
       for (const collection of collectionsToUpdate) {
-        console.log(`Collection ${collection.id}:`, {
-          title: collection.title,
-          permissions: collection.permissions,
-          skriptsCount: collection.skripts?.length || 0
-        })
-        
         // Skip collections without edit permissions
         if (!collection.permissions?.canEdit) {
-          console.log(`Skipping collection ${collection.id} - no edit permissions`)
           continue
         }
-        
+
         // Prepare skripts data for batch update
         const skriptsData = collection.skripts?.map((skript, index) => ({
           id: skript.id,
           order: index
         })) || []
-        
-        console.log(`Updating collection ${collection.id} with ${skriptsData.length} skripts`)
-        
+
         // Use batch update endpoint
-        const response = await fetch(`/api/collections/${collection.id}/skripts/batch`, {
+        await fetch(`/api/collections/${collection.id}/skripts/batch`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ skripts: skriptsData }),
         })
-        
-        if (!response.ok) {
-          console.error(`Failed to update collection ${collection.id}:`, await response.text())
-        } else {
-          console.log(`Successfully updated collection ${collection.id}`)
-        }
       }
-    } catch (error) {
-      console.error('Error saving:', error)
+    } catch {
+      // Silent error - UI already updated optimistically
     }
   }
 
@@ -319,12 +302,9 @@ export function PageBuilderInterface() {
 
   const handleDragEnd = (result: DropResult) => {
     setActiveItem(null)
-    
-    console.log('Drag ended:', result)
-    
+
     const { destination, draggableId } = result
     if (!destination) {
-      console.log('No destination - drag cancelled')
       return
     }
 
@@ -376,17 +356,14 @@ export function PageBuilderInterface() {
     }
     
     if (!dragData) {
-      console.log('No drag data found for:', draggableId)
       return
     }
-    
+
     const destinationId = destination.droppableId
-    console.log('Drag data:', dragData, 'Destination:', destinationId)
 
     // Check if trying to drop a skript at root level (not allowed)
     if (destinationId === 'page-builder' && dragData?.type === 'skript') {
-      console.log('Cannot drop skripts at root level - only collections allowed')
-      return // Exit early without making any changes
+      return // Skripts can only be in collections
     }
 
     // Simple insertion logic based on drop target
@@ -471,8 +448,7 @@ export function PageBuilderInterface() {
       if (collectionIndex !== -1) {
         // Only allow skripts to be dropped on collection headers, not other collections
         if (dragData?.type === 'collection') {
-          console.log('Cannot drop collections into other collections')
-          return // Exit early without making any changes
+          return // Collections can't be nested
         }
         
         if (dragData?.type === 'skript') {
@@ -480,8 +456,7 @@ export function PageBuilderInterface() {
           
           // Check target collection permissions FIRST
           if (!targetCollection.permissions?.canEdit) {
-            console.log(`Cannot drop skript into collection ${collectionId} - no edit permissions`)
-            return // Exit early without making any changes
+            return // No edit permissions
           }
           
           // Remove from source if moving
@@ -530,8 +505,7 @@ export function PageBuilderInterface() {
         
         // Check target collection permissions FIRST
         if (!targetCollection.permissions?.canEdit) {
-          console.log(`Cannot drop skript into empty collection ${collectionId} - no edit permissions`)
-          return // Exit early without making any changes
+          return // No edit permissions
         }
         
         // Remove from source if moving
@@ -555,8 +529,7 @@ export function PageBuilderInterface() {
         // Check if skript is already in this collection to prevent duplicates
         const isAlreadyInCollection = targetCollection.skripts.some(s => s.id === dragData.id)
         if (isAlreadyInCollection) {
-          console.log(`Skript ${dragData.id} is already in collection ${collectionId} - ignoring duplicate drop`)
-          return // Exit early without making any changes
+          return // Already in collection
         }
         
         const newSkript = {
@@ -583,12 +556,11 @@ export function PageBuilderInterface() {
         
         // Check target collection permissions FIRST
         if (!targetCollection.permissions?.canEdit) {
-          console.log(`Cannot drop skript into collection ${collectionId} - no edit permissions`)
-          return // Exit early without making any changes
+          return // No edit permissions
         }
-        
+
         if (!targetCollection.skripts) targetCollection.skripts = []
-        
+
         // Check if we're moving within the same collection
         const isMovingWithinSameCollection = isMovingExistingSkript && dragData.parentId === collectionId
         
@@ -627,8 +599,7 @@ export function PageBuilderInterface() {
           // Check if skript is already in this collection to prevent duplicates
           const isAlreadyInCollection = targetCollection.skripts.some(s => s.id === dragData.id)
           if (isAlreadyInCollection && !isMovingExistingSkript) {
-            console.log(`Skript ${dragData.id} is already in collection ${collectionId} - ignoring duplicate drop`)
-            return // Exit early without making any changes
+            return // Already in collection
           }
           
           const newSkript = {
@@ -657,16 +628,8 @@ export function PageBuilderInterface() {
     }
 
     if (hasChanges) {
-      console.log('Drag ended with changes, updating items:', {
-        sourceCollection: dragData?.parentId,
-        targetLocation: destinationId,
-        skriptId: dragData?.id,
-        changedCollections: Array.from(changedCollectionIds)
-      })
       setPageItems(updatedItems)
       handleItemsChange(updatedItems, changedCollectionIds)
-    } else {
-      console.log('Drag ended with no changes')
     }
   }
 
@@ -675,12 +638,8 @@ export function PageBuilderInterface() {
     if (session?.user?.username) {
       const protocol = window.location.protocol
       const host = window.location.host
-
-      // For localhost development and production, use path-based routing
       const url = `${protocol}//${host}/${session.user.username}`
       window.open(url, '_blank')
-    } else {
-      console.error('No username found for current user')
     }
   }
 

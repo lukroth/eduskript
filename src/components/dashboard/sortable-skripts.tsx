@@ -86,8 +86,7 @@ function SortableSkriptItem({
       } else {
         alert.showError('Failed to publish')
       }
-    } catch (error) {
-      console.error('Error publishing all:', error)
+    } catch {
       alert.showError('Failed to publish')
     } finally {
       setIsPublishingAll(false)
@@ -116,8 +115,7 @@ function SortableSkriptItem({
       } else {
         alert.showError('Failed to delete skript')
       }
-    } catch (error) {
-      console.error('Error deleting skript:', error)
+    } catch {
       alert.showError('Failed to delete skript')
     }
   }
@@ -217,7 +215,7 @@ function SortableSkriptItem({
                     type="skript"
                     itemId={skript.id}
                     isPublished={skript.isPublished}
-                    onToggle={onSkriptUpdated}
+                    onToggle={() => {}} // No-op - PublishToggle manages its own state
                     showText={true}
                   />
                   <EditModal
@@ -318,8 +316,7 @@ function StaticSkriptItem({
       } else {
         alert.showError('Failed to publish')
       }
-    } catch (error) {
-      console.error('Error publishing all:', error)
+    } catch {
       alert.showError('Failed to publish')
     } finally {
       setIsPublishingAll(false)
@@ -348,8 +345,7 @@ function StaticSkriptItem({
       } else {
         alert.showError('Failed to delete skript')
       }
-    } catch (error) {
-      console.error('Error deleting skript:', error)
+    } catch {
       alert.showError('Failed to delete skript')
     }
   }
@@ -436,7 +432,7 @@ function StaticSkriptItem({
                 type="skript"
                 itemId={skript.id}
                 isPublished={skript.isPublished}
-                onToggle={onSkriptUpdated}
+                onToggle={() => {}} // No-op - PublishToggle manages its own state
                 showText={true}
               />
               <EditModal
@@ -534,57 +530,41 @@ export function SortableSkripts({
   
   // Sync items with skripts prop and handle hydration
   useEffect(() => {
-    console.log('SortableSkripts received skripts:', skripts.map(s => ({ id: s.id, title: s.title, order: s.order })))
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(skripts)
-     
     setIsMounted(true)
   }, [skripts])
 
   const handleDragEnd = async (result: DropResult) => {
     if (!isMounted) return
-    
-    const { destination, source } = result
-    console.log('Drag end event:', { sourceIndex: source.index, destIndex: destination?.index })
 
+    const { destination, source } = result
     if (!destination || destination.index === source.index) return
 
     const newItems = Array.from(items)
     const [reorderedItem] = newItems.splice(source.index, 1)
     newItems.splice(destination.index, 0, reorderedItem)
-    
-    console.log('Reordering:', { oldIndex: source.index, newIndex: destination.index })
     setItems(newItems)
-    
+
     const skriptIds = newItems.map(item => item.id)
-    console.log('Sending reorder request:', { collectionId, skriptIds })
-    
+
     // Update order in database
     setIsReordering(true)
     try {
       const response = await fetch(`/api/collections/${collectionId}/reorder-skripts`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          skriptIds: skriptIds
-        })
+        body: JSON.stringify({ skriptIds })
       })
 
-      console.log('Reorder response:', response.status, response.ok)
-      
       if (response.ok) {
-        const data = await response.json()
-        console.log('Reorder successful:', data)
         onReorder()
       } else {
-        const errorData = await response.text()
-        console.error('Reorder failed:', response.status, errorData)
         // Revert on error
         setItems(skripts)
-        alert.showError('Failed to reorder skripts: ' + errorData)
+        alert.showError('Failed to reorder skripts')
       }
-    } catch (error) {
-      console.error('Error reordering skripts:', error)
+    } catch {
       setItems(skripts)
       alert.showError('Failed to reorder skripts')
     }

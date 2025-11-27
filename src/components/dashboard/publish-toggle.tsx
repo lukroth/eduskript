@@ -14,38 +14,40 @@ interface PublishToggleProps {
   type: 'skript' | 'page'
   itemId: string
   isPublished: boolean
-  onToggle: () => void
+  onToggle: (newIsPublished: boolean) => void
   size?: 'sm' | 'md' | 'lg'
   showText?: boolean
 }
 
-export function PublishToggle({ 
-  type, 
-  itemId, 
-  isPublished, 
-  onToggle, 
+export function PublishToggle({
+  type,
+  itemId,
+  isPublished: initialIsPublished,
+  onToggle,
   size = 'sm',
-  showText = true 
+  showText = true
 }: PublishToggleProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isPublished, setIsPublished] = useState(initialIsPublished)
 
   const handleToggle = async () => {
     setIsLoading(true)
+    const newIsPublished = !isPublished
     try {
       const endpoint = type === 'skript' ? `/api/skripts/${itemId}` : `/api/pages/${itemId}`
       const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          isPublished: !isPublished
+          isPublished: newIsPublished
         })
       })
 
       if (response.ok) {
-        onToggle()
+        setIsPublished(newIsPublished)
+        onToggle(newIsPublished)
       } else {
-        const errorData = await response.text()
-        console.error(`Failed to toggle ${type} publish status:`, response.status, errorData)
+        console.error(`Failed to toggle ${type} publish status`)
       }
     } catch (error) {
       console.error(`Error toggling ${type} publish status:`, error)

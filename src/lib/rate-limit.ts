@@ -23,18 +23,11 @@ const store: RateLimitStore = {}
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {
     const now = Date.now()
-    let cleaned = 0
-
     Object.keys(store).forEach(key => {
       if (store[key].resetAt < now) {
         delete store[key]
-        cleaned++
       }
     })
-
-    if (cleaned > 0) {
-      console.log(`[RateLimit] Cleaned up ${cleaned} expired entries`)
-    }
   }, 60000)
 }
 
@@ -111,7 +104,6 @@ export class RateLimiter {
   reset(identifier: string): void {
     const key = `${this.name}:${identifier}`
     delete store[key]
-    console.log(`[RateLimit] Reset limit for ${this.name}:${identifier}`)
   }
 }
 
@@ -212,7 +204,5 @@ export function getRateLimitStoreSize(): number {
  * Clears all rate limits (for testing only!)
  */
 export function clearAllRateLimits(): void {
-  const size = Object.keys(store).length
   Object.keys(store).forEach(key => delete store[key])
-  console.log(`[RateLimit] Cleared all rate limits (${size} entries)`)
 }

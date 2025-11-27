@@ -99,7 +99,7 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
                   type="page"
                   itemId={page.id}
                   isPublished={page.isPublished}
-                  onToggle={onPageUpdated || (() => {})}
+                  onToggle={() => {}} // No-op - PublishToggle manages its own state
                   showText={false}
                 />
                 <EditModal
@@ -192,7 +192,7 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
               type="page"
               itemId={page.id}
               isPublished={page.isPublished}
-              onToggle={onPageUpdated || (() => {})}
+              onToggle={() => {}} // No-op - PublishToggle manages its own state
               showText={false}
             />
             <EditModal

@@ -459,7 +459,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
             type="page"
             itemId={page.id}
             isPublished={page.isPublished}
-            onToggle={handlePageUpdated}
+            onToggle={() => {}} // No-op - PublishToggle manages its own state
             showText={false}
             size="sm"
           />

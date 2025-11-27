@@ -100,7 +100,7 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
                   type="skript"
                   itemId={skript.id}
                   isPublished={skript.isPublished}
-                  onToggle={handleSkriptUpdated}
+                  onToggle={() => {}} // No-op - PublishToggle manages its own state
                   showText={true}
                 />
                 <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}/frontpage`}>
