@@ -9,30 +9,19 @@
 
 ## 🎯 Priority List
 
-todo: 
-- persist snaps + annotations. 
-- progress bar doesn't update properly
-- create overview for students with all their snaps (great for learning / revising)
-- ability for teachers to store snaps + annotations per class.
-- add edit link for teachers on public pages
-- bigger handles for things when using touch (editor)
-- ux of annotations (when to activate / deactivate)
-- weird on chrome for android
+Before migration:
+- **Video Hosting** - Swiss-compliant video upload and embedding
+- **Front page editing** - give teachers a 
 
-Migration stuff:
-- add the strong element from informatikgarten.ch
-- in the live preview, color_title 
-- **SQL** - port sql.js component to our editor. already done, just check again if it works
-- Implement long-press for pen/eraser toolbox (hover doesn't work on iPad). already done, just check again if it works well.
+
 
 **LMS Features:**
-- **Add toggle to classes for teachers to not allow anonymous students**
+- **Teacher/author ability to publsih snaps globally or per class**
+- **Teacher/author ability to publish annotations globally or per class**
+- **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
 - **Randomized questions** maybe through special skripts?
-- **Teacher abilit to publish annotations**
-- **Teacher ability to publsih snaps**
-- **Video Hosting** - Swiss-compliant video upload and embedding
 
 **Infrastructure:**
 - **Backup System** - Easy database exports and UI to restore if necessary
@@ -40,7 +29,10 @@ Migration stuff:
 - **Plugin System** - Extensible component architecture, MDX support
 
 
-Very low: Comments by students (maybe per class)
+small stuff:
+- bigger handles for resize bars in the editor when using touch device (in place but untested)
+- investigate weirdness on chrome for android (might be gone)
+- Very low: Comments by students (maybe per class)
 
 ---
 

@@ -3,10 +3,14 @@
 import { signIn, useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
-import { LogIn, UserCheck } from 'lucide-react'
+import { LogIn, UserCheck, Pencil } from 'lucide-react'
 import { getAccountTypeFromWindow } from '@/lib/domain-utils'
 
-export function AuthButton() {
+interface AuthButtonProps {
+  editUrl?: string // URL to edit current page (only shown if user has permission)
+}
+
+export function AuthButton({ editUrl }: AuthButtonProps) {
   const router = useRouter()
   const pathname = usePathname() ?? '/'
   const { data: session } = useSession()
@@ -32,13 +36,26 @@ export function AuthButton() {
     )
   }
 
-  // Logged in - show user avatar or icon, click to go to dashboard
+  // Logged in - show edit button or user avatar/icon
   const isStudent = session.user?.accountType === 'student'
   const userName = isStudent
     ? (session.user?.studentPseudonym
         ? `Student ${session.user.studentPseudonym.substring(0, 4)}`
         : 'Student')
     : session.user?.name || 'User'
+
+  // If user can edit this page, show edit button instead of dashboard button
+  if (editUrl && !isStudent) {
+    return (
+      <button
+        onClick={() => router.push(editUrl)}
+        title="Edit this page"
+        className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden"
+      >
+        <Pencil className="h-4 w-4 text-primary" />
+      </button>
+    )
+  }
 
   return (
     <button

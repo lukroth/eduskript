@@ -14,20 +14,25 @@ export function ReadingProgress() {
       const article = document.querySelector('article.prose-theme')
       if (!article) return
 
+      // Get the scroll container (content scrolls inside this, not window)
+      const scrollContainer = document.getElementById('scroll-container')
+      const containerTop = scrollContainer?.getBoundingClientRect().top ?? 0
+
       // Get the article's position in screen space (after transform)
       const rect = article.getBoundingClientRect()
 
-      // Calculate progress:
-      // - 0%: top of viewport at top of article (rect.top = 0)
-      // - 100%: middle of viewport at bottom of article (rect.top = window.innerHeight/2 - rect.height)
-      const viewportHalfHeight = window.innerHeight / 2
-      const articleTop = rect.top
+      // Calculate progress relative to scroll container:
+      // - 0%: top of scroll container at top of article
+      // - 100%: middle of scroll container at bottom of article
+      const containerHeight = scrollContainer?.clientHeight ?? window.innerHeight
+      const containerHalfHeight = containerHeight / 2
+      const articleTop = rect.top - containerTop
       const articleHeight = rect.height
 
       // Distance scrolled from 0% position
       const scrolled = -articleTop
       // Total scroll range (from 0% to 100%)
-      const totalRange = articleHeight - viewportHalfHeight
+      const totalRange = articleHeight - containerHalfHeight
       // Progress percentage
       const scrollPercent = (scrolled / totalRange) * 100
 
@@ -51,11 +56,20 @@ export function ReadingProgress() {
       }
     }
 
-    // Update on scroll/pan events instead of continuous RAF loop
+    // Get the scroll container - content scrolls here, not on window
+    const scrollContainer = document.getElementById('scroll-container')
+
+    // Update on scroll/pan events
+    // Listen on both window and scroll container for completeness
     window.addEventListener('scroll', scheduleUpdate, { passive: true })
     window.addEventListener('wheel', scheduleUpdate, { passive: true })
     window.addEventListener('touchmove', scheduleUpdate, { passive: true })
     window.addEventListener('resize', scheduleUpdate)
+
+    // Also listen on the actual scroll container
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', scheduleUpdate, { passive: true })
+    }
 
     // Initial update
     updateProgress()
@@ -65,6 +79,9 @@ export function ReadingProgress() {
       window.removeEventListener('wheel', scheduleUpdate)
       window.removeEventListener('touchmove', scheduleUpdate)
       window.removeEventListener('resize', scheduleUpdate)
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', scheduleUpdate)
+      }
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
       }

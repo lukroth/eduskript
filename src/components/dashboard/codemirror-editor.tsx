@@ -226,8 +226,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   }
 
-  // Handle splitter drag
+  // Handle splitter drag (mouse)
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  // Handle splitter drag (touch)
+  const handleSplitterTouchStart = (e: React.TouchEvent) => {
     e.preventDefault()
     setIsDragging(true)
   }
@@ -245,16 +251,36 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
     }
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!containerRef.current || !e.touches[0]) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newEditorWidth = ((e.touches[0].clientX - containerRect.left) / containerRect.width) * 100
+
+      // Clamp between 5% and 95%
+      setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
+    }
+
     const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    const handleTouchEnd = () => {
       setIsDragging(false)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+    document.addEventListener('touchend', handleTouchEnd)
+    document.addEventListener('touchcancel', handleTouchEnd)
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
+      document.removeEventListener('touchcancel', handleTouchEnd)
     }
   }, [isDragging])
 
@@ -878,24 +904,28 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           )}
         </div>
 
-        {/* Draggable Splitter */}
+        {/* Draggable Splitter - wider touch target on mobile */}
         {showEditor && showPreview && (
           <div
             onMouseDown={handleSplitterMouseDown}
-            className={`w-2 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center ${
+            onTouchStart={handleSplitterTouchStart}
+            className={`w-2 sm:w-2 touch:w-4 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center touch-none ${
               isDragging ? 'bg-primary/30' : ''
             }`}
+            style={{ minWidth: '8px' }}
           >
             {/* Drag indicator */}
             <div className="text-muted-foreground/40 text-xs select-none pointer-events-none">
               ⋮
             </div>
+            {/* Extended touch target (invisible but increases hit area) */}
+            <div className="absolute inset-y-0 -left-2 -right-2 md:hidden" />
           </div>
         )}
 
         {/* Preview */}
         {showPreview && (
-          <div ref={previewRef} style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container">
+          <div ref={previewRef} style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container" data-typography="modern">
             <div className="p-4">
               <InteractivePreview
                 markdown={useSimpleEditor ? textareaContent : editorContent}

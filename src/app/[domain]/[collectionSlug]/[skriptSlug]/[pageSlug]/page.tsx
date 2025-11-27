@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { AnnotatableContent } from '@/components/public/annotatable-content'
 import { ExportPDF } from '@/components/public/export-pdf'
+import { checkPagePermissions } from '@/lib/permissions'
 // Debug overlay removed after fixing iPad layout issue
 // import { LayoutDebug } from '@/components/debug/layout-debug'
 // import { Comments } from '@/components/public/comments'
@@ -93,6 +94,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PublicPage({ params }: PageProps) {
   const { domain, collectionSlug, skriptSlug, pageSlug } = await params
 
+  // Filter out obviously invalid domain values (browser/system requests)
+  const invalidDomains = ['.well-known', '_next', 'api', 'favicon', 'robots', 'sitemap', 'apple-touch-icon', 'manifest']
+  if (invalidDomains.some(invalid => domain.startsWith(invalid) || domain.includes('.'))) {
+    notFound()
+  }
+
   // First, try to get the teacher from cache (fast path)
   const teacher = await getTeacherByUsernameDeduped(domain)
   if (!teacher) {
@@ -115,6 +122,7 @@ export default async function PublicPage({ params }: PageProps) {
   let allPages: NonNullable<typeof cachedContent>['allPages']
   let isAuthor = false
   let isPreviewMode = false
+  let canEdit = false
 
   if (cachedContent) {
     // Published content found in cache - use it
@@ -196,6 +204,45 @@ export default async function PublicPage({ params }: PageProps) {
     isPreviewMode = !fullCollection.isPublished || !collectionSkript.skript.isPublished || !foundPage.isPublished
   }
 
+  // Check if current user can edit the page
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    // Fetch permissions for this page
+    const pageWithAuthors = await prisma.page.findUnique({
+      where: { id: page.id },
+      include: {
+        authors: { include: { user: true } },
+        skript: {
+          include: {
+            authors: { include: { user: true } },
+            collectionSkripts: {
+              include: {
+                collection: {
+                  include: {
+                    authors: { include: { user: true } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (pageWithAuthors) {
+      const collectionAuthors = pageWithAuthors.skript.collectionSkripts
+        .filter(cs => cs.collection !== null)
+        .flatMap(cs => cs.collection!.authors)
+      const permissions = checkPagePermissions(
+        session.user.id,
+        pageWithAuthors.authors,
+        pageWithAuthors.skript.authors,
+        collectionAuthors
+      )
+      canEdit = permissions.canEdit
+    }
+  }
+
   // Build site structure for navigation
   const siteStructure = [{
     id: collection.id,
@@ -245,6 +292,9 @@ export default async function PublicPage({ params }: PageProps) {
   }
 
   const currentPath = `/${collectionSlug}/${skriptSlug}/${pageSlug}`
+  const editUrl = canEdit
+    ? `/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${pageSlug}/edit`
+    : undefined
 
   return (
     <PublicSiteLayout
@@ -254,6 +304,7 @@ export default async function PublicPage({ params }: PageProps) {
       fullSiteStructure={fullSiteStructure}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
+      editUrl={editUrl}
     >
       <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10" style={{ maxWidth: 'min(1280px, calc(100vw - 48px))', marginLeft: 'auto', marginRight: 'auto' }}>
         {/* Preview mode indicator for unpublished content */}

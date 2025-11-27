@@ -52,6 +52,7 @@ interface PublicSiteLayoutProps {
   fullSiteStructure?: SiteStructure[] // Full site structure when sidebarBehavior is "full"
   sidebarBehavior?: 'contextual' | 'full'
   typographyPreference?: 'modern' | 'classic'
+  editUrl?: string // URL to edit current page (only shown if user has permission)
 }
 
 export function PublicSiteLayout({
@@ -62,7 +63,8 @@ export function PublicSiteLayout({
   currentPath,
   fullSiteStructure,
   sidebarBehavior = 'contextual',
-  typographyPreference = 'modern'
+  typographyPreference = 'modern',
+  editUrl
 }: PublicSiteLayoutProps) {
   const router = useRouter()
   const { setSidebarCollapsed: setSidebarCollapsedInContext, sidebarWidth } = useLayout()
@@ -218,7 +220,7 @@ export function PublicSiteLayout({
       <div className="lg:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
         <FontSizeControls />
         <PublicThemeToggle />
-        <AuthButton />
+        <AuthButton editUrl={editUrl} />
       </div>
 
       {/* Mobile menu button */}
@@ -251,7 +253,7 @@ export function PublicSiteLayout({
                 >
                   <ChevronRight className="w-5 h-5" />
                 </Button>
-                <AuthButton />
+                <AuthButton editUrl={editUrl} />
                 <PublicThemeToggle />
                 <FontSizeControls orientation="vertical" />
               </div>
@@ -276,7 +278,7 @@ export function PublicSiteLayout({
                 <div className="flex items-center gap-2 mt-3">
                   <FontSizeControls />
                   <PublicThemeToggle />
-                  <AuthButton />
+                  <AuthButton editUrl={editUrl} />
                 </div>
                 {teacher.title && (
                   <p className="text-sm text-muted-foreground mt-1">

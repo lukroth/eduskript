@@ -308,8 +308,13 @@ export const CodeEditor = memo(function CodeEditor({
     }
   }, [pageId, files, activeFileIndex, fontSize, editorWidth, canvasTransform, createVersion, refreshVersions, initialCode])
 
-  // Handle splitter dragging
+  // Handle splitter dragging (vertical splitter between editor and graphics)
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDraggingSplitter(true)
+  }
+
+  const handleSplitterTouchStart = (e: React.TouchEvent) => {
     e.preventDefault()
     setIsDraggingSplitter(true)
   }
@@ -327,21 +332,46 @@ export const CodeEditor = memo(function CodeEditor({
       setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
     }
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!containerRef.current || !e.touches[0]) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newEditorWidth = ((e.touches[0].clientX - containerRect.left) / containerRect.width) * 100
+
+      // Clamp between 5% and 95%
+      setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
+    }
+
     const handleMouseUp = () => {
+      setIsDraggingSplitter(false)
+    }
+
+    const handleTouchEnd = () => {
       setIsDraggingSplitter(false)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+    document.addEventListener('touchend', handleTouchEnd)
+    document.addEventListener('touchcancel', handleTouchEnd)
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
+      document.removeEventListener('touchcancel', handleTouchEnd)
     }
   }, [isDraggingSplitter])
 
   // Handle horizontal splitter dragging (between main content and output panel)
   const handleHorizontalSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDraggingHorizontalSplitter(true)
+  }
+
+  const handleHorizontalSplitterTouchStart = (e: React.TouchEvent) => {
     e.preventDefault()
     setIsDraggingHorizontalSplitter(true)
   }
@@ -369,16 +399,46 @@ export const CodeEditor = memo(function CodeEditor({
       }
     }
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!wrapperRef.current || !e.touches[0]) return
+
+      const wrapperRect = wrapperRef.current.getBoundingClientRect()
+      const currentTotalHeight = wrapperRect.height
+
+      // Calculate new output height from touch position
+      const newOutputHeight = Math.max(MIN_OUTPUT_HEIGHT, Math.min(MAX_OUTPUT_HEIGHT, wrapperRect.bottom - e.touches[0].clientY))
+
+      // Calculate new editor height to keep total constant
+      const splitterHeight = 4
+      const newEditorHeight = currentTotalHeight - newOutputHeight - splitterHeight
+
+      // Only apply if editor height is reasonable
+      if (newEditorHeight >= MIN_EDITOR_HEIGHT) {
+        setOutputPanelHeight(newOutputHeight)
+        setUserEditorHeight(newEditorHeight)
+      }
+    }
+
     const handleMouseUp = () => {
+      setIsDraggingHorizontalSplitter(false)
+    }
+
+    const handleTouchEnd = () => {
       setIsDraggingHorizontalSplitter(false)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+    document.addEventListener('touchend', handleTouchEnd)
+    document.addEventListener('touchcancel', handleTouchEnd)
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
+      document.removeEventListener('touchcancel', handleTouchEnd)
     }
   }, [isDraggingHorizontalSplitter])
 
@@ -1641,18 +1701,22 @@ plots
           </div>
         )}
 
-        {/* Draggable Splitter */}
+        {/* Draggable Splitter - wider touch target on mobile */}
         {showEditor && showGraphics && canvasVisible && (
           <div
             onMouseDown={handleSplitterMouseDown}
-            className={`w-1 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center ${
+            onTouchStart={handleSplitterTouchStart}
+            className={`w-1 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center touch-none ${
               isDraggingSplitter ? 'bg-primary/30' : ''
             }`}
+            style={{ minWidth: '8px' }}
           >
             {/* Drag indicator */}
             <div className="text-muted-foreground/40 text-xs select-none pointer-events-none">
               ⋮
             </div>
+            {/* Extended touch target (invisible but increases hit area) */}
+            <div className="absolute inset-y-0 -left-2 -right-2 md:hidden" />
           </div>
         )}
 
@@ -1699,12 +1763,17 @@ plots
         )}
       </div>
 
-      {/* Horizontal Divider (between main content and output) */}
+      {/* Horizontal Divider (between main content and output) - bigger touch target on mobile */}
       {panelVisible && (
         <div
           onMouseDown={handleHorizontalSplitterMouseDown}
-          className="h-1 bg-border hover:bg-primary/20 cursor-row-resize flex-shrink-0 transition-colors"
-        />
+          onTouchStart={handleHorizontalSplitterTouchStart}
+          className="h-1 bg-border hover:bg-primary/20 cursor-row-resize flex-shrink-0 transition-colors relative touch-none"
+          style={{ minHeight: '8px' }}
+        >
+          {/* Extended touch target (invisible but increases hit area) */}
+          <div className="absolute -top-2 -bottom-2 inset-x-0 md:hidden" />
+        </div>
       )}
 
       {/* Output/History Panel - fixed height */}

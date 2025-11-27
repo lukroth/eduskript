@@ -110,6 +110,13 @@ interface CollectionPage {
 
 export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) {
   const { domain, collectionSlug, skriptSlug } = await params
+
+  // Filter out obviously invalid domain values (browser/system requests)
+  const invalidDomains = ['.well-known', '_next', 'api', 'favicon', 'robots', 'sitemap', 'apple-touch-icon', 'manifest']
+  if (invalidDomains.some(invalid => domain.startsWith(invalid) || domain.includes('.'))) {
+    notFound()
+  }
+
   const session = await getServerSession(authOptions)
 
   // Check request headers

@@ -452,9 +452,7 @@ article.prose-theme > div > :first-child {
   @apply text-primary underline font-medium hover:opacity-80;
 }
 
-.prose-theme strong {
-  @apply text-foreground font-semibold;
-}
+/* Strong/bold text styling moved to rainbow highlight section at end of file */
 
 .prose-theme img {
   @apply rounded-lg mx-auto block;
@@ -1068,5 +1066,47 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   }
   100% {
     background-position: 300% center;
+  }
+}
+
+/* Rainbow text highlight for strong/bold text - informatikgarten style */
+.prose-theme strong,
+.prose-theme b {
+  --rainbow-opacity: 0.6;
+  --rainbow-y-offset: 90%;
+  display: inline;
+  text-decoration: none;
+  padding: 0px 4px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  background-image:
+    linear-gradient(hsl(var(--card)), color-mix(in srgb, hsl(var(--card)) 90%, transparent) 80%, transparent),
+    linear-gradient(to right,
+      rgb(255 0 0 / var(--rainbow-opacity)),
+      rgb(255 128 0 / var(--rainbow-opacity)),
+      rgb(255 255 0 / var(--rainbow-opacity)),
+      rgb(128 255 0 / var(--rainbow-opacity)),
+      rgb(0 255 0 / var(--rainbow-opacity)),
+      rgb(0 255 128 / var(--rainbow-opacity)),
+      rgb(0 255 255 / var(--rainbow-opacity)),
+      rgb(0 128 255 / var(--rainbow-opacity)),
+      rgb(0 0 255 / var(--rainbow-opacity)),
+      rgb(128 0 255 / var(--rainbow-opacity)),
+      rgb(255 0 255 / var(--rainbow-opacity)),
+      rgb(255 0 0 / var(--rainbow-opacity)));
+  background-blend-mode: normal;
+  background-repeat: repeat-x;
+  border-radius: 5px;
+  background-size: 100%, 300% 100%;
+  background-position: bottom left, 0% var(--rainbow-y-offset);
+  animation: rainbow-highlight-flow 180s linear infinite;
+}
+
+@keyframes rainbow-highlight-flow {
+  0% {
+    background-position: bottom left, 0% var(--rainbow-y-offset);
+  }
+  100% {
+    background-position: bottom left, 300% var(--rainbow-y-offset);
   }
 }

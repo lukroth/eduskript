@@ -168,9 +168,16 @@ export function AnnotationToolbar({
       hoverTimerRef.current = null
     }
     setShowPenControls(null)
-    onPenChange(penIndex)
-    if (mode !== 'draw') {
-      onModeChange('draw')
+
+    // If clicking the currently active pen, deactivate it
+    if (mode === 'draw' && activePen === penIndex) {
+      onModeChange('view')
+    } else {
+      // Switch to this pen and enter draw mode
+      onPenChange(penIndex)
+      if (mode !== 'draw') {
+        onModeChange('draw')
+      }
     }
   }
 

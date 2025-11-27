@@ -63,6 +63,12 @@ export async function generateMetadata({ params }: DomainIndexProps): Promise<Me
 export default async function DomainIndex({ params }: DomainIndexProps) {
   const { domain } = await params
 
+  // Filter out obviously invalid domain values (browser/system requests)
+  const invalidDomains = ['.well-known', '_next', 'api', 'favicon', 'robots', 'sitemap', 'apple-touch-icon', 'manifest']
+  if (invalidDomains.some(invalid => domain.startsWith(invalid) || domain.includes('.'))) {
+    notFound()
+  }
+
   // Get teacher with layout using cached query
   const teacher = await getTeacherWithLayout(domain)
 
