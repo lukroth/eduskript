@@ -1,7 +1,6 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'
-import GoogleProvider from 'next-auth/providers/google'
 import AzureADProvider from 'next-auth/providers/azure-ad'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
@@ -14,7 +13,7 @@ export const authOptions: NextAuthOptions = {
   // Only use adapter when OAuth providers are configured
   // PrismaAdapter allows linking multiple OAuth providers to the same account
   // NOTE: If you're logged in and sign in with OAuth, it will link to your current account
-  adapter: (process.env.GITHUB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID)
+  adapter: (process.env.GITHUB_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID)
     ? PrivacyAdapter({
         prisma,
         isStudentSignup: async (email: string, context?: any) => {
@@ -85,14 +84,6 @@ export const authOptions: NextAuthOptions = {
           GithubProvider({
             clientId: process.env.GITHUB_CLIENT_ID,
             clientSecret: process.env.GITHUB_CLIENT_SECRET,
-          })
-        ]
-      : []),
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [
-          GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
           })
         ]
       : []),
