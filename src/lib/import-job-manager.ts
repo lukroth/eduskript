@@ -94,14 +94,10 @@ async function processImportAsync(
 
   try {
     // Update status: downloading
-    console.log(`[ImportJob ${jobId}] Starting download from S3: ${s3Key} (bucket: ${importBucket})`)
     await updateJobStatus(jobId, 'processing', 5, 'Downloading file from storage...')
 
     // Download from S3 import bucket
-    const startTime = Date.now()
     const zipBuffer = await downloadFromS3(s3Key, importBucket)
-    const downloadTime = ((Date.now() - startTime) / 1000).toFixed(1)
-    console.log(`[ImportJob ${jobId}] Download complete: ${(zipBuffer.length / 1024 / 1024).toFixed(1)}MB in ${downloadTime}s`)
     await updateJobStatus(jobId, 'processing', 15, 'File downloaded. Extracting...')
 
     // Extract ZIP
