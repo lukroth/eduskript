@@ -94,10 +94,14 @@ async function processImportAsync(
 
   try {
     // Update status: downloading
+    console.log(`[ImportJob ${jobId}] Starting download from S3: ${s3Key} (bucket: ${importBucket})`)
     await updateJobStatus(jobId, 'processing', 5, 'Downloading file from storage...')
 
     // Download from S3 import bucket
+    const startTime = Date.now()
     const zipBuffer = await downloadFromS3(s3Key, importBucket)
+    const downloadTime = ((Date.now() - startTime) / 1000).toFixed(1)
+    console.log(`[ImportJob ${jobId}] Download complete: ${(zipBuffer.length / 1024 / 1024).toFixed(1)}MB in ${downloadTime}s`)
     await updateJobStatus(jobId, 'processing', 15, 'File downloaded. Extracting...')
 
     // Extract ZIP
@@ -166,13 +170,18 @@ async function processImportAsync(
 
 /**
  * Cancel an import job
+ * @param force - If true, can cancel even processing jobs (for stuck jobs after crashes)
  */
-export async function cancelImportJob(jobId: string, userId: string): Promise<boolean> {
+export async function cancelImportJob(jobId: string, userId: string, force: boolean = false): Promise<boolean> {
+  const allowedStatuses = force
+    ? ['pending', 'uploading', 'processing']
+    : ['pending', 'uploading']
+
   const job = await prisma.importJob.findFirst({
     where: {
       id: jobId,
       userId,
-      status: { in: ['pending', 'uploading'] }
+      status: { in: allowedStatuses }
     }
   })
 
@@ -189,7 +198,8 @@ export async function cancelImportJob(jobId: string, userId: string): Promise<bo
     }
   }
 
-  await updateJobStatus(jobId, 'cancelled', 0, 'Import cancelled by user')
+  const message = force ? 'Import force-cancelled (was stuck)' : 'Import cancelled by user'
+  await updateJobStatus(jobId, 'cancelled', 0, message)
   return true
 }
 

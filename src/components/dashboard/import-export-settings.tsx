@@ -232,13 +232,11 @@ export function ImportExportSettings() {
       }
 
       const { jobId, uploadUrl } = await prepareResponse.json()
-      setCurrentJob({ id: jobId, status: 'uploading', progress: 0, message: 'Uploading to storage...', fileName: file.name })
+      setCurrentJob({ id: jobId, status: 'uploading', progress: 0, message: null, fileName: file.name })
 
       // Step 2: Upload directly to S3 with progress
       await uploadToS3WithProgress(uploadUrl, file, (progress) => {
         setUploadProgress(progress)
-        const totalProgress = Math.floor(progress * 0.5) // Upload is 0-50% of total
-        setCurrentJob(prev => prev ? { ...prev, progress: totalProgress, message: `Uploading to cloud... ${totalProgress}%` } : null)
       })
 
       // Step 3: Start processing
@@ -354,9 +352,10 @@ export function ImportExportSettings() {
   }
 
   const handleCancelImport = async () => {
-    if (currentJob && (currentJob.status === 'pending' || currentJob.status === 'uploading')) {
+    if (currentJob && ['pending', 'uploading', 'processing'].includes(currentJob.status)) {
       try {
-        await fetch(`/api/import?jobId=${currentJob.id}`, { method: 'DELETE' })
+        // Always use force=true so we can cancel stuck jobs
+        await fetch(`/api/import?jobId=${currentJob.id}&force=true`, { method: 'DELETE' })
       } catch (error) {
         console.error('Failed to cancel job:', error)
       }
@@ -437,23 +436,70 @@ export function ImportExportSettings() {
 
             {/* Job Progress Display */}
             {showJobProgress && (
-              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                   <span className="font-medium">{currentJob.fileName}</span>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{currentJob.message || 'Processing...'}</span>
-                    <span className="font-mono">{currentJob.progress}%</span>
+                {/* Checklist */}
+                <div className="space-y-3">
+                  {/* Step 1: Upload */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {currentJob.status === 'uploading' ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      ) : uploadProgress >= 100 || currentJob.status === 'processing' ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
+                      )}
+                      <span className={currentJob.status === 'uploading' ? 'font-medium' : 'text-muted-foreground'}>
+                        Uploading to our bucket
+                      </span>
+                      {currentJob.status === 'uploading' && (
+                        <span className="ml-auto font-mono text-sm">{Math.round(uploadProgress)}%</span>
+                      )}
+                    </div>
+                    {currentJob.status === 'uploading' && (
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden ml-6">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${currentJob.progress}%` }}
-                    />
+
+                  {/* Step 2: Import */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {currentJob.status === 'processing' ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      ) : currentJob.status === 'completed' ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
+                      )}
+                      <span className={currentJob.status === 'processing' ? 'font-medium' : 'text-muted-foreground'}>
+                        Importing to Eduskript
+                      </span>
+                      {currentJob.status === 'processing' && (
+                        <span className="ml-auto font-mono text-sm">{Math.max(0, Math.round(((currentJob.progress - 5) / 95) * 100))}%</span>
+                      )}
+                    </div>
+                    {currentJob.status === 'processing' && (
+                      <>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden ml-6">
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-300"
+                            style={{ width: `${Math.max(0, Math.min(100, ((currentJob.progress - 5) / 95) * 100))}%` }}
+                          />
+                        </div>
+                        {currentJob.message && (
+                          <p className="text-xs text-muted-foreground ml-6">{currentJob.message}</p>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -461,7 +507,6 @@ export function ImportExportSettings() {
                   variant="outline"
                   size="sm"
                   onClick={handleCancelImport}
-                  disabled={currentJob.status === 'processing'}
                 >
                   Cancel
                 </Button>

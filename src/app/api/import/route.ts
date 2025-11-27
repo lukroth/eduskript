@@ -740,12 +740,13 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const jobId = searchParams.get('jobId')
+    const force = searchParams.get('force') === 'true'
 
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
     }
 
-    const cancelled = await cancelImportJob(jobId, session.user.id)
+    const cancelled = await cancelImportJob(jobId, session.user.id, force)
 
     if (!cancelled) {
       return NextResponse.json(

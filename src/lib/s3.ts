@@ -198,10 +198,12 @@ export async function downloadFromS3(key: string, bucket?: string): Promise<Buff
   const client = getS3Client()
   const targetBucket = bucket || SCALEWAY_BUCKET
 
+  console.log(`[S3] Sending GetObjectCommand for ${targetBucket}/${key}`)
   const response = await client.send(new GetObjectCommand({
     Bucket: targetBucket,
     Key: key,
   }))
+  console.log(`[S3] Got response, ContentLength: ${response.ContentLength}`)
 
   if (!response.Body) {
     throw new Error(`Empty response for S3 key: ${key}`)
@@ -209,9 +211,16 @@ export async function downloadFromS3(key: string, bucket?: string): Promise<Buff
 
   // Convert stream to buffer
   const chunks: Uint8Array[] = []
+  let bytesReceived = 0
   for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
     chunks.push(chunk)
+    bytesReceived += chunk.length
+    // Log every 1MB
+    if (bytesReceived % (1024 * 1024) < chunk.length) {
+      console.log(`[S3] Downloaded ${(bytesReceived / 1024 / 1024).toFixed(1)}MB`)
+    }
   }
+  console.log(`[S3] Download complete: ${(bytesReceived / 1024 / 1024).toFixed(1)}MB total`)
   return Buffer.concat(chunks)
 }
 
