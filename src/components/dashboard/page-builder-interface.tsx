@@ -19,6 +19,7 @@ interface PageItem {
   skripts?: PageItem[] // For collections containing skripts
   isInLayout?: boolean // For skripts: whether they're explicitly in the page layout
   isFromLibrary?: boolean // For skripts: whether they were just added from library (skip move API)
+  isPublished?: boolean // For skripts: whether the skript is published
   permissions?: {
     canEdit: boolean
     canView: boolean
@@ -71,7 +72,6 @@ export function PageBuilderInterface() {
                     // Get skripts from the junction table (CollectionSkript) and fetch their individual permissions
                     const collectionSkripts = await Promise.all(
                       (collection.collectionSkripts || [])
-                        .filter((cs: { skript: { isPublished: boolean } }) => cs.skript.isPublished) // Only published skripts
                         .map(async (cs: { skript: { id: string; title: string; description?: string; slug: string; isPublished: boolean }, order: number }) => {
                           // Fetch individual skript permissions
                           // Note: The API now properly handles collection-level permission inheritance
@@ -97,7 +97,8 @@ export function PageBuilderInterface() {
                             collectionSlug: collection.slug,
                             parentId: item.contentId,
                             permissions: skriptPermissions, // Use individual skript permissions
-                            isInLayout: true // All skripts in CollectionSkript are part of the layout
+                            isInLayout: true, // All skripts in CollectionSkript are part of the layout
+                            isPublished: cs.skript.isPublished
                           }
                         })
                     )
@@ -636,10 +637,13 @@ export function PageBuilderInterface() {
   const handlePreview = () => {
     // Open teacher's public page in a new tab
     if (session?.user?.username) {
-      const protocol = window.location.protocol
-      const host = window.location.host
-      const url = `${protocol}//${host}/${session.user.username}`
+      // Use origin which includes protocol + host correctly
+      const url = `${window.location.origin}/${session.user.username}`
       window.open(url, '_blank')
+    } else {
+      // Username not set - redirect to settings
+      alert('You need to set a username first. Go to Settings > Page Settings to set your username.')
+      window.location.href = '/dashboard/settings'
     }
   }
 

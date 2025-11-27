@@ -3,7 +3,8 @@
 import { Droppable, Draggable } from '@hello-pangea/dnd'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Layout, Eye, BookOpen, FileText, Plus, Edit, ChevronDown, ChevronRight, X, GripVertical, Pencil } from 'lucide-react'
+import { Layout, Eye, BookOpen, FileText, Plus, Edit, ChevronDown, ChevronRight, X, GripVertical, Pencil, EyeOff } from 'lucide-react'
+import { PublishToggle } from './publish-toggle'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -20,6 +21,7 @@ interface PageItem {
   parentId?: string // For nested skripts under collections
   skripts?: PageItem[] // For collections containing skripts
   isInLayout?: boolean // For skripts: whether they're explicitly in the page layout
+  isPublished?: boolean // For skripts: whether the skript is published
   permissions?: {
     canEdit: boolean
     canView: boolean
@@ -497,33 +499,53 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                 </div>
               ) : (
                 <>
-                  {item.permissions?.canEdit && item.slug ? (
-                    <Link
-                      href={
-                        item.collectionSlug && item.slug
-                          ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
-                          : `/dashboard/collections/${item.collectionSlug || item.id}` // fallback to collection
-                      }
-                      className={cn(
-                        "font-medium text-xs truncate hover:underline flex items-center gap-1 w-fit",
+                  <div className="flex items-center gap-2">
+                    {item.permissions?.canEdit && item.slug ? (
+                      <Link
+                        href={
+                          item.collectionSlug && item.slug
+                            ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
+                            : `/dashboard/collections/${item.collectionSlug || item.id}` // fallback to collection
+                        }
+                        className={cn(
+                          "font-medium text-xs truncate hover:underline flex items-center gap-1 w-fit",
+                          !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
+                        )}
+                      >
+                        {item.title}
+                        <Edit className="w-2.5 h-2.5 flex-shrink-0" />
+                      </Link>
+                    ) : (
+                      <h5 className={cn(
+                        "font-medium text-xs truncate",
                         !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
-                      )}
-                    >
-                      {item.title}
-                      <Edit className="w-2.5 h-2.5 flex-shrink-0" />
-                    </Link>
-                  ) : (
-                    <h5 className={cn(
-                      "font-medium text-xs truncate",
-                      !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
-                    )}>{item.title}</h5>
-                  )}
+                      )}>{item.title}</h5>
+                    )}
+                    {/* Show draft indicator for unpublished skripts */}
+                    {item.isPublished === false && (
+                      <span className="text-xs text-warning flex items-center gap-0.5">
+                        <EyeOff className="w-3 h-3" />
+                        Draft
+                      </span>
+                    )}
+                  </div>
                   {item.description && (
                     <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                   )}
                 </>
               )}
             </div>
+            {/* Publish toggle for skripts with edit permission */}
+            {item.permissions?.canEdit && item.isPublished !== undefined && (
+              <PublishToggle
+                type="skript"
+                itemId={item.id}
+                isPublished={item.isPublished}
+                onToggle={() => {}}
+                size="sm"
+                showText={false}
+              />
+            )}
           </div>
         </div>
       )}

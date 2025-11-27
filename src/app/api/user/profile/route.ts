@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { withDatabaseConnection } from '@/lib/db-connection'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 import { z } from 'zod'
 
 // Base schema for non-admin users
@@ -43,10 +45,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch user's admin status to determine which validation schema to use
+    // Fetch user's admin status and current username
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { isAdmin: true }
+      select: { isAdmin: true, username: true }
     })
 
     const body = await request.json()
@@ -88,6 +90,22 @@ export async function PATCH(request: NextRequest) {
         }
       })
     })
+
+    // Invalidate caches for the user's public page
+    const oldUsername = currentUser?.username
+    const newUsername = result.username
+
+    // Revalidate cache tags for both old and new usernames
+    if (oldUsername) {
+      revalidateTag(CACHE_TAGS.user(oldUsername), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(oldUsername), 'default')
+      revalidatePath(`/${oldUsername}`)
+    }
+    if (newUsername && newUsername !== oldUsername) {
+      revalidateTag(CACHE_TAGS.user(newUsername), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(newUsername), 'default')
+      revalidatePath(`/${newUsername}`)
+    }
 
     return NextResponse.json(result)
   } catch (error) {

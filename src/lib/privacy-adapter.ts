@@ -9,6 +9,68 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import { PrismaClient } from '@prisma/client'
 import { generatePseudonym } from './privacy/pseudonym'
 
+/**
+ * Generates a username from an email address
+ * e.g., "john.doe@example.com" -> "john-doe"
+ */
+function generateUsernameFromEmail(email: string): string {
+  // Take the part before @
+  const localPart = email.split('@')[0]
+
+  // Normalize: lowercase, replace dots/underscores with hyphens, remove other special chars
+  let username = localPart
+    .toLowerCase()
+    .replace(/[._]/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-') // collapse multiple hyphens
+    .replace(/^-|-$/g, '') // trim leading/trailing hyphens
+
+  // Ensure minimum length
+  if (username.length < 3) {
+    username = `user-${username || 'x'}`
+  }
+
+  // Truncate if too long (leave room for potential suffix)
+  if (username.length > 40) {
+    username = username.substring(0, 40)
+  }
+
+  return username
+}
+
+/**
+ * Finds a unique username, adding a random suffix if needed
+ */
+async function findUniqueUsername(prisma: PrismaClient, baseUsername: string): Promise<string> {
+  // First try the base username
+  const existing = await prisma.user.findUnique({
+    where: { username: baseUsername },
+    select: { id: true }
+  })
+
+  if (!existing) {
+    return baseUsername
+  }
+
+  // Add random suffix and try again (up to 10 attempts)
+  for (let i = 0; i < 10; i++) {
+    const suffix = Math.random().toString(36).substring(2, 6)
+    const candidateUsername = `${baseUsername}-${suffix}`
+
+    const exists = await prisma.user.findUnique({
+      where: { username: candidateUsername },
+      select: { id: true }
+    })
+
+    if (!exists) {
+      return candidateUsername
+    }
+  }
+
+  // Fallback: use timestamp
+  return `${baseUsername}-${Date.now().toString(36)}`
+}
+
 interface PrivacyAdapterOptions {
   prisma: PrismaClient
   /**
@@ -110,12 +172,20 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
       if (baseAdapter.createUser) {
         const createdUser = await baseAdapter.createUser(user as AdapterUser & Omit<AdapterUser, 'id'>)
 
-        // Set account type to teacher
+        // Generate a unique username from email
+        let username: string | null = null
+        if (user.email) {
+          const baseUsername = generateUsernameFromEmail(user.email)
+          username = await findUniqueUsername(prisma, baseUsername)
+        }
+
+        // Set account type to teacher and auto-generated username
         await prisma.user.update({
           where: { id: createdUser.id },
           data: {
             accountType: 'teacher',
             lastSeenAt: new Date(),
+            username, // Auto-generated username for teachers
           },
         })
 
