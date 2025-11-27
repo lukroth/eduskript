@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowLeft, FileText, Home } from 'lucide-react'
 import { SortablePages } from './sortable-pages'
 import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
@@ -103,6 +103,12 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
                   onToggle={handleSkriptUpdated}
                   showText={true}
                 />
+                <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}/frontpage`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Home className="w-4 h-4" />
+                    Front Page
+                  </Button>
+                </Link>
                 <EditModal
                   type="skript"
                   item={skript}
@@ -110,8 +116,8 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
                   triggerClassName="gap-2"
                   buttonText="Edit Skript"
                 />
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   size="sm"
                   onClick={handleDeleteSkript}
                   disabled={isLoading}

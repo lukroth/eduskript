@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Save, Loader2 } from 'lucide-react'
+import { Save, Loader2, FileText } from 'lucide-react'
+import Link from 'next/link'
 
 export function PageSettings() {
   const { data: session, update } = useSession()
@@ -188,8 +189,24 @@ export function PageSettings() {
           </div>
         </div>
 
+        {/* Front Page Section */}
+        <div className="space-y-4 border-t pt-6">
+          <div>
+            <Label className="text-sm font-medium">Front Page</Label>
+            <p className="text-sm text-muted-foreground mt-1">
+              Customize your public landing page. This is what visitors see when they visit your profile.
+            </p>
+          </div>
+          <Link href="/dashboard/frontpage">
+            <Button variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              Edit Front Page
+            </Button>
+          </Link>
+        </div>
+
         {/* Sidebar Behavior Section */}
-        <div className="space-y-4">
+        <div className="space-y-4 border-t pt-6">
           <Label className="text-sm font-medium">Sidebar Navigation Behavior</Label>
           
           <div className="space-y-3">
