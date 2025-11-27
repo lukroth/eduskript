@@ -551,10 +551,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const coalescedEvents = e.nativeEvent.getCoalescedEvents?.() || []
       const events = coalescedEvents.length > 0 ? coalescedEvents : [e.nativeEvent]
 
-      // Log coalesced event count to understand Chrome vs Firefox behavior
-      if (coalescedEvents.length > 1) {
-        console.log('[Canvas] Coalesced events:', coalescedEvents.length, 'total path points:', currentPathRef.current.length)
-      }
 
       // Process each coalesced event to capture all intermediate points
       events.forEach((event, index) => {
@@ -695,34 +691,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         const lengthPerPoint = pointCount > 1 ? totalLength / (pointCount - 1) : 0
         const durationPerPoint = pointCount > 1 ? durationMs / (pointCount - 1) : 0
 
-        // Send telemetry to debug API
-        fetch('/api/debug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            measurements: {
-              event: 'stroke_complete',
-              pointCount: String(pointCount),
-              totalLengthPx: totalLength.toFixed(1),
-              lengthPerPoint: lengthPerPoint.toFixed(2),
-              durationMs: String(durationMs),
-              durationPerPoint: durationPerPoint.toFixed(2),
-              // iPad Safari reports as "Macintosh" - detect via touch + Mac combo
-              device: /iPad|iPhone/.test(navigator.userAgent) ? 'iOS' :
-                      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) ? 'iPad' :
-                      /Android/.test(navigator.userAgent) ? 'Android' : 'Desktop',
-              pointerType: e?.pointerType || 'unknown'
-            }
-          })
-        }).catch(() => {})
 
-        console.log('[Canvas] Stroke completed', {
-          pointCount,
-          totalLengthPx: totalLength.toFixed(1),
-          lengthPerPoint: lengthPerPoint.toFixed(2),
-          durationMs,
-          durationPerPoint: durationPerPoint.toFixed(2)
-        })
 
         // Determine which section this stroke belongs to based on first point
         const firstPoint = currentPathRef.current[0]

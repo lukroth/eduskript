@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, GripVertical, Trash2 } from 'lucide-react'
 import type { Snap } from './snap-overlay'
-import Image from 'next/image'
 
 interface SnapsDisplayProps {
   snaps: Snap[]
@@ -14,16 +13,311 @@ interface SnapsDisplayProps {
   zoom: number
 }
 
-export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, zoom }: SnapsDisplayProps) {
-  const [editingSnapId, setEditingSnapId] = useState<string | null>(null)
+const DEBUG_STATE = false
+
+// Individual snap component - memoized to prevent unnecessary re-renders
+const SnapItem = memo(function SnapItem({
+  snap,
+  isNew,
+  onRemove,
+  onRename,
+  onReorder,
+  onExpand,
+  zoom,
+  allSnaps,
+}: {
+  snap: Snap
+  isNew: boolean
+  onRemove: (id: string) => void
+  onRename: (id: string, newName: string) => void
+  onReorder: (snaps: Snap[]) => void
+  onExpand: (id: string) => void
+  zoom: number
+  allSnaps: Snap[]
+}) {
+  if (DEBUG_STATE) console.log(`[SnapItem ${snap.id.slice(-4)}] Render - top:${snap.top.toFixed(0)} left:${snap.left.toFixed(0)}`)
+
+  const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
+  const elementRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  // Store current transform during drag (not position - we use transform for smooth movement)
+  const dragStateRef = useRef<{
+    isDragging: boolean
+    isResizing: boolean
+    startX: number
+    startY: number
+    startTop: number
+    startLeft: number
+    startWidth: number
+    startHeight: number
+    currentX: number
+    currentY: number
+    currentWidth: number
+    currentHeight: number
+  }>({
+    isDragging: false,
+    isResizing: false,
+    startX: 0,
+    startY: 0,
+    startTop: 0,
+    startLeft: 0,
+    startWidth: 0,
+    startHeight: 0,
+    currentX: 0,
+    currentY: 0,
+    currentWidth: 0,
+    currentHeight: 0,
+  })
+
+  const handlePointerMove = useCallback((e: PointerEvent) => {
+    const state = dragStateRef.current
+    if (!state.isDragging && !state.isResizing) return
+
+    const element = elementRef.current
+    if (!element) return
+
+    const deltaX = (e.clientX - state.startX) / zoom
+    const deltaY = (e.clientY - state.startY) / zoom
+
+    if (state.isDragging) {
+      state.currentX = deltaX
+      state.currentY = deltaY
+      // Use transform for smooth movement (GPU accelerated)
+      element.style.transform = `translate(${deltaX}px, ${deltaY}px)`
+    } else if (state.isResizing) {
+      const aspectRatio = state.startWidth / state.startHeight
+      const scale = Math.max(0.5, 1 + (deltaX + deltaY) / (state.startWidth + state.startHeight))
+      const newWidth = Math.max(100, state.startWidth * scale)
+      const newHeight = newWidth / aspectRatio
+
+      state.currentWidth = newWidth
+      state.currentHeight = newHeight
+
+      element.style.width = `${newWidth}px`
+      if (imageRef.current) {
+        imageRef.current.style.width = `${newWidth}px`
+        imageRef.current.style.height = `${newHeight}px`
+      }
+    }
+  }, [zoom])
+
+  const handlePointerUp = useCallback(() => {
+    const state = dragStateRef.current
+    const element = elementRef.current
+
+    if (DEBUG_STATE) console.log(`[SnapItem ${snap.id.slice(-4)}] PointerUp - isDragging:${state.isDragging} isResizing:${state.isResizing}`)
+
+    window.removeEventListener('pointermove', handlePointerMove)
+    window.removeEventListener('pointerup', handlePointerUp)
+
+    if (!element) {
+      state.isDragging = false
+      state.isResizing = false
+      return
+    }
+
+    // Reset visual styles
+    element.style.transform = ''
+    element.style.opacity = ''
+    element.style.boxShadow = ''
+    element.style.zIndex = ''
+    element.style.cursor = ''
+
+    if (state.isDragging) {
+      // Calculate final position
+      const finalTop = state.startTop + state.currentY
+      const finalLeft = state.startLeft + state.currentX
+
+      if (DEBUG_STATE) console.log(`[SnapItem ${snap.id.slice(-4)}] Drag end - finalTop:${finalTop.toFixed(0)} finalLeft:${finalLeft.toFixed(0)}`)
+
+      // Update all snaps with new position
+      const newSnaps = allSnaps.map(s =>
+        s.id === snap.id ? { ...s, top: finalTop, left: finalLeft } : s
+      )
+      onReorder(newSnaps)
+    } else if (state.isResizing) {
+      if (DEBUG_STATE) console.log(`[SnapItem ${snap.id.slice(-4)}] Resize end - width:${state.currentWidth.toFixed(0)} height:${state.currentHeight.toFixed(0)}`)
+
+      // Update all snaps with new size
+      const newSnaps = allSnaps.map(s =>
+        s.id === snap.id ? { ...s, width: state.currentWidth, height: state.currentHeight } : s
+      )
+      onReorder(newSnaps)
+    }
+
+    state.isDragging = false
+    state.isResizing = false
+  }, [snap.id, allSnaps, onReorder, handlePointerMove])
+
+  const handleDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const element = elementRef.current
+    if (!element) return
+
+    const state = dragStateRef.current
+    state.isDragging = true
+    state.startX = e.clientX
+    state.startY = e.clientY
+    state.startTop = snap.top
+    state.startLeft = snap.left
+    state.startWidth = snap.width
+    state.startHeight = snap.height
+    state.currentX = 0
+    state.currentY = 0
+
+    // Visual feedback
+    element.style.opacity = '0.9'
+    element.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)'
+    element.style.zIndex = '1000'
+    element.style.cursor = 'grabbing'
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+  }, [snap.top, snap.left, snap.width, snap.height, handlePointerMove, handlePointerUp])
+
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const element = elementRef.current
+    if (!element) return
+
+    const state = dragStateRef.current
+    state.isResizing = true
+    state.startX = e.clientX
+    state.startY = e.clientY
+    state.startTop = snap.top
+    state.startLeft = snap.left
+    state.startWidth = snap.width
+    state.startHeight = snap.height
+    state.currentWidth = snap.width
+    state.currentHeight = snap.height
+
+    // Visual feedback
+    element.style.opacity = '0.9'
+    element.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)'
+    element.style.zIndex = '1000'
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+  }, [snap.top, snap.left, snap.width, snap.height, handlePointerMove, handlePointerUp])
+
+  const handleStartEdit = () => {
+    setIsEditing(true)
+    setEditName(snap.name)
+  }
+
+  const handleSaveEdit = () => {
+    if (editName.trim()) onRename(snap.id, editName.trim())
+    setIsEditing(false)
+    setEditName('')
+  }
+
+  return (
+    <div
+      ref={elementRef}
+      className="absolute z-40 bg-background border-2 border-primary shadow-lg rounded-lg overflow-hidden group"
+      style={{
+        top: snap.top,
+        left: snap.left,
+        width: snap.width,
+        willChange: 'transform',
+        animation: isNew ? 'snap-fade-in 0.05s ease-out forwards' : undefined,
+      }}
+    >
+      {/* Control buttons */}
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <button
+          onClick={() => onRemove(snap.id)}
+          className="p-1 bg-background/90 backdrop-blur border border-border rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+          title="Remove snap"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Drag handle */}
+      <div
+        className="px-3 py-2 bg-muted/30 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing select-none"
+        style={{ touchAction: 'none' }}
+        onPointerDown={(e) => {
+          const target = e.target as HTMLElement
+          if (!target.closest('.snap-title')) {
+            handleDragStart(e)
+          }
+        }}
+      >
+        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+
+        {isEditing ? (
+          <input
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveEdit()
+              else if (e.key === 'Escape') setIsEditing(false)
+            }}
+            onBlur={handleSaveEdit}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="snap-title px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            autoFocus
+          />
+        ) : (
+          <span
+            onClick={(e) => {
+              e.stopPropagation()
+              handleStartEdit()
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="snap-title text-sm font-medium text-foreground cursor-text hover:text-primary transition-colors"
+          >
+            {snap.name}
+          </span>
+        )}
+      </div>
+
+      {/* Image */}
+      <div
+        className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden rounded-b-lg -m-px"
+        onClick={() => onExpand(snap.id)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          ref={imageRef}
+          src={snap.imageUrl}
+          alt={snap.name}
+          className="block rounded-b-lg"
+          style={{
+            width: snap.width,
+            height: snap.height,
+            border: 'none',
+          }}
+        />
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+        style={{ touchAction: 'none' }}
+        onPointerDown={handleResizeStart}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-primary">
+          <path d="M15 10L10 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    </div>
+  )
+})
+
+export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, zoom }: SnapsDisplayProps) {
+  if (DEBUG_STATE) console.log(`[SnapsDisplay] Render - ${snaps.length} snaps`)
+
   const [expandedSnapId, setExpandedSnapId] = useState<string | null>(null)
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const dragStart = useRef({ x: 0, y: 0 })
-  const [resizingId, setResizingId] = useState<string | null>(null)
-  const [resizeDelta, setResizeDelta] = useState({ width: 0, height: 0 })
-  const resizeStart = useRef({ x: 0, y: 0, width: 0, height: 0 })
   const [newSnapIds, setNewSnapIds] = useState<Set<string>>(new Set())
   const prevSnapIdsRef = useRef<Set<string>>(new Set())
 
@@ -32,21 +326,14 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     const currentIds = new Set(snaps.map(s => s.id))
     const prevIds = prevSnapIdsRef.current
 
-    // Find newly added snaps
     const newIds = new Set<string>()
     currentIds.forEach(id => {
-      if (!prevIds.has(id)) {
-        newIds.add(id)
-      }
+      if (!prevIds.has(id)) newIds.add(id)
     })
 
     if (newIds.size > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewSnapIds(newIds)
-      // Remove from newSnapIds after animation completes
-      const timer = setTimeout(() => {
-        setNewSnapIds(new Set())
-      }, 150) // 50ms fade-in + buffer
+      const timer = setTimeout(() => setNewSnapIds(new Set()), 150)
       prevSnapIdsRef.current = currentIds
       return () => clearTimeout(timer)
     }
@@ -54,291 +341,27 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     prevSnapIdsRef.current = currentIds
   }, [snaps])
 
-  const handleStartEdit = (snap: Snap) => {
-    setEditingSnapId(snap.id)
-    setEditName(snap.name)
-  }
-
-  const handleSaveEdit = (id: string) => {
-    if (editName.trim()) {
-      onRenameSnap(id, editName.trim())
-    }
-    setEditingSnapId(null)
-    setEditName('')
-  }
-
-  const handleCancelEdit = () => {
-    setEditingSnapId(null)
-    setEditName('')
-  }
-
-  const handleToggleExpand = (id: string) => {
-    setExpandedSnapId(prev => prev === id ? null : id)
-  }
-
-  const handleDragStart = (e: React.PointerEvent, snapId: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // Capture pointer for drag
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setDraggingId(snapId)
-    dragStart.current = { x: e.clientX, y: e.clientY }
-    setDragOffset({ x: 0, y: 0 })
-  }
-
-  const handleDragMove = useCallback((e: PointerEvent) => {
-    const offsetX = (e.clientX - dragStart.current.x) / zoom
-    const offsetY = (e.clientY - dragStart.current.y) / zoom
-    setDragOffset({ x: offsetX, y: offsetY })
-  }, [zoom])
-
-  const handleDragEnd = useCallback(() => {
-    setDragOffset(currentOffset => {
-      // Ignore tiny movements
-      if (Math.abs(currentOffset.x) < 5 && Math.abs(currentOffset.y) < 5) {
-        setDraggingId(null)
-        return { x: 0, y: 0 }
-      }
-
-      const draggedIndex = snaps.findIndex(s => s.id === draggingId)
-      if (draggedIndex === -1) {
-        setDraggingId(null)
-        return { x: 0, y: 0 }
-      }
-
-      // Update the snap's position (both left and top)
-      const newSnaps = snaps.map((snap, idx) => {
-        if (idx === draggedIndex) {
-          return {
-            ...snap,
-            left: snap.left + currentOffset.x,
-            top: snap.top + currentOffset.y
-          }
-        }
-        return snap
-      })
-
-      onReorderSnaps(newSnaps)
-
-      setDraggingId(null)
-      return { x: 0, y: 0 }
-    })
-  }, [draggingId, snaps, onReorderSnaps])
-
-  const handleResizeStart = (e: React.PointerEvent, snap: Snap) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // Capture pointer for resize
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setResizingId(snap.id)
-    resizeStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      width: snap.width,
-      height: snap.height
-    }
-    setResizeDelta({ width: 0, height: 0 })
-  }
-
-  const handleResizeMove = useCallback((e: PointerEvent) => {
-    const deltaX = (e.clientX - resizeStart.current.x) / zoom
-    const deltaY = (e.clientY - resizeStart.current.y) / zoom
-    setResizeDelta({ width: deltaX, height: deltaY })
-  }, [zoom])
-
-  const handleResizeEnd = useCallback(() => {
-    setResizeDelta(currentDelta => {
-      const resizedIndex = snaps.findIndex(s => s.id === resizingId)
-      if (resizedIndex === -1) {
-        setResizingId(null)
-        return { width: 0, height: 0 }
-      }
-
-      const snap = snaps[resizedIndex]
-      const newWidth = Math.max(100, snap.width + currentDelta.width)
-      const newHeight = Math.max(75, snap.height + currentDelta.height)
-
-      // Update the snap's dimensions
-      const newSnaps = snaps.map((s, idx) => {
-        if (idx === resizedIndex) {
-          return {
-            ...s,
-            width: newWidth,
-            height: newHeight
-          }
-        }
-        return s
-      })
-
-      onReorderSnaps(newSnaps)
-
-      setResizingId(null)
-      return { width: 0, height: 0 }
-    })
-  }, [resizingId, snaps, onReorderSnaps])
-
-  // Add/remove pointer event listeners for dragging
-  useEffect(() => {
-    if (draggingId) {
-      window.addEventListener('pointermove', handleDragMove)
-      window.addEventListener('pointerup', handleDragEnd)
-      return () => {
-        window.removeEventListener('pointermove', handleDragMove)
-        window.removeEventListener('pointerup', handleDragEnd)
-      }
-    }
-  }, [draggingId, handleDragMove, handleDragEnd])
-
-  // Add/remove pointer event listeners for resizing
-  useEffect(() => {
-    if (resizingId) {
-      window.addEventListener('pointermove', handleResizeMove)
-      window.addEventListener('pointerup', handleResizeEnd)
-      return () => {
-        window.removeEventListener('pointermove', handleResizeMove)
-        window.removeEventListener('pointerup', handleResizeEnd)
-      }
-    }
-  }, [resizingId, handleResizeMove, handleResizeEnd])
-
   const expandedSnap = snaps.find(s => s.id === expandedSnapId)
 
   if (snaps.length === 0) return null
 
   return (
     <>
-      {snaps.map((snap, index) => {
-        const isDragging = draggingId === snap.id
-        const isResizing = resizingId === snap.id
-        const isNew = newSnapIds.has(snap.id)
-        const transform = isDragging ? `translate(${dragOffset.x}px, ${dragOffset.y}px)` : 'none'
-        const displayWidth = isResizing ? snap.width + resizeDelta.width : snap.width
-        const displayHeight = isResizing ? snap.height + resizeDelta.height : snap.height
+      {snaps.map((snap) => (
+        <SnapItem
+          key={snap.id}
+          snap={snap}
+          isNew={newSnapIds.has(snap.id)}
+          onRemove={onRemoveSnap}
+          onRename={onRenameSnap}
+          onReorder={onReorderSnaps}
+          onExpand={setExpandedSnapId}
+          zoom={zoom}
+          allSnaps={snaps}
+        />
+      ))}
 
-        return (
-          <div
-            key={snap.id}
-            className="absolute z-40 bg-background border-2 border-primary shadow-lg rounded-lg overflow-hidden group transition-shadow"
-            style={{
-              top: `${snap.top}px`,
-              left: `${snap.left}px`,
-              width: `${displayWidth}px`,
-              transform,
-              opacity: isDragging || isResizing ? 0.8 : 1,
-              boxShadow: isDragging || isResizing ? '0 10px 30px rgba(0,0,0,0.3)' : undefined,
-              animation: isNew ? 'snap-fade-in 0.05s ease-out forwards' : undefined,
-            }}
-          >
-            {/* Control buttons */}
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-              {/* Remove button */}
-              <button
-                onClick={() => onRemoveSnap(snap.id)}
-                className="p-1 bg-background/90 backdrop-blur border border-border rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
-                title="Remove snap"
-                aria-label="Remove this snap"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Snap name/title with drag handle */}
-            <div
-              className="px-3 py-2 bg-muted/30 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing"
-              style={{ touchAction: 'none' }}
-              onPointerDown={(e) => {
-                // Only start drag if not clicking on the title text or input
-                const target = e.target as HTMLElement
-                if (!target.closest('.snap-title')) {
-                  handleDragStart(e, snap.id)
-                }
-              }}
-            >
-              {/* Drag handle icon */}
-              <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-
-              {/* Name input/display */}
-              {editingSnapId === snap.id ? (
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSaveEdit(snap.id)
-                    } else if (e.key === 'Escape') {
-                      handleCancelEdit()
-                    }
-                  }}
-                  onBlur={() => handleSaveEdit(snap.id)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="snap-title px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  autoFocus
-                />
-              ) : (
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleStartEdit(snap)
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="snap-title text-sm font-medium text-foreground cursor-text hover:text-primary transition-colors"
-                  title="Click to rename"
-                >
-                  {snap.name}
-                </span>
-              )}
-            </div>
-
-            {/* Captured image */}
-            <div
-              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden rounded-b-lg -m-px"
-              onClick={() => handleToggleExpand(snap.id)}
-              title="Click to expand"
-            >
-              {/* Use regular img tag for SVG data URLs to avoid Next.js processing */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={snap.imageUrl}
-                alt={snap.name}
-                width={displayWidth}
-                height={displayHeight}
-                className="w-full h-auto block rounded-b-lg"
-                style={{
-                  border: 'none',
-                  display: 'block',
-                }}
-              />
-            </div>
-
-            {/* Resize handle */}
-            <div
-              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
-              style={{ touchAction: 'none' }}
-              onPointerDown={(e) => handleResizeStart(e, snap)}
-              title="Drag to resize"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                className="text-primary"
-              >
-                <path
-                  d="M15 10L10 15M15 5L5 15"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-
-          </div>
-        )
-      })}
-
-      {/* Expanded snap modal - rendered via portal to avoid transform issues */}
+      {/* Expanded snap modal */}
       {expandedSnap && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8"
@@ -348,29 +371,21 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
             className="relative max-w-[90vw] max-h-[90vh] bg-background border-2 border-primary rounded-lg overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">{expandedSnap.name}</h3>
               <button
                 onClick={() => setExpandedSnapId(null)}
                 className="p-2 hover:bg-accent rounded-md transition-colors"
-                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Expanded image */}
             <div className="overflow-auto max-h-[calc(90vh-4rem)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={expandedSnap.imageUrl}
-                alt={expandedSnap.name}
-                className="w-auto h-auto max-w-full"
-              />
+              <img src={expandedSnap.imageUrl} alt={expandedSnap.name} className="w-auto h-auto max-w-full" />
             </div>
 
-            {/* Footer info */}
             <div className="px-4 py-2 bg-muted/30 border-t border-border text-sm text-muted-foreground text-center">
               {expandedSnap.width} × {expandedSnap.height} pixels
             </div>

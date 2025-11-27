@@ -125,6 +125,9 @@ model User {
   teacherIdentityRequests IdentityRevealRequest[] @relation("TeacherIdentityRequests")
   studentIdentityRequests IdentityRevealRequest[] @relation("StudentIdentityRequests")
 
+  // User data (code, annotations, settings, etc.)
+  userData UserData[] @relation("UserDataEntries")
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -482,4 +485,27 @@ model IdentityRevealRequest {
   @@index([classId])
   @@index([teacherId])
   @@map("identity_reveal_requests")
+}
+
+// User Data Storage
+// Stores all user-generated data (code, annotations, settings) with cloud sync support
+// Uses JSONB for flexible, queryable storage with efficient updates
+model UserData {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  adapter   String   // Data type: 'code', 'annotations', 'settings', 'preferences', 'snaps'
+  itemId    String   @map("item_id") // pageId for page-specific data, 'global' for user-wide data
+  data      Json     // JSONB - the actual data payload
+  version   Int      @default(1) // Optimistic concurrency control
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation("UserDataEntries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adapter, itemId])
+  @@index([userId])
+  @@index([userId, adapter])
+  @@index([updatedAt])
+  @@map("user_data")
 }

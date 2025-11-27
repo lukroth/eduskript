@@ -59,12 +59,6 @@ export async function POST(request: NextRequest) {
       debugReports.shift()
     }
 
-    // Log immediately to server console
-    console.log('\n🔍 NEW DEBUG REPORT from:', userAgent.includes('iPad') ? 'iPad' : userAgent.includes('iPhone') ? 'iPhone' : 'Desktop')
-    Object.entries(report.measurements).forEach(([key, value]) => {
-      const isOverflow = key === 'OVERFLOW' && value !== 'none'
-      console.log(`  ${isOverflow ? '❌' : '✓'} ${key}: ${value}`)
-    })
 
     return NextResponse.json({ success: true, id: report.id })
   } catch (error) {

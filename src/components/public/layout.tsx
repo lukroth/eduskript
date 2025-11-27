@@ -8,6 +8,7 @@ import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
 import { AuthButton } from './auth-button'
 import { FontSizeControls } from './font-size-controls'
+import { SyncStatusButton } from '@/components/ui/sync-status'
 import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
@@ -292,7 +293,7 @@ export function PublicSiteLayout({
           </div>
 
           {/* Navigation */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col">
             {isSidebarCollapsed ? (
               /* Simplified navigation when collapsed - just show essential icons */
               <nav className="space-y-2">
@@ -468,6 +469,11 @@ export function PublicSiteLayout({
               )}
               </nav>
             )}
+
+            {/* Sync Status Button - bottom of sidebar */}
+            <div className={`mt-auto pt-4 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+              <SyncStatusButton />
+            </div>
           </div>
         </div>
       </div>

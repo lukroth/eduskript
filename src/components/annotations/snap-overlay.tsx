@@ -24,9 +24,13 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
   const [isDragging, setIsDragging] = useState(false)
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null)
   const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null)
+  const [isCapturing, setIsCapturing] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't start new selection while capturing
+    if (isCapturing) return
+
     // Only start dragging on left click/primary button
     if (e.button !== 0) return
 
@@ -46,10 +50,10 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       x: (e.clientX - rect.left) / zoom,
       y: (e.clientY - rect.top) / zoom
     })
-  }, [zoom])
+  }, [zoom, isCapturing])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging || !startPos) return
+    if (!isDragging || !startPos || isCapturing) return
 
     const rect = overlayRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -59,13 +63,13 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       x: (e.clientX - rect.left) / zoom,
       y: (e.clientY - rect.top) / zoom
     })
-  }, [isDragging, startPos, zoom])
+  }, [isDragging, startPos, zoom, isCapturing])
 
   const handlePointerUp = useCallback(async (e: React.PointerEvent) => {
     // Release pointer capture
     ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
 
-    if (!isDragging || !startPos || !currentPos) {
+    if (!isDragging || !startPos || !currentPos || isCapturing) {
       setIsDragging(false)
       setStartPos(null)
       setCurrentPos(null)
@@ -85,6 +89,9 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       setCurrentPos(null)
       return
     }
+
+    // Mark as capturing to prevent new interactions
+    setIsCapturing(true)
 
     try {
       // Get the paper element (the main content area)
@@ -549,7 +556,7 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       // Capture as JPEG with quality compression
       // Use style override to ensure position doesn't affect capture
       const imageUrl = await toJpeg(wrapper, {
-        quality: 0.3,
+        quality: 0.6,
         skipFonts: true,
         style: {
           position: 'static',
@@ -607,7 +614,7 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
     setIsDragging(false)
     setStartPos(null)
     setCurrentPos(null)
-  }, [isDragging, startPos, currentPos, onCapture, onCancel, nextSnapNumber, zoom])
+  }, [isDragging, startPos, currentPos, onCapture, onCancel, nextSnapNumber, zoom, isCapturing])
 
   // Calculate selection rectangle for display (in viewport coordinates)
   // startPos/currentPos are in logical coords (divided by zoom), multiply back for display

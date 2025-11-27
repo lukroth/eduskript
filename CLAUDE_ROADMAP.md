@@ -10,9 +10,11 @@
 ## 🎯 Priority List
 
 todo: 
-- persist snaps
+- persist snaps + annotations. 
 - progress bar doesn't update properly
-- add edit link for teachers
+- create overview for students with all their snaps (great for learning / revising)
+- ability for teachers to store snaps + annotations per class.
+- add edit link for teachers on public pages
 - bigger handles for things when using touch (editor)
 - ux of annotations (when to activate / deactivate)
 - weird on chrome for android

@@ -464,9 +464,20 @@ interface MarkdownContext {
 - **Platform**: Deployed on Koyeb (managed PostgreSQL + Next.js hosting)
 - **Next.js**: Configured for standalone output with ES Modules
 - **Database**: PostgreSQL with pg adapter (Koyeb managed PostgreSQL for production)
+- **Object Storage**: Scaleway S3-compatible bucket for user-generated images (snaps)
 - **Prisma**: Version 7.x with driver adapters (no version conflicts!)
 - **Environment**: Node.js 22.x, pnpm package manager, TypeScript ES2023
 - **Local Development**: `docker-compose.local.yml` for PostgreSQL database
+
+### Environment Variables (Scaleway Object Storage)
+For snap image storage, configure these environment variables:
+```
+SCALEWAY_REGION=fr-par
+SCALEWAY_ENDPOINT=https://s3.fr-par.scw.cloud
+SCALEWAY_BUCKET=eduskript-user-data
+SCALEWAY_ACCESS_KEY_ID=<your-access-key>
+SCALEWAY_SECRET_ACCESS_KEY=<your-secret-key>
+```
 
 ## Testing & Quality Assurance
 - **Test Framework**: Vitest 4.x with React Testing Library

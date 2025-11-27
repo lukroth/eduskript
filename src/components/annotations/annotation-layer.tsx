@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
-import { useUserData } from '@/lib/userdata/hooks'
+import { useSyncedUserData } from '@/lib/userdata/provider'
 import type { AnnotationData } from '@/lib/userdata/types'
+import type { SnapsData } from '@/lib/userdata/adapters'
 import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
 import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
@@ -22,26 +23,66 @@ interface AnnotationLayerProps {
 export function AnnotationLayer({ pageId, content, children }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
 
-  // Use user data service for annotations
-  const { data: annotationData, updateData: updateAnnotationData, deleteData: deleteAnnotationData } = useUserData<AnnotationData>(
+  // Use synced user data service for annotations
+  const { data: annotationData, updateData: updateAnnotationData, isLoading: annotationLoading } = useSyncedUserData<AnnotationData>(
     pageId,
     'annotations',
     null
   )
 
-  const [mode, setMode] = useState<AnnotationMode>('view')
-  const [pageVersion, setPageVersion] = useState<string>('')
-  const [versionMismatch, setVersionMismatch] = useState(false)
-  const [hasAnnotations, setHasAnnotations] = useState(false)
-  const [canvasData, setCanvasData] = useState<string>('')
-  const [headingPositions, setHeadingPositions] = useState<HeadingPosition[]>([])
+  // Use synced user data service for snaps
+  // IMPORTANT: initialData must be a stable reference, not an inline object literal
+  const emptySnapsData = useMemo(() => ({ snaps: [] } as SnapsData), [])
+  const { data: snapsData, updateData: updateSnapsData, isLoading: snapsLoading } = useSyncedUserData<SnapsData>(
+    pageId,
+    'snaps',
+    emptySnapsData
+  )
+
+  // Delete function - update with empty/null data
+  const deleteAnnotationData = async () => {
+    await updateAnnotationData({ canvasData: '', headingOffsets: {}, pageVersion: '' })
+  }
+
+  // DEBUG: Track state updates that cause re-renders
+  const DEBUG_STATE = false
+  const renderCountRef = useRef(0)
+  renderCountRef.current++
+  if (DEBUG_STATE) {
+    console.log(`[AnnotationLayer] Render #${renderCountRef.current}`)
+  }
+
+  const [mode, _setMode] = useState<AnnotationMode>('view')
+  const setMode = (v: AnnotationMode) => { if (DEBUG_STATE) console.log('[setState] mode:', v); _setMode(v) }
+
+  const [pageVersion, _setPageVersion] = useState<string>('')
+  const setPageVersion = (v: string) => { if (DEBUG_STATE) console.log('[setState] pageVersion'); _setPageVersion(v) }
+
+  const [versionMismatch, _setVersionMismatch] = useState(false)
+  const setVersionMismatch = (v: boolean) => { if (DEBUG_STATE) console.log('[setState] versionMismatch:', v); _setVersionMismatch(v) }
+
+  const [hasAnnotations, _setHasAnnotations] = useState(false)
+  const setHasAnnotations = (v: boolean) => { if (DEBUG_STATE) console.log('[setState] hasAnnotations:', v); _setHasAnnotations(v) }
+
+  const [canvasData, _setCanvasData] = useState<string>('')
+  const setCanvasData = (v: string) => { if (DEBUG_STATE) console.log('[setState] canvasData (length:', v.length, ')'); _setCanvasData(v) }
+
+  const [headingPositions, _setHeadingPositions] = useState<HeadingPosition[]>([])
+  const setHeadingPositions = (v: HeadingPosition[]) => { if (DEBUG_STATE) console.log('[setState] headingPositions:', v.length); _setHeadingPositions(v) }
 
   // Save state tracking
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [stylusModeActive, setStylusModeActive] = useState(false)
-  const [activePen, setActivePen] = useState(0)
+  const [saveState, _setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const setSaveState = (v: 'idle' | 'saving' | 'saved' | 'error') => { if (DEBUG_STATE) console.log('[setState] saveState:', v); _setSaveState(v) }
+
+  const [stylusModeActive, _setStylusModeActive] = useState(false)
+  const setStylusModeActive = (v: boolean) => { if (DEBUG_STATE) console.log('[setState] stylusModeActive:', v); _setStylusModeActive(v) }
+
+  const [activePen, _setActivePen] = useState(0)
+  const setActivePen = (v: number) => { if (DEBUG_STATE) console.log('[setState] activePen:', v); _setActivePen(v) }
+
   // Track if pen is currently hovering or drawing - controls pointer-events on canvas
-  const [penActive, setPenActive] = useState(false)
+  const [penActive, _setPenActive] = useState(false)
+  const setPenActive = (v: boolean) => { if (DEBUG_STATE) console.log('[setState] penActive:', v); _setPenActive(v) }
   // Use refs for zoom to avoid re-renders on every gesture
   const zoomRef = useRef(1.0)
   const rafIdRef = useRef<number | null>(null)
@@ -54,7 +95,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Scroll container ref for zoom-scroll sync
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   // Display-only zoom state (updated on gesture end, not during gesture)
-  const [zoom, setZoom] = useState(1.0)
+  const [zoom, _setZoom] = useState(1.0)
+  const setZoom = (v: number) => { if (DEBUG_STATE) console.log('[setState] zoom:', v); _setZoom(v) }
   const [penColors, setPenColors] = useState<[string, string, string]>(() => {
     // Load pen colors from localStorage
     if (typeof window !== 'undefined') {
@@ -94,22 +136,49 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isClearingRef = useRef(false)
-  const [pageHeight, setPageHeight] = useState(0)
-  const [orphanedStrokesCount, setOrphanedStrokesCount] = useState(0)
-  const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
-  const [storedPaddingLeft, setStoredPaddingLeft] = useState<number | undefined>(undefined)
-  const [currentPaddingLeft, setCurrentPaddingLeft] = useState<number>(0)
-  const [snaps, setSnaps] = useState<Snap[]>([])
+  const [pageHeight, _setPageHeight] = useState(0)
+  const setPageHeight = (v: number) => { if (DEBUG_STATE) console.log('[setState] pageHeight:', v); _setPageHeight(v) }
+
+  const [orphanedStrokesCount, _setOrphanedStrokesCount] = useState(0)
+  const setOrphanedStrokesCount = (v: number) => { if (DEBUG_STATE) console.log('[setState] orphanedStrokesCount:', v); _setOrphanedStrokesCount(v) }
+
+  const [storedHeadingOffsets, _setStoredHeadingOffsets] = useState<Record<string, number>>({})
+  const setStoredHeadingOffsets = (v: Record<string, number>) => { if (DEBUG_STATE) console.log('[setState] storedHeadingOffsets'); _setStoredHeadingOffsets(v) }
+
+  const [storedPaddingLeft, _setStoredPaddingLeft] = useState<number | undefined>(undefined)
+  const setStoredPaddingLeft = (v: number | undefined) => { if (DEBUG_STATE) console.log('[setState] storedPaddingLeft:', v); _setStoredPaddingLeft(v) }
+
+  const [currentPaddingLeft, _setCurrentPaddingLeft] = useState<number>(0)
+  const setCurrentPaddingLeft = (v: number) => { if (DEBUG_STATE) console.log('[setState] currentPaddingLeft:', v); _setCurrentPaddingLeft(v) }
+
+  // Derive snaps from synced data (convert SnapData to Snap type)
+  // Memoized to prevent unnecessary re-renders of SnapsDisplay
+  const snaps: Snap[] = useMemo(() => {
+    return (snapsData?.snaps || []).map(snapData => ({
+      id: snapData.id,
+      name: snapData.name,
+      imageUrl: snapData.imageUrl,
+      top: snapData.top,
+      left: snapData.left,
+      width: snapData.width,
+      height: snapData.height,
+    }))
+  }, [snapsData?.snaps])
 
   // Pen priority: pen always wins, ignore other inputs for 200ms after last pen event
   const lastPenEventTimeRef = useRef<number>(0)
 
   // Canvas width matches paper width exactly including padding
   // Paper element for portal (canvas renders directly into #paper)
-  const [paperElement, setPaperElement] = useState<HTMLElement | null>(null)
+  const [paperElement, _setPaperElement] = useState<HTMLElement | null>(null)
+  const setPaperElement = (v: HTMLElement | null) => { if (DEBUG_STATE) console.log('[setState] paperElement:', !!v); _setPaperElement(v) }
+
   // Main element for snaps portal (snaps need to overflow paper boundaries)
-  const [mainElement, setMainElement] = useState<HTMLElement | null>(null)
-  const [paperWidth, setPaperWidth] = useState(1280) // Fixed paper width
+  const [mainElement, _setMainElement] = useState<HTMLElement | null>(null)
+  const setMainElement = (v: HTMLElement | null) => { if (DEBUG_STATE) console.log('[setState] mainElement:', !!v); _setMainElement(v) }
+
+  const [paperWidth, _setPaperWidth] = useState(1280) // Fixed paper width
+  const setPaperWidth = (v: number) => { if (DEBUG_STATE) console.log('[setState] paperWidth:', v); _setPaperWidth(v) }
 
   // Get paper element for portal and measure its width
   useEffect(() => {
@@ -355,75 +424,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const paperRect = paperElement.getBoundingClientRect()
       const style = window.getComputedStyle(paperElement)
 
-      console.log('=== DOM ELEMENTS ===')
-      console.log('Paper element:', paperElement)
-      console.log('ContentRef element:', contentRef.current)
-
-      console.log('\n=== Paper element computed style ===', {
-        paddingTop: style.paddingTop,
-        paddingLeft: style.paddingLeft,
-        paddingBottom: style.paddingBottom,
-        paddingRight: style.paddingRight,
-        marginTop: style.marginTop,
-        marginBottom: style.marginBottom
-      })
-
       const paddingLeft = parseFloat(style.paddingLeft) || 0
-      const paddingTop = parseFloat(style.paddingTop) || 0
 
       // Track current padding for horizontal repositioning
       setCurrentPaddingLeft(paddingLeft)
 
-      // Get article element (parent of contentRef)
-      const articleElement = contentRef.current.parentElement
-      let articleMarginTop = 0
-      let articleMarginBottom = 0
-      if (articleElement) {
-        console.log('Article element:', articleElement)
-        const articleStyle = window.getComputedStyle(articleElement)
-        articleMarginTop = parseFloat(articleStyle.marginTop) || 0
-        articleMarginBottom = parseFloat(articleStyle.marginBottom) || 0
-
-        console.log('Article element computed style:', {
-          tagName: articleElement.tagName,
-          marginTop: articleStyle.marginTop,
-          marginBottom: articleStyle.marginBottom,
-          paddingTop: articleStyle.paddingTop,
-          paddingBottom: articleStyle.paddingBottom
-        })
-      }
-
-      // Check if there's a preview banner before the article
-      const previewBanner = paperElement.querySelector('.bg-yellow-50')
-      let previewBannerHeight = 0
-      if (previewBanner) {
-        console.log('Preview banner element:', previewBanner)
-        const bannerRect = previewBanner.getBoundingClientRect()
-        previewBannerHeight = bannerRect.height
-        const bannerStyle = window.getComputedStyle(previewBanner)
-        console.log('Preview banner:', {
-          height: bannerRect.height,
-          marginBottom: bannerStyle.marginBottom
-        })
-      }
-
-      // Calculate actual offset using getBoundingClientRect (for debug logging)
-      const contentRect = contentRef.current.getBoundingClientRect()
-      const actualOffsetTop = contentRect.top - paperRect.top
-      const actualOffsetLeft = contentRect.left - paperRect.left
-
       setPaperWidth(paperRect.width)
-
-      console.log('\n=== Canvas offset summary ===', {
-        paddingTopParsed: paddingTop,
-        paddingLeftParsed: paddingLeft,
-        articleMarginTop,
-        previewBannerHeight,
-        calculatedTotal: paddingTop + articleMarginTop + previewBannerHeight,
-        actualOffsetTop,
-        actualOffsetLeft,
-        paperWidth: paperRect.width
-      })
     }
 
     // Query for all headings with data-section-id (from h1, h2, h3 elements)
@@ -685,28 +691,58 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
   }, [])
 
-  // Handle snap capture
+  // Handle snap capture - save directly with base64 URL
+  // The sync service will persist to IndexedDB/PostgreSQL
+  // S3 upload can be added later as background optimization
   const handleSnapCapture = useCallback((snap: Snap) => {
-    setSnaps(prev => [...prev, snap])
-    setMode('view') // Return to view mode after capturing
-  }, [])
+    setMode('view') // Return to view mode immediately
 
-  // Handle snap removal
+    // Save snap directly - imageUrl is already base64 from canvas capture
+    const newSnap = {
+      id: snap.id,
+      name: snap.name,
+      imageUrl: snap.imageUrl, // base64 data URL
+      top: snap.top,
+      left: snap.left,
+      width: snap.width,
+      height: snap.height,
+    }
+    const currentSnaps = snapsData?.snaps || []
+    updateSnapsData({ snaps: [...currentSnaps, newSnap] })
+  }, [snapsData, updateSnapsData])
+
+  // Handle snap removal - just remove from synced data
   const handleRemoveSnap = useCallback((id: string) => {
-    setSnaps(prev => prev.filter(snap => snap.id !== id))
-  }, [])
+    const currentSnaps = snapsData?.snaps || []
+
+    // Remove from synced data
+    updateSnapsData({ snaps: currentSnaps.filter(snap => snap.id !== id) })
+  }, [snapsData, updateSnapsData])
 
   // Handle snap rename
   const handleRenameSnap = useCallback((id: string, newName: string) => {
-    setSnaps(prev => prev.map(snap =>
-      snap.id === id ? { ...snap, name: newName } : snap
-    ))
-  }, [])
+    const currentSnaps = snapsData?.snaps || []
+    updateSnapsData({
+      snaps: currentSnaps.map(snap =>
+        snap.id === id ? { ...snap, name: newName } : snap
+      )
+    })
+  }, [snapsData, updateSnapsData])
 
   // Handle snap reorder
   const handleReorderSnaps = useCallback((reorderedSnaps: Snap[]) => {
-    setSnaps(reorderedSnaps)
-  }, [])
+    // Convert Snap[] to SnapData[]
+    const reorderedSnapData = reorderedSnaps.map(snap => ({
+      id: snap.id,
+      name: snap.name,
+      imageUrl: snap.imageUrl,
+      top: snap.top,
+      left: snap.left,
+      width: snap.width,
+      height: snap.height,
+    }))
+    updateSnapsData({ snaps: reorderedSnapData })
+  }, [updateSnapsData])
 
   // Handle stylus detection
   const handleStylusDetected = useCallback(() => {
