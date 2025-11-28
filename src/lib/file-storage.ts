@@ -1,12 +1,17 @@
 import * as crypto from 'crypto'
-import * as fs from 'fs/promises'
-import * as path from 'path'
 import { prisma } from './prisma'
+import {
+  isTeacherS3Configured,
+  uploadTeacherFile,
+  downloadTeacherFile,
+  deleteTeacherFile,
+  getTeacherFileUrl,
+  teacherFileExists,
+} from './s3'
 
 // File storage configuration
-const UPLOADS_DIR = process.env.UPLOAD_DIR || '/app/uploads'
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB
-const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw').split(',')
+const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw,db,sqlite').split(',')
 
 /**
  * Calculate SHA256 hash for file content (using built-in crypto for simplicity)
@@ -16,26 +21,19 @@ export async function calculateFileHash(buffer: Buffer): Promise<string> {
 }
 
 /**
- * Ensure uploads directory exists
- */
-export async function ensureUploadsDir(): Promise<void> {
-  try {
-    await fs.access(UPLOADS_DIR)
-  } catch {
-    try {
-      await fs.mkdir(UPLOADS_DIR, { recursive: true })
-    } catch (mkdirError) {
-      throw new Error(`Failed to create uploads directory: ${mkdirError instanceof Error ? mkdirError.message : String(mkdirError)}`)
-    }
-  }
-}
-
-/**
  * Get file extension from filename
  */
 export function getFileExtension(filename: string): string | null {
-  const ext = path.extname(filename).toLowerCase().substring(1)
-  return ext || null
+  const lastDot = filename.lastIndexOf('.')
+  if (lastDot === -1 || lastDot === filename.length - 1) return null
+  return filename.substring(lastDot + 1).toLowerCase()
+}
+
+/**
+ * Get the S3 key for a file based on its hash and extension
+ */
+export function getS3Key(hash: string, extension: string): string {
+  return `files/${hash}.${extension}`
 }
 
 /**
@@ -63,14 +61,7 @@ export function validateFile(filename: string, size: number): { valid: boolean; 
 }
 
 /**
- * Get physical file path from hash and extension
- */
-export function getPhysicalPath(hash: string, extension: string): string {
-  return path.join(UPLOADS_DIR, `${hash}.${extension}`)
-}
-
-/**
- * Save file to disk and database
+ * Save file to S3 and database
  */
 export async function saveFile({
   buffer,
@@ -89,6 +80,11 @@ export async function saveFile({
   contentType?: string
   overwrite?: boolean
 }): Promise<{ id: string; hash: string; url: string; size: number }> {
+  // Check S3 configuration
+  if (!isTeacherS3Configured()) {
+    throw new Error('File storage not configured. Set SCW_TEACHER_BUCKET environment variable.')
+  }
+
   // Validate file
   const validation = validateFile(filename, buffer.length)
   if (!validation.valid) {
@@ -109,30 +105,17 @@ export async function saveFile({
     throw new Error('File already exists. Use overwrite option or rename the file.')
   }
 
-  // Calculate hash and physical file path
+  // Calculate hash for content-addressed storage
   const hash = await calculateFileHash(buffer)
   const extension = getFileExtension(filename)!
-  const physicalPath = getPhysicalPath(hash, extension)
+  const mimeType = contentType || getMimeType(extension)
 
-  // Ensure uploads directory exists
-  await ensureUploadsDir()
+  // Check if file already exists in S3 (deduplication)
+  const fileExistsInS3 = await teacherFileExists(hash, extension)
 
-  // Check if physical file already exists (deduplication)
-  let fileExists = false
-  try {
-    await fs.access(physicalPath)
-    fileExists = true
-  } catch {
-    // File doesn't exist, we'll create it
-  }
-
-  // Write file to disk if it doesn't exist (deduplication)
-  if (!fileExists) {
-    try {
-      await fs.writeFile(physicalPath, buffer)
-    } catch (writeError) {
-      throw new Error(`Failed to write file to disk: ${writeError instanceof Error ? writeError.message : String(writeError)}`)
-    }
+  // Upload to S3 if it doesn't exist (deduplication)
+  if (!fileExistsInS3) {
+    await uploadTeacherFile(hash, extension, buffer, mimeType)
   }
 
   // Create or update database record
@@ -147,7 +130,7 @@ export async function saveFile({
       data: {
         // Only update hash if it has changed (to avoid unique constraint violation)
         ...(hashChanged && { hash }),
-        contentType,
+        contentType: mimeType,
         size: BigInt(buffer.length),
         updatedAt: new Date()
       }
@@ -160,7 +143,7 @@ export async function saveFile({
         parentId,
         skriptId,
         hash,
-        contentType,
+        contentType: mimeType,
         size: BigInt(buffer.length),
         createdBy: userId,
         isDirectory: false
@@ -174,6 +157,55 @@ export async function saveFile({
     url: `/api/files/${file.id}`,
     size: buffer.length
   }
+}
+
+/**
+ * Get MIME type from file extension
+ */
+function getMimeType(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt': 'text/plain',
+    'md': 'text/markdown',
+    'zip': 'application/zip',
+    'mp4': 'video/mp4',
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    'webm': 'video/webm',
+    'csv': 'text/csv',
+    'json': 'application/json',
+    'xml': 'application/xml',
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'ts': 'application/typescript',
+    'py': 'text/x-python',
+    'java': 'text/x-java',
+    'cpp': 'text/x-c++src',
+    'c': 'text/x-csrc',
+    'h': 'text/x-chdr',
+    'hpp': 'text/x-c++hdr',
+    'rs': 'text/x-rustsrc',
+    'go': 'text/x-go',
+    'php': 'text/x-php',
+    'rb': 'text/x-ruby',
+    'sh': 'application/x-sh',
+    'yml': 'text/yaml',
+    'yaml': 'text/yaml',
+    'excalidraw': 'application/json',
+    'db': 'application/x-sqlite3',
+    'sqlite': 'application/x-sqlite3',
+  }
+  return mimeTypes[extension] || 'application/octet-stream'
 }
 
 /**
@@ -261,12 +293,12 @@ export async function deleteFile(fileId: string, userId: string): Promise<void> 
       }
     })
 
-    // Only delete physical file if no other records reference it
+    // Only delete from S3 if no other records reference it
     if (filesWithSameHash === 0 && file.hash) {
       const extension = getFileExtension(file.name)!
-      const physicalPath = getPhysicalPath(file.hash, extension)
+      const s3Key = getS3Key(file.hash, extension)
       try {
-        await fs.unlink(physicalPath)
+        await deleteTeacherFile(s3Key)
       } catch {
         // Don't throw - database cleanup is more important
       }
@@ -402,7 +434,8 @@ export async function getFileById(fileId: string, userId?: string): Promise<{
   hash?: string
   contentType?: string
   size?: number
-  physicalPath?: string
+  s3Key?: string
+  s3Url?: string
   skriptId: string
   parentId: string | null
 } | null> {
@@ -447,35 +480,8 @@ export async function getFileById(fileId: string, userId?: string): Promise<{
   }
 
   const extension = getFileExtension(file.name)!
-  let physicalPath = getPhysicalPath(file.hash!, extension)
-
-  // Handle case where file was renamed and extension changed
-  // Try to find the actual physical file with different extensions
-  try {
-    await fs.access(physicalPath)
-  } catch {
-    // File doesn't exist with current extension, try common alternatives
-    const alternatives = extension === 'db' ? ['sqlite', 'db'] :
-                        extension === 'sqlite' ? ['db', 'sqlite'] :
-                        [extension]
-
-    let found = false
-    for (const alt of alternatives) {
-      const altPath = getPhysicalPath(file.hash!, alt)
-      try {
-        await fs.access(altPath)
-        physicalPath = altPath
-        found = true
-        break
-      } catch {
-        continue
-      }
-    }
-
-    if (!found) {
-      // File truly doesn't exist - continue anyway, will return 404 when accessed
-    }
-  }
+  const s3Key = getS3Key(file.hash!, extension)
+  const s3Url = getTeacherFileUrl(s3Key)
 
   return {
     id: file.id,
@@ -483,7 +489,8 @@ export async function getFileById(fileId: string, userId?: string): Promise<{
     hash: file.hash!,
     contentType: file.contentType || undefined,
     size: file.size ? Number(file.size) : undefined,
-    physicalPath,
+    s3Key,
+    s3Url,
     skriptId: file.skriptId,
     parentId: file.parentId
   }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getFileById } from '@/lib/file-storage'
+import { getFileById, getFileExtension, getS3Key } from '@/lib/file-storage'
 import { prisma } from '@/lib/prisma'
-import * as fs from 'fs/promises'
+import { getTeacherFileUrl } from '@/lib/s3'
 
 export async function GET(
   request: NextRequest,
@@ -47,55 +47,33 @@ export async function GET(
         return NextResponse.json({ error: 'SVG variant not found' }, { status: 404 })
       }
 
-      // Construct physical path from hash (same logic as in file-storage.ts)
-      const { getPhysicalPath, getFileExtension } = await import('@/lib/file-storage')
+      // Get S3 URL for the SVG file
       const extension = getFileExtension(svgFile.name)!
-      const physicalPath = getPhysicalPath(svgFile.hash, extension)
+      const s3Key = getS3Key(svgFile.hash, extension)
+      const s3Url = getTeacherFileUrl(s3Key)
 
-      // Read and serve the SVG file
-      const svgBuffer = await fs.readFile(physicalPath)
-      return new NextResponse(svgBuffer, {
-        status: 200,
+      // Redirect to S3 URL (public bucket, so direct access works)
+      return NextResponse.redirect(s3Url, {
+        status: 302,
         headers: {
-          'Content-Type': 'image/svg+xml',
-          'Content-Length': svgBuffer.length.toString(),
-          'Content-Disposition': `inline; filename="${encodeURIComponent(svgFile.name)}"`,
           'Cache-Control': 'public, max-age=31536000, immutable',
-          'ETag': `"${svgFile.hash}"`
         }
       })
     }
 
     // Directories can't be served directly
-    if (!file.physicalPath) {
+    if (!file.s3Url) {
       return NextResponse.json({ error: 'Cannot serve directory' }, { status: 400 })
     }
 
-    // Read file from disk
-    let fileBuffer: Buffer
-    try {
-      fileBuffer = await fs.readFile(file.physicalPath)
-    } catch (error) {
-      console.error('Failed to read physical file:', file.physicalPath, error)
-      return NextResponse.json({ error: 'File not found on disk' }, { status: 404 })
-    }
-
-    // Determine content type
-    const contentType = file.contentType || 'application/octet-stream'
-
-    // Create response with appropriate headers
-    const response = new NextResponse(fileBuffer, {
-      status: 200,
+    // Redirect to S3 URL (public bucket, so direct access works)
+    // This is more efficient than proxying the file through the server
+    return NextResponse.redirect(file.s3Url, {
+      status: 302,
       headers: {
-        'Content-Type': contentType,
-        'Content-Length': fileBuffer.length.toString(),
-        'Content-Disposition': `inline; filename="${encodeURIComponent(file.name)}"`,
-        'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year since content-addressed
-        'ETag': `"${file.hash}"` // Use hash as ETag for efficient caching
+        'Cache-Control': 'public, max-age=31536000, immutable',
       }
     })
-
-    return response
   } catch (error) {
     console.error('File serving error:', error)
     return NextResponse.json(

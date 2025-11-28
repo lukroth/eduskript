@@ -13,10 +13,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 // Set these in your .env file:
 //   SCW_REGION, SCW_BUCKET, SCW_ACCESS_KEY, SCW_SECRET_KEY
 //   SCW_IMPORT_BUCKET (optional, for large file imports)
+//   SCW_TEACHER_BUCKET (for teacher-uploaded files like images, databases)
 const SCALEWAY_REGION = process.env.SCALEWAY_REGION || process.env.SCW_REGION || 'fr-par'
 const SCALEWAY_ENDPOINT = process.env.SCALEWAY_ENDPOINT || `https://s3.${SCALEWAY_REGION}.scw.cloud`
 const SCALEWAY_BUCKET = process.env.SCALEWAY_BUCKET || process.env.SCW_BUCKET
 const SCALEWAY_IMPORT_BUCKET = process.env.SCW_IMPORT_BUCKET
+const SCALEWAY_TEACHER_BUCKET = process.env.SCW_TEACHER_BUCKET
 const SCALEWAY_ACCESS_KEY = process.env.SCALEWAY_ACCESS_KEY_ID || process.env.SCW_ACCESS_KEY
 const SCALEWAY_SECRET_KEY = process.env.SCALEWAY_SECRET_ACCESS_KEY || process.env.SCW_SECRET_KEY
 
@@ -33,6 +35,16 @@ export function isS3Configured(): boolean {
 // Check if S3 import bucket is configured (for large file imports)
 export function isImportS3Configured(): boolean {
   return !!(SCALEWAY_ACCESS_KEY && SCALEWAY_SECRET_KEY && SCALEWAY_IMPORT_BUCKET)
+}
+
+// Check if teacher files bucket is configured
+export function isTeacherS3Configured(): boolean {
+  return !!(SCALEWAY_ACCESS_KEY && SCALEWAY_SECRET_KEY && SCALEWAY_TEACHER_BUCKET)
+}
+
+// Get the teacher bucket name
+export function getTeacherBucketName(): string {
+  return SCALEWAY_TEACHER_BUCKET || ''
 }
 
 // Get the import bucket name
@@ -229,4 +241,106 @@ export async function deleteFromS3(key: string, bucket?: string): Promise<void> 
     Bucket: targetBucket,
     Key: key,
   }))
+}
+
+/**
+ * Upload a teacher file to S3 (images, databases, etc.)
+ *
+ * @param hash - Content hash (for deduplication and content-addressed storage)
+ * @param extension - File extension
+ * @param buffer - File contents
+ * @param contentType - MIME type
+ * @returns S3 key for the uploaded file
+ */
+export async function uploadTeacherFile(
+  hash: string,
+  extension: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  if (!isTeacherS3Configured()) {
+    throw new Error('Teacher S3 bucket not configured. Set SCW_TEACHER_BUCKET.')
+  }
+
+  const client = getS3Client()
+
+  // Store files by hash for deduplication: files/{hash}.{extension}
+  const key = `files/${hash}.${extension}`
+
+  await client.send(new PutObjectCommand({
+    Bucket: SCALEWAY_TEACHER_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    // Make publicly readable for serving
+    ACL: 'public-read',
+  }))
+
+  return key
+}
+
+/**
+ * Download a teacher file from S3
+ *
+ * @param key - S3 object key
+ * @returns File contents as Buffer
+ */
+export async function downloadTeacherFile(key: string): Promise<Buffer> {
+  if (!isTeacherS3Configured()) {
+    throw new Error('Teacher S3 bucket not configured. Set SCW_TEACHER_BUCKET.')
+  }
+
+  return downloadFromS3(key, SCALEWAY_TEACHER_BUCKET)
+}
+
+/**
+ * Delete a teacher file from S3
+ *
+ * @param key - S3 object key
+ */
+export async function deleteTeacherFile(key: string): Promise<void> {
+  if (!isTeacherS3Configured()) {
+    throw new Error('Teacher S3 bucket not configured. Set SCW_TEACHER_BUCKET.')
+  }
+
+  await deleteFromS3(key, SCALEWAY_TEACHER_BUCKET)
+}
+
+/**
+ * Get public URL for a teacher file
+ *
+ * @param key - S3 object key
+ * @returns Public URL
+ */
+export function getTeacherFileUrl(key: string): string {
+  return `${SCALEWAY_ENDPOINT}/${SCALEWAY_TEACHER_BUCKET}/${key}`
+}
+
+/**
+ * Check if a teacher file exists in S3
+ *
+ * @param hash - Content hash
+ * @param extension - File extension
+ * @returns true if file exists
+ */
+export async function teacherFileExists(hash: string, extension: string): Promise<boolean> {
+  if (!isTeacherS3Configured()) {
+    return false
+  }
+
+  const client = getS3Client()
+  const key = `files/${hash}.${extension}`
+
+  try {
+    await client.send(new GetObjectCommand({
+      Bucket: SCALEWAY_TEACHER_BUCKET,
+      Key: key,
+    }))
+    return true
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'NoSuchKey') {
+      return false
+    }
+    throw error
+  }
 }

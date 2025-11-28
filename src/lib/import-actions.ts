@@ -6,10 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { CACHE_TAGS } from '@/lib/cached-queries'
 import JSZip from 'jszip'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
 import { createHash } from 'crypto'
+import { uploadTeacherFile, isTeacherS3Configured, teacherFileExists } from '@/lib/s3'
 
 interface ExportManifest {
   version: number
@@ -309,10 +307,9 @@ async function performImport(
   manifest: ExportManifest,
   userId: string
 ): Promise<{ collections: number; skripts: number; pages: number; files: number }> {
-  const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads')
-
-  if (!existsSync(uploadDir)) {
-    await mkdir(uploadDir, { recursive: true })
+  // Check S3 configuration
+  if (!isTeacherS3Configured()) {
+    throw new Error('File storage not configured. Set SCW_TEACHER_BUCKET environment variable.')
   }
 
   const result = { collections: 0, skripts: 0, pages: 0, files: 0 }
@@ -469,11 +466,11 @@ async function performImport(
       if (!existingFile) {
         const buffer = Buffer.from(await file.async('arraybuffer'))
         const hash = createHash('sha256').update(buffer).digest('hex')
-        const physicalFilename = `${hash}.excalidraw`
-        const physicalPath = join(uploadDir, physicalFilename)
 
-        if (!existsSync(physicalPath)) {
-          await writeFile(physicalPath, buffer)
+        // Upload to S3 if not already there (deduplication)
+        const fileExistsInS3 = await teacherFileExists(hash, 'excalidraw')
+        if (!fileExistsInS3) {
+          await uploadTeacherFile(hash, 'excalidraw', buffer, 'application/json')
         }
 
         await prisma.file.create({
@@ -523,12 +520,6 @@ async function performImport(
           const ext = finalName.endsWith('.excalidraw')
             ? 'excalidraw'
             : (finalName.split('.').pop() || 'bin')
-          const physicalFilename = `${hash}.${ext}`
-          const physicalPath = join(uploadDir, physicalFilename)
-
-          if (!existsSync(physicalPath)) {
-            await writeFile(physicalPath, buffer)
-          }
 
           const contentTypeMap: Record<string, string> = {
             'png': 'image/png',
@@ -541,9 +532,17 @@ async function performImport(
             'mp4': 'video/mp4',
             'webm': 'video/webm',
             'json': 'application/json',
-            'excalidraw': 'application/json'
+            'excalidraw': 'application/json',
+            'db': 'application/x-sqlite3',
+            'sqlite': 'application/x-sqlite3'
           }
           const contentType = contentTypeMap[ext.toLowerCase()] || 'application/octet-stream'
+
+          // Upload to S3 if not already there (deduplication)
+          const fileExistsInS3 = await teacherFileExists(hash, ext)
+          if (!fileExistsInS3) {
+            await uploadTeacherFile(hash, ext, buffer, contentType)
+          }
 
           await prisma.file.create({
             data: {
@@ -587,10 +586,9 @@ export async function processImportZip(
   userId: string,
   onProgress?: (progress: number, message: string) => Promise<void>
 ): Promise<ImportResult> {
-  const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads')
-
-  if (!existsSync(uploadDir)) {
-    await mkdir(uploadDir, { recursive: true })
+  // Check S3 configuration
+  if (!isTeacherS3Configured()) {
+    throw new Error('File storage not configured. Set SCW_TEACHER_BUCKET environment variable.')
   }
 
   const result = {
@@ -760,11 +758,11 @@ export async function processImportZip(
       if (!existingFile) {
         const buffer = Buffer.from(await file.async('arraybuffer'))
         const hash = createHash('sha256').update(buffer).digest('hex')
-        const physicalFilename = `${hash}.excalidraw`
-        const physicalPath = join(uploadDir, physicalFilename)
 
-        if (!existsSync(physicalPath)) {
-          await writeFile(physicalPath, buffer)
+        // Upload to S3 if not already there (deduplication)
+        const fileExistsInS3 = await teacherFileExists(hash, 'excalidraw')
+        if (!fileExistsInS3) {
+          await uploadTeacherFile(hash, 'excalidraw', buffer, 'application/json')
         }
 
         await prisma.file.create({
@@ -814,12 +812,6 @@ export async function processImportZip(
           const ext = finalName.endsWith('.excalidraw')
             ? 'excalidraw'
             : (finalName.split('.').pop() || 'bin')
-          const physicalFilename = `${hash}.${ext}`
-          const physicalPath = join(uploadDir, physicalFilename)
-
-          if (!existsSync(physicalPath)) {
-            await writeFile(physicalPath, buffer)
-          }
 
           const contentTypeMap: Record<string, string> = {
             'png': 'image/png',
@@ -832,13 +824,21 @@ export async function processImportZip(
             'mp4': 'video/mp4',
             'webm': 'video/webm',
             'json': 'application/json',
-            'excalidraw': 'application/json'
+            'excalidraw': 'application/json',
+            'db': 'application/x-sqlite3',
+            'sqlite': 'application/x-sqlite3'
           }
           const contentType = contentTypeMap[ext.toLowerCase()] || 'application/octet-stream'
 
+          // Upload to S3 if not already there (deduplication)
+          const fileExistsInS3 = await teacherFileExists(hash, ext)
+          if (!fileExistsInS3) {
+            await uploadTeacherFile(hash, ext, buffer, contentType)
+          }
+
           await prisma.file.create({
             data: {
-              name: attachmentName,
+              name: finalName,
               isDirectory: false,
               skriptId: skript.id,
               hash,
