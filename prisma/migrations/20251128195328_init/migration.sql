@@ -44,6 +44,7 @@ CREATE TABLE "users" (
     "hashedPassword" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "username" TEXT,
     "pageSlug" TEXT,
     "pageName" TEXT,
     "pageDescription" TEXT,
@@ -376,6 +377,9 @@ CREATE UNIQUE INDEX "verificationtokens_identifier_token_key" ON "verificationto
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_pageSlug_key" ON "users"("pageSlug");

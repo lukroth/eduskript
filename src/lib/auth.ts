@@ -148,6 +148,7 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
+            username: true,
             pageSlug: true,
             pageName: true,
             pageDescription: true,
@@ -163,6 +164,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
+          token.username = dbUser.username
           token.pageSlug = dbUser.pageSlug
           token.pageName = dbUser.pageName
           token.pageDescription = dbUser.pageDescription
@@ -219,6 +221,7 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
+            username: true,
             pageSlug: true,
             pageName: true,
             pageDescription: true,
@@ -234,6 +237,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
+          token.username = dbUser.username
           token.pageSlug = dbUser.pageSlug
           token.pageName = dbUser.pageName
           token.pageDescription = dbUser.pageDescription
@@ -256,6 +260,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string
+        session.user.username = token.username as string
         session.user.pageSlug = token.pageSlug as string
         session.user.pageName = token.pageName as string
         session.user.pageDescription = token.pageDescription as string
