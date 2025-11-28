@@ -124,28 +124,28 @@ export async function PATCH(
     // Revalidate the public page cache using tags
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { username: true }
+      select: { pageSlug: true }
     })
 
-    if (user?.username) {
+    if (user?.pageSlug) {
       const collectionSlug = existingPage.skript.collectionSkripts[0]?.collection?.slug
 
       if (collectionSlug) {
         // Invalidate cached data for this page
-        revalidateTag(CACHE_TAGS.pageBySlug(user.username, collectionSlug, existingPage.skript.slug, updatedPage.slug), 'default')
+        revalidateTag(CACHE_TAGS.pageBySlug(user.pageSlug, collectionSlug, existingPage.skript.slug, updatedPage.slug), 'default')
 
         // Invalidate skript-level cache (navigation might need updating)
-        revalidateTag(CACHE_TAGS.skriptBySlug(user.username, collectionSlug, existingPage.skript.slug), 'default')
+        revalidateTag(CACHE_TAGS.skriptBySlug(user.pageSlug, collectionSlug, existingPage.skript.slug), 'default')
 
         // Invalidate collection-level cache
-        revalidateTag(CACHE_TAGS.collectionBySlug(user.username, collectionSlug), 'default')
+        revalidateTag(CACHE_TAGS.collectionBySlug(user.pageSlug, collectionSlug), 'default')
 
         // Also revalidate paths for any non-cached renders
-        revalidatePath(`/${user.username}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
+        revalidatePath(`/${user.pageSlug}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
       }
 
       // Invalidate teacher content cache (for full sidebar, homepage, etc.)
-      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
 
       // Revalidate dashboard pages
       revalidatePath('/dashboard')

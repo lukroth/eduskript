@@ -45,7 +45,8 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Quality Assurance**: Husky pre-push hooks with strict validation (type-check, lint, tests, build)
 
 ### Database Schema Key Points
-- **Multi-tenant**: Each user has a unique username for URL paths (e.g., `eduskript.org/teacher`)
+- **Multi-tenant**: Each user has a unique `pageSlug` for URL paths (e.g., `eduskript.org/my-page`)
+- **Page vs Profile Fields**: `pageSlug`, `pageName`, `pageDescription` are for the public page; `name`, `bio`, `title` are user profile fields
 - **Permission System**: Many-to-many relations between users and content (CollectionAuthor, SkriptAuthor, PageAuthor)
 - **Permissions**: `author` (can edit/manage) and `viewer` (read-only access)
 - **Versioning**: Page content versioning with rollback capabilities
@@ -54,8 +55,8 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Local Development**: PostgreSQL via Docker Compose (see `docker-compose.local.yml`)
 
 ### Routing Architecture
-- **Path-based routing**: All public teacher pages use `eduskript.org/[username]/...` URL structure
-- **Dynamic routes**: `[domain]/[collectionSlug]/[skriptSlug]/[pageSlug]` for public content (where `[domain]` is the username)
+- **Path-based routing**: All public teacher pages use `eduskript.org/[pageSlug]/...` URL structure
+- **Dynamic routes**: `[domain]/[collectionSlug]/[skriptSlug]/[pageSlug]` for public content (where `[domain]` is the user's pageSlug)
 - **Dashboard**: Protected routes under `/dashboard` for content management
 - **API**: RESTful endpoints under `/api` with authentication middleware
 - **No subdomain routing**: Simplified architecture with all routes on the main domain (removed 2025-11-22)
@@ -106,7 +107,7 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - `src/app/page.tsx` - Homepage
 - `src/app/dashboard/layout.tsx` - Dashboard layout
 - `src/app/dashboard/page.tsx` - Dashboard homepage
-- `src/app/[domain]/page.tsx` - Public user pages (username-based routing)
+- `src/app/[domain]/page.tsx` - Public user pages (pageSlug-based routing)
 
 **Core Components:**
 - `src/components/dashboard/` - Dashboard UI components (editors, modals, settings)
@@ -707,6 +708,29 @@ const dbUrl = dbFile?.url // e.g., /api/files/abc123
 ```
 
 ## Recent Upgrades
+
+### ✅ Page-Centric Naming Convention (2025-11-28)
+Migrated from person-centric to page-centric naming throughout the application:
+
+**Database Field Renames:**
+- `username` → `pageSlug` (URL slug for public pages)
+- `webpageDescription` → `pageDescription` (description shown in sidebar)
+- Added new `pageName` field (display name for the public page)
+
+**Field Separation:**
+- **Page fields** (for the public page): `pageSlug`, `pageName`, `pageDescription`
+- **Profile fields** (shown to collaborators): `name`, `bio`, `title`
+
+**Dashboard Reorganization:**
+- Renamed "Settings" to "Page settings" in sidebar navigation
+- Moved ProfileSettings from Settings to Collaborate page
+- Moved Import/Export from Settings to Page Builder page
+
+**Benefits:**
+- Clearer separation between public page identity and user profile
+- Users can have a page name different from their personal name
+- Dashboard organization reflects the page vs profile distinction
+- More intuitive for teachers managing their public educational page
 
 ### ✅ Interactive SQL Database Management (2025-11-22)
 Complete implementation of client-side SQL execution with database file management:

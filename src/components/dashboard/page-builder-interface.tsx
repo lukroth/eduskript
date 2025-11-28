@@ -636,9 +636,9 @@ export function PageBuilderInterface() {
 
   const handlePreview = () => {
     // Open teacher's public page in a new tab
-    if (session?.user?.username) {
+    if (session?.user?.pageSlug) {
       // Use origin which includes protocol + host correctly
-      const url = `${window.location.origin}/${session.user.username}`
+      const url = `${window.location.origin}/${session.user.pageSlug}`
       window.open(url, '_blank')
     } else {
       // Username not set - redirect to settings

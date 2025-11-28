@@ -565,11 +565,11 @@ async function performImport(
   // Invalidate cache so imported content is visible immediately
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { username: true }
+    select: { pageSlug: true }
   })
-  if (user?.username) {
-    revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
-    revalidatePath(`/${user.username}`)
+  if (user?.pageSlug) {
+    revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+    revalidatePath(`/${user.pageSlug}`)
     revalidatePath('/dashboard')
   }
 
@@ -857,11 +857,11 @@ export async function processImportZip(
   // Invalidate cache so imported content is visible immediately
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { username: true }
+    select: { pageSlug: true }
   })
-  if (user?.username) {
-    revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
-    revalidatePath(`/${user.username}`)
+  if (user?.pageSlug) {
+    revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+    revalidatePath(`/${user.pageSlug}`)
     revalidatePath('/dashboard')
   }
 

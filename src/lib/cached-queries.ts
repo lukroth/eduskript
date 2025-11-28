@@ -3,56 +3,63 @@ import { cache } from 'react'
 import { prisma } from './prisma'
 
 // Cache tags for granular invalidation
+// Note: pageSlug is the URL slug for a user's public page (e.g., eduskript.org/mypage)
 export const CACHE_TAGS = {
-  user: (username: string) => `user:${username}`,
+  user: (pageSlug: string) => `user:${pageSlug}`,
   collection: (id: string) => `collection:${id}`,
-  collectionBySlug: (username: string, slug: string) => `collection:${username}:${slug}`,
+  collectionBySlug: (pageSlug: string, slug: string) => `collection:${pageSlug}:${slug}`,
   skript: (id: string) => `skript:${id}`,
-  skriptBySlug: (username: string, collectionSlug: string, skriptSlug: string) =>
-    `skript:${username}:${collectionSlug}:${skriptSlug}`,
+  skriptBySlug: (pageSlug: string, collectionSlug: string, skriptSlug: string) =>
+    `skript:${pageSlug}:${collectionSlug}:${skriptSlug}`,
   page: (id: string) => `page:${id}`,
-  pageBySlug: (username: string, collectionSlug: string, skriptSlug: string, pageSlug: string) =>
-    `page:${username}:${collectionSlug}:${skriptSlug}:${pageSlug}`,
-  teacherContent: (username: string) => `teacher-content:${username}`,
+  pageBySlug: (pageSlugParam: string, collectionSlug: string, skriptSlug: string, pageSlug: string) =>
+    `page:${pageSlugParam}:${collectionSlug}:${skriptSlug}:${pageSlug}`,
+  teacherContent: (pageSlug: string) => `teacher-content:${pageSlug}`,
 } as const
 
 /**
- * Get teacher by username - cached
+ * Get teacher by page slug - cached
  * Used for public page rendering
  */
-export const getTeacherByUsername = (username: string) =>
+export const getTeacherByPageSlug = (pageSlug: string) =>
   unstable_cache(
     async () => {
       return prisma.user.findFirst({
-        where: { username },
+        where: { pageSlug },
         select: {
           id: true,
           name: true,
           email: true,
+          pageSlug: true,
+          pageName: true,
+          pageDescription: true,
+          pageIcon: true,
           title: true,
           bio: true,
-          username: true,
           sidebarBehavior: true,
           typographyPreference: true,
         }
       })
     },
-    [`teacher-${username}`],
+    [`teacher-${pageSlug}`],
     {
-      tags: [CACHE_TAGS.user(username), 'teachers'],
+      tags: [CACHE_TAGS.user(pageSlug), 'teachers'],
       revalidate: false,
     }
   )()
+
+// Backwards-compatible alias
+export const getTeacherByUsername = getTeacherByPageSlug
 
 /**
  * Get teacher with page layout - cached
  * Used for domain index pages
  */
-export const getTeacherWithLayout = (username: string) =>
+export const getTeacherWithLayout = (pageSlug: string) =>
   unstable_cache(
     async () => {
       return prisma.user.findFirst({
-        where: { username },
+        where: { pageSlug },
         include: {
           pageLayout: {
             include: {
@@ -64,9 +71,9 @@ export const getTeacherWithLayout = (username: string) =>
         }
       })
     },
-    [`teacher-layout-${username}`],
+    [`teacher-layout-${pageSlug}`],
     {
-      tags: [CACHE_TAGS.user(username), CACHE_TAGS.teacherContent(username)],
+      tags: [CACHE_TAGS.user(pageSlug), CACHE_TAGS.teacherContent(pageSlug)],
       revalidate: false,
     }
   )()
@@ -75,7 +82,7 @@ export const getTeacherWithLayout = (username: string) =>
  * Get published collection with skripts and pages - cached
  * Only returns published content for public consumption
  */
-export const getPublishedCollection = (teacherId: string, username: string, collectionSlug: string) =>
+export const getPublishedCollection = (teacherId: string, pageSlug: string, collectionSlug: string) =>
   unstable_cache(
     async () => {
       return prisma.collection.findFirst({
@@ -114,11 +121,11 @@ export const getPublishedCollection = (teacherId: string, username: string, coll
         }
       })
     },
-    [`published-collection-${username}-${collectionSlug}`],
+    [`published-collection-${pageSlug}-${collectionSlug}`],
     {
       tags: [
-        CACHE_TAGS.collectionBySlug(username, collectionSlug),
-        CACHE_TAGS.teacherContent(username),
+        CACHE_TAGS.collectionBySlug(pageSlug, collectionSlug),
+        CACHE_TAGS.teacherContent(pageSlug),
       ],
       revalidate: false,
     }
@@ -128,7 +135,7 @@ export const getPublishedCollection = (teacherId: string, username: string, coll
  * Get all published collections for a teacher - cached
  * Used for full sidebar navigation
  */
-export const getAllPublishedCollections = (teacherId: string, username: string) =>
+export const getAllPublishedCollections = (teacherId: string, pageSlug: string) =>
   unstable_cache(
     async () => {
       return prisma.collection.findMany({
@@ -164,9 +171,9 @@ export const getAllPublishedCollections = (teacherId: string, username: string) 
         orderBy: { updatedAt: 'desc' }
       })
     },
-    [`all-published-collections-${username}`],
+    [`all-published-collections-${pageSlug}`],
     {
-      tags: [CACHE_TAGS.teacherContent(username)],
+      tags: [CACHE_TAGS.teacherContent(pageSlug)],
       revalidate: false,
     }
   )()
@@ -179,8 +186,8 @@ export const getPublishedPage = (
   teacherId: string,
   collectionSlug: string,
   skriptSlug: string,
-  pageSlug: string,
-  username?: string
+  contentPageSlug: string,
+  ownerPageSlug?: string
 ) =>
   unstable_cache(
     async () => {
@@ -229,7 +236,7 @@ export const getPublishedPage = (
       if (!collectionSkript) return null
 
       const skript = collectionSkript.skript
-      const page = skript.pages.find(p => p.slug === pageSlug)
+      const page = skript.pages.find(p => p.slug === contentPageSlug)
       if (!page) return null
 
       return {
@@ -251,13 +258,13 @@ export const getPublishedPage = (
         allPages: skript.pages,
       }
     },
-    [`published-page-${collectionSlug}-${skriptSlug}-${pageSlug}`],
+    [`published-page-${collectionSlug}-${skriptSlug}-${contentPageSlug}`],
     {
-      tags: username ? [
-        CACHE_TAGS.pageBySlug(username, collectionSlug, skriptSlug, pageSlug),
-        CACHE_TAGS.skriptBySlug(username, collectionSlug, skriptSlug),
-        CACHE_TAGS.collectionBySlug(username, collectionSlug),
-        CACHE_TAGS.teacherContent(username),
+      tags: ownerPageSlug ? [
+        CACHE_TAGS.pageBySlug(ownerPageSlug, collectionSlug, skriptSlug, contentPageSlug),
+        CACHE_TAGS.skriptBySlug(ownerPageSlug, collectionSlug, skriptSlug),
+        CACHE_TAGS.collectionBySlug(ownerPageSlug, collectionSlug),
+        CACHE_TAGS.teacherContent(ownerPageSlug),
       ] : [],
       revalidate: false,
     }
@@ -267,15 +274,18 @@ export const getPublishedPage = (
  * React cache wrapper for request deduplication
  * Use this for queries that might be called multiple times in the same request
  */
-export const getTeacherByUsernameDeduped = cache((username: string) => {
-  return getTeacherByUsername(username)
+export const getTeacherByPageSlugDeduped = cache((pageSlug: string) => {
+  return getTeacherByPageSlug(pageSlug)
 })
+
+// Backwards-compatible alias
+export const getTeacherByUsernameDeduped = getTeacherByPageSlugDeduped
 
 /**
  * Get teacher's homepage content - cached
  * Fetches collections and skripts based on page layout
  */
-export const getTeacherHomepageContent = (teacherId: string, username: string, pageLayoutItems: Array<{ type: string; contentId: string }>) =>
+export const getTeacherHomepageContent = (teacherId: string, pageSlug: string, pageLayoutItems: Array<{ type: string; contentId: string }>) =>
   unstable_cache(
     async () => {
       const collections: Array<{
@@ -370,9 +380,9 @@ export const getTeacherHomepageContent = (teacherId: string, username: string, p
 
       return { collections, rootSkripts }
     },
-    [`teacher-homepage-${username}`],
+    [`teacher-homepage-${pageSlug}`],
     {
-      tags: [CACHE_TAGS.teacherContent(username)],
+      tags: [CACHE_TAGS.teacherContent(pageSlug)],
       revalidate: false,
     }
   )()

@@ -1,8 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { ProfileSettings } from '@/components/dashboard/profile-settings'
 import { PageSettings } from '@/components/dashboard/page-settings'
-import { ImportExportSettings } from '@/components/dashboard/import-export-settings'
+import { redirect } from 'next/navigation'
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -11,29 +10,25 @@ export default async function SettingsPage() {
     return null
   }
 
+  // Redirect students to their settings (they use Collaborate for profile)
   const isStudent = session.user.accountType === 'student'
+  if (isStudent) {
+    redirect('/dashboard/my-classes')
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">
-          Settings
+          Page settings
         </h1>
         <p className="text-muted-foreground mt-2">
-          {isStudent ? 'Manage your account settings' : 'Manage your account and domain settings'}
+          Configure your public page settings
         </p>
       </div>
 
       <div className="grid gap-6">
-        <ProfileSettings />
-
-        {/* Teacher-only settings */}
-        {!isStudent && (
-          <>
-            <PageSettings />
-            <ImportExportSettings />
-          </>
-        )}
+        <PageSettings />
       </div>
     </div>
   )

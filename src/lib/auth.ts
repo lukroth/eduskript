@@ -148,7 +148,10 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
-            username: true,
+            pageSlug: true,
+            pageName: true,
+            pageDescription: true,
+            pageIcon: true,
             title: true,
             bio: true,
             isAdmin: true,
@@ -160,7 +163,10 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
-          token.username = dbUser.username
+          token.pageSlug = dbUser.pageSlug
+          token.pageName = dbUser.pageName
+          token.pageDescription = dbUser.pageDescription
+          token.pageIcon = dbUser.pageIcon
           token.title = dbUser.title
           token.bio = dbUser.bio
           token.name = dbUser.name
@@ -213,7 +219,10 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
-            username: true,
+            pageSlug: true,
+            pageName: true,
+            pageDescription: true,
+            pageIcon: true,
             title: true,
             bio: true,
             isAdmin: true,
@@ -225,7 +234,10 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
-          token.username = dbUser.username
+          token.pageSlug = dbUser.pageSlug
+          token.pageName = dbUser.pageName
+          token.pageDescription = dbUser.pageDescription
+          token.pageIcon = dbUser.pageIcon
           token.title = dbUser.title
           token.bio = dbUser.bio
           token.name = dbUser.name
@@ -244,7 +256,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string
-        session.user.username = token.username as string
+        session.user.pageSlug = token.pageSlug as string
+        session.user.pageName = token.pageName as string
+        session.user.pageDescription = token.pageDescription as string
+        session.user.pageIcon = token.pageIcon as string
         session.user.title = token.title as string
         session.user.bio = token.bio as string
         session.user.name = token.name as string

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
@@ -12,10 +13,13 @@ import { SyncStatusButton } from '@/components/ui/sync-status'
 import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
-  name: string
-  username: string
-  bio?: string
-  title?: string
+  name: string | null
+  pageSlug: string
+  pageName?: string | null
+  pageDescription?: string | null
+  pageIcon?: string | null
+  bio?: string | null
+  title?: string | null
 }
 
 interface SiteStructure {
@@ -77,8 +81,8 @@ export function PublicSiteLayout({
   }, [isSidebarCollapsed, setSidebarCollapsedInContext])
   
   // Storage keys for persistence
-  const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.username}`
-  const EXPANDED_SKRIPTS_KEY = `expanded-skripts-${teacher.username}`
+  const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.pageSlug}`
+  const EXPANDED_SKRIPTS_KEY = `expanded-skripts-${teacher.pageSlug}`
   
   // Initialize with persistent state or defaults
   const [expandedCollections, setExpandedCollections] = useState<string[]>([])
@@ -202,7 +206,7 @@ export function PublicSiteLayout({
 
   const navigateToPage = (collectionSlug: string, skriptSlug: string, pageSlug: string) => {
     // Always use path-based routing with username
-    const url = `/${teacher.username}/${collectionSlug}/${skriptSlug}/${pageSlug}`
+    const url = `/${teacher.pageSlug}/${collectionSlug}/${skriptSlug}/${pageSlug}`
 
     router.push(url)
     setIsSidebarOpen(false)
@@ -210,7 +214,7 @@ export function PublicSiteLayout({
 
   const navigateToSkript = (collectionSlug: string, skriptSlug: string, skriptId: string) => {
     // Navigate to skript frontpage and expand the skript
-    const url = `/${teacher.username}/${collectionSlug}/${skriptSlug}`
+    const url = `/${teacher.pageSlug}/${collectionSlug}/${skriptSlug}`
 
     // Ensure the skript is expanded
     if (!expandedSkripts.includes(skriptId)) {
@@ -258,6 +262,23 @@ export function PublicSiteLayout({
             {isSidebarCollapsed ? (
               /* Collapsed sidebar header */
               <div className="flex flex-col items-center gap-2">
+                {/* Icon or placeholder */}
+                {teacher.pageIcon ? (
+                  <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
+                    <Image
+                      src={teacher.pageIcon}
+                      alt="Page icon"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <span className="text-muted-foreground text-lg font-heading">
+                      {(teacher.pageName || teacher.name || 'P').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -273,36 +294,54 @@ export function PublicSiteLayout({
             ) : (
               /* Expanded sidebar header */
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-xl font-bold text-foreground">
-                    {teacher.name}
-                  </h1>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                      className="p-2"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </Button>
+                {/* Row 1: Icon + Page name */}
+                <div className="flex items-center justify-center gap-3">
+                  {teacher.pageIcon ? (
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
+                      <Image
+                        src={teacher.pageIcon}
+                        alt="Page icon"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <span className="text-muted-foreground text-lg font-heading">
+                        {(teacher.pageName || teacher.name || 'P').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="text-2xl font-bold text-foreground truncate font-heading">
+                    {teacher.pageName || teacher.name || 'Untitled Page'}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <FontSizeControls />
-                  <PublicThemeToggle />
-                  <AuthButton editUrl={editUrl} />
+
+                {/* Row 2: Description (if exists) */}
+                {teacher.pageDescription && (
+                  <p className="text-sm text-muted-foreground mt-2 text-center">
+                    {teacher.pageDescription}
+                  </p>
+                )}
+
+                {/* Row 3: Controls centered, collapse on right */}
+                <div className="flex items-center mt-6">
+                  {/* Spacer to balance the collapse button */}
+                  <div className="w-9" />
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    <FontSizeControls />
+                    <PublicThemeToggle />
+                    <AuthButton editUrl={editUrl} />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="p-2"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
                 </div>
-                {teacher.title && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {teacher.title}
-                  </p>
-                )}
-                {teacher.bio && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {teacher.bio}
-                  </p>
-                )}
               </>
             )}
           </div>
@@ -320,7 +359,7 @@ export function PublicSiteLayout({
                       {showHomeButton && (
                         <button
                           onClick={() => {
-                            const url = `/${teacher.username}`
+                            const url = `/${teacher.pageSlug}`
                             router.push(url)
                             setIsSidebarOpen(false)
                           }}
@@ -352,7 +391,7 @@ export function PublicSiteLayout({
                       <button
                         onClick={() => {
                           // Navigate to teacher's root page
-                          const url = `/${teacher.username}`
+                          const url = `/${teacher.pageSlug}`
                           router.push(url)
                           setIsSidebarOpen(false)
                         }}

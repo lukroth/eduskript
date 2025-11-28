@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     // Only teachers can have frontpages
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { accountType: true, username: true }
+      select: { accountType: true, pageSlug: true }
     })
 
     if (user?.accountType !== 'teacher') {
@@ -143,9 +143,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Revalidate caches
-    if (user?.username) {
-      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
-      revalidatePath(`/${user.username}`)
+    if (user?.pageSlug) {
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+      revalidatePath(`/${user.pageSlug}`)
       revalidatePath('/dashboard')
     }
 

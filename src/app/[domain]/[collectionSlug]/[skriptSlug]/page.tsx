@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: SkriptPreviewProps): Promise<
   try {
     // Find the teacher and collection
     const teacher = await prisma.user.findUnique({
-      where: { username: domain },
+      where: { pageSlug: domain },
       select: { id: true, name: true, title: true }
     })
 
@@ -133,14 +133,17 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
   try {
     // Find the teacher
     const teacher = await prisma.user.findUnique({
-      where: { username: domain },
+      where: { pageSlug: domain },
       select: {
         id: true,
         name: true,
         email: true,
         title: true,
         bio: true,
-        username: true
+        pageSlug: true,
+        pageName: true,
+        pageDescription: true,
+        pageIcon: true
       }
     })
 
@@ -245,9 +248,12 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
 
       const teacherData = {
         name: teacher.name || 'Teacher',
-        username: teacher.username || '',
-        bio: teacher.bio || undefined,
-        title: teacher.title || undefined
+        pageSlug: teacher.pageSlug || '',
+        pageName: teacher.pageName || null,
+        pageDescription: teacher.pageDescription || null,
+        pageIcon: teacher.pageIcon || null,
+        bio: teacher.bio || null,
+        title: teacher.title || null
       }
 
       // Get available pages for navigation

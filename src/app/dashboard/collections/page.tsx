@@ -111,7 +111,7 @@ export default function CollectionsPage() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Link href={`/${session.user.username || 'preview'}/${collection.slug}`}>
+                    <Link href={`/${session.user.pageSlug || 'preview'}/${collection.slug}`}>
                       <Button variant="outline" size="sm">
                         <Eye className="w-4 h-4 mr-2" />
                         Preview

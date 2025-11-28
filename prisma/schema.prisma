@@ -63,9 +63,13 @@ model User {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  // Webpage-specific fields
-  username      String?   @unique // Public username for URL paths (e.g., eduskript.org/username)
-  webpageDescription String? // Description of their webpage
+  // Page-specific fields (for the user's public page)
+  pageSlug        String?   @unique // URL slug for public page (e.g., eduskript.org/mypage)
+  pageName        String?   // Display name for the public page
+  pageDescription String?   // Description shown below page title in sidebar
+  pageIcon        String?   // URL to page icon image (displayed in sidebar)
+
+  // Profile fields (shown to collaborators)
   bio           String?
   title         String?
 

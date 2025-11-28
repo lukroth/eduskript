@@ -10,29 +10,37 @@ import { z } from 'zod'
 // Base schema for non-admin users
 const updateProfileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  username: z.optional(
-    z.string()
-      .min(3, 'Username must be at least 3 characters')
-      .max(50, 'Username must be less than 50 characters')
-      .regex(/^[a-z0-9-]+$/, 'Username can only contain lowercase letters, numbers, and hyphens')
-      .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Username cannot start or end with a hyphen')
-  ),
-  webpageDescription: z.string().optional(), // New field for webpage description
+  pageSlug: z.string()
+    .transform(val => val === '' ? undefined : val)
+    .pipe(z.optional(
+      z.string()
+        .min(3, 'Page URL must be at least 3 characters')
+        .max(50, 'Page URL must be less than 50 characters')
+        .regex(/^[a-z0-9-]+$/, 'Page URL can only contain lowercase letters, numbers, and hyphens')
+        .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Page URL cannot start or end with a hyphen')
+    )).optional(),
+  pageName: z.string().optional(),
+  pageDescription: z.string().optional(),
+  pageIcon: z.string().url().optional().or(z.literal('')),
   title: z.string().optional(),
   bio: z.string().optional()
 })
 
-// Admin schema allows shorter usernames (minimum 1 character)
+// Admin schema allows shorter page slugs (minimum 1 character)
 const adminUpdateProfileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  username: z.optional(
-    z.string()
-      .min(1, 'Username must be at least 1 character')
-      .max(50, 'Username must be less than 50 characters')
-      .regex(/^[a-z0-9-]+$/, 'Username can only contain lowercase letters, numbers, and hyphens')
-      .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Username cannot start or end with a hyphen')
-  ),
-  webpageDescription: z.string().optional(),
+  pageSlug: z.string()
+    .transform(val => val === '' ? undefined : val)
+    .pipe(z.optional(
+      z.string()
+        .min(1, 'Page URL must be at least 1 character')
+        .max(50, 'Page URL must be less than 50 characters')
+        .regex(/^[a-z0-9-]+$/, 'Page URL can only contain lowercase letters, numbers, and hyphens')
+        .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Page URL cannot start or end with a hyphen')
+    )).optional(),
+  pageName: z.string().optional(),
+  pageDescription: z.string().optional(),
+  pageIcon: z.string().url().optional().or(z.literal('')),
   title: z.string().optional(),
   bio: z.string().optional()
 })
@@ -45,10 +53,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch user's admin status and current username
+    // Fetch user's admin status and current page slug
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { isAdmin: true, username: true }
+      select: { isAdmin: true, pageSlug: true }
     })
 
     const body = await request.json()
@@ -58,14 +66,14 @@ export async function PATCH(request: NextRequest) {
     const validatedData = schema.parse(body)
 
     const result = await withDatabaseConnection(async () => {
-      // Check if username is already taken by another user
-      if (validatedData.username) {
+      // Check if page slug is already taken by another user
+      if (validatedData.pageSlug) {
         const existingUser = await prisma.user.findUnique({
-          where: { username: validatedData.username }
+          where: { pageSlug: validatedData.pageSlug }
         })
 
         if (existingUser && existingUser.id !== session.user.id) {
-          throw new Error('This username is already taken')
+          throw new Error('This page slug is already taken')
         }
       }
 
@@ -74,8 +82,10 @@ export async function PATCH(request: NextRequest) {
         where: { id: session.user.id },
         data: {
           name: validatedData.name,
-          username: validatedData.username,
-          webpageDescription: validatedData.webpageDescription || null,
+          pageSlug: validatedData.pageSlug,
+          pageName: validatedData.pageName || null,
+          pageDescription: validatedData.pageDescription || null,
+          pageIcon: validatedData.pageIcon || null,
           title: validatedData.title || null,
           bio: validatedData.bio || null
         },
@@ -83,8 +93,10 @@ export async function PATCH(request: NextRequest) {
           id: true,
           name: true,
           email: true,
-          username: true,
-          webpageDescription: true,
+          pageSlug: true,
+          pageName: true,
+          pageDescription: true,
+          pageIcon: true,
           title: true,
           bio: true
         }
@@ -92,19 +104,19 @@ export async function PATCH(request: NextRequest) {
     })
 
     // Invalidate caches for the user's public page
-    const oldUsername = currentUser?.username
-    const newUsername = result.username
+    const oldPageSlug = currentUser?.pageSlug
+    const newPageSlug = result.pageSlug
 
-    // Revalidate cache tags for both old and new usernames
-    if (oldUsername) {
-      revalidateTag(CACHE_TAGS.user(oldUsername), 'default')
-      revalidateTag(CACHE_TAGS.teacherContent(oldUsername), 'default')
-      revalidatePath(`/${oldUsername}`)
+    // Revalidate cache tags for both old and new page slugs
+    if (oldPageSlug) {
+      revalidateTag(CACHE_TAGS.user(oldPageSlug), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(oldPageSlug), 'default')
+      revalidatePath(`/${oldPageSlug}`)
     }
-    if (newUsername && newUsername !== oldUsername) {
-      revalidateTag(CACHE_TAGS.user(newUsername), 'default')
-      revalidateTag(CACHE_TAGS.teacherContent(newUsername), 'default')
-      revalidatePath(`/${newUsername}`)
+    if (newPageSlug && newPageSlug !== oldPageSlug) {
+      revalidateTag(CACHE_TAGS.user(newPageSlug), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(newPageSlug), 'default')
+      revalidatePath(`/${newPageSlug}`)
     }
 
     return NextResponse.json(result)
@@ -118,9 +130,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (error instanceof Error && error.message === 'This username is already taken') {
+    if (error instanceof Error && error.message === 'This page slug is already taken') {
       return NextResponse.json(
-        { error: 'This username is already taken' },
+        { error: 'This page slug is already taken' },
         { status: 400 }
       )
     }

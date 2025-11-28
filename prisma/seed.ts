@@ -29,7 +29,8 @@ async function main() {
     create: {
       email: 'eduadmin@eduskript.org',
       name: 'Edu Admin',
-      username: 'eduadmin',
+      pageSlug: 'eduadmin',
+      pageName: 'Edu Admin',
       hashedPassword,
       emailVerified: new Date(),
       isAdmin: true,
@@ -43,7 +44,7 @@ async function main() {
   console.log('👤 Admin Credentials:')
   console.log('   Email:    eduadmin@eduskript.org')
   console.log('   Password: letseducate')
-  console.log('   Username: eduadmin')
+  console.log('   Page URL: /eduadmin')
   console.log('')
   console.log('⚠️  You will be required to reset the password on first login')
   console.log('')

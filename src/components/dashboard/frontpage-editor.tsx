@@ -307,7 +307,7 @@ export function FrontPageEditor({
             onChange={handleContentChange}
             onSave={handleSave}
             skriptId={skript?.id}
-            domain={(session?.user as { username?: string })?.username || undefined}
+            domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
             fileList={[]}
             fileListLoading={false}
           />

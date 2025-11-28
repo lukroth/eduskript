@@ -115,11 +115,11 @@ export async function POST(
       // User frontpage
       const user = await prisma.user.findUnique({
         where: { id: frontPage.userId },
-        select: { username: true }
+        select: { pageSlug: true }
       })
-      if (user?.username) {
-        revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
-        revalidatePath(`/${user.username}`)
+      if (user?.pageSlug) {
+        revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+        revalidatePath(`/${user.pageSlug}`)
       }
     } else if (frontPage.skript) {
       // Skript frontpage
@@ -127,13 +127,13 @@ export async function POST(
       if (skriptOwner) {
         const ownerUser = await prisma.user.findUnique({
           where: { id: skriptOwner.id },
-          select: { username: true }
+          select: { pageSlug: true }
         })
-        if (ownerUser?.username) {
+        if (ownerUser?.pageSlug) {
           const collectionSlug = frontPage.skript.collectionSkripts[0]?.collection?.slug
           if (collectionSlug) {
-            revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.username, collectionSlug, frontPage.skript.slug), 'default')
-            revalidatePath(`/${ownerUser.username}/${collectionSlug}/${frontPage.skript.slug}`)
+            revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, collectionSlug, frontPage.skript.slug), 'default')
+            revalidatePath(`/${ownerUser.pageSlug}/${collectionSlug}/${frontPage.skript.slug}`)
           }
         }
       }

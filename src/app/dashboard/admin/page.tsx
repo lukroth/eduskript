@@ -23,7 +23,7 @@ interface User {
   id: string
   email: string
   name: string
-  subdomain: string
+  pageSlug: string
   title: string | null
   isAdmin: boolean
   requirePasswordReset: boolean
@@ -54,7 +54,7 @@ export default function AdminPanelPage() {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    subdomain: '',
+    pageSlug: '',
     title: '',
     password: '',
     isAdmin: false,
@@ -123,7 +123,7 @@ export default function AdminPanelPage() {
       setFormData({
         email: '',
         name: '',
-        subdomain: '',
+        pageSlug: '',
         title: '',
         password: '',
         isAdmin: false,
@@ -150,7 +150,7 @@ export default function AdminPanelPage() {
         body: JSON.stringify({
           email: formData.email,
           name: formData.name,
-          subdomain: formData.subdomain,
+          pageSlug: formData.pageSlug,
           title: formData.title || null,
           isAdmin: formData.isAdmin,
           requirePasswordReset: formData.requirePasswordReset,
@@ -307,7 +307,7 @@ export default function AdminPanelPage() {
     setFormData({
       email: user.email,
       name: user.name,
-      subdomain: user.subdomain,
+      pageSlug: user.pageSlug,
       title: user.title || '',
       password: '',
       isAdmin: user.isAdmin,
@@ -339,7 +339,7 @@ export default function AdminPanelPage() {
       return (
         user.name?.toLowerCase().includes(query) ||
         user.email?.toLowerCase().includes(query) ||
-        user.subdomain?.toLowerCase().includes(query) ||
+        user.pageSlug?.toLowerCase().includes(query) ||
         user.studentPseudonym?.toLowerCase().includes(query)
       )
     }
@@ -391,7 +391,7 @@ export default function AdminPanelPage() {
             <div className="flex-1 max-w-md relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, email, subdomain, or pseudonym..."
+                placeholder="Search by name, email, page slug, or pseudonym..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -432,7 +432,7 @@ export default function AdminPanelPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
                   <p className="text-sm text-muted-foreground">
-                    Subdomain: {user.subdomain}
+                    Page Slug: {user.pageSlug}
                     {user.title && ` • ${user.title}`}
                   </p>
                 </div>
@@ -616,11 +616,11 @@ export default function AdminPanelPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="create-subdomain">Subdomain</Label>
+                <Label htmlFor="create-pageSlug">Page Slug</Label>
                 <Input
-                  id="create-subdomain"
-                  value={formData.subdomain}
-                  onChange={(e) => setFormData({ ...formData, subdomain: e.target.value })}
+                  id="create-pageSlug"
+                  value={formData.pageSlug}
+                  onChange={(e) => setFormData({ ...formData, pageSlug: e.target.value })}
                   required
                 />
               </div>
@@ -698,11 +698,11 @@ export default function AdminPanelPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-subdomain">Subdomain</Label>
+                <Label htmlFor="edit-pageSlug">Page Slug</Label>
                 <Input
-                  id="edit-subdomain"
-                  value={formData.subdomain}
-                  onChange={(e) => setFormData({ ...formData, subdomain: e.target.value })}
+                  id="edit-pageSlug"
+                  value={formData.pageSlug}
+                  onChange={(e) => setFormData({ ...formData, pageSlug: e.target.value })}
                   required
                 />
               </div>

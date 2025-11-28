@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 
 const navigation = [
   { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Page settings', href: '/dashboard/settings', icon: Settings },
   { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
 ]
 
 const teacherNavigation = [
   { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Page settings', href: '/dashboard/settings', icon: Settings },
   { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
   { name: 'Classes', href: '/dashboard/classes', icon: GraduationCap },
 ]

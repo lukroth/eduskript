@@ -2,6 +2,15 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 's3.fr-par.scw.cloud',
+        pathname: '/eduskript-teacher-files/**',
+      },
+    ],
+  },
   // Allow larger body sizes for import API (default is 10MB)
   experimental: {
     serverActions: {

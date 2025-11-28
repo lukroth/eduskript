@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Save, Loader2, FileText } from 'lucide-react'
+import { Save, Loader2, FileText, Upload, X } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export function PageSettings() {
   const { data: session, update } = useSession()
@@ -17,8 +19,12 @@ export function PageSettings() {
   const [typographyPreference, setTypographyPreference] = useState<string>('modern')
   const [loading, setLoading] = useState(false)
   const [typographyLoading, setTypographyLoading] = useState(false)
-  const [usernameLoading, setUsernameLoading] = useState(false)
-  const [username, setUsername] = useState(session?.user?.username || '')
+  const [pageInfoLoading, setPageInfoLoading] = useState(false)
+  const [pageSlug, setPageSlug] = useState(session?.user?.pageSlug || '')
+  const [pageName, setPageName] = useState(session?.user?.pageName || '')
+  const [pageDescription, setPageDescription] = useState(session?.user?.pageDescription || '')
+  const [pageIcon, setPageIcon] = useState(session?.user?.pageIcon || '')
+  const [iconUploadLoading, setIconUploadLoading] = useState(false)
   const [hostnamePrefix, setHostnamePrefix] = useState('eduskript.org/')
 
   // Set hostname prefix on client (avoids hydration mismatch)
@@ -53,7 +59,10 @@ export function PageSettings() {
 
     if (session?.user) {
       loadPreferences()
-      setUsername(session.user.username || '')
+      setPageSlug(session.user.pageSlug || '')
+      setPageName(session.user.pageName || '')
+      setPageDescription(session.user.pageDescription || '')
+      setPageIcon(session.user.pageIcon || '')
     }
   }, [session])
 
@@ -113,15 +122,18 @@ export function PageSettings() {
     }
   }
 
-  const handleUsernameUpdate = async () => {
-    setUsernameLoading(true)
+  const handlePageInfoUpdate = async () => {
+    setPageInfoLoading(true)
 
     try {
       const response = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username,
+          pageSlug,
+          pageName,
+          pageDescription,
+          pageIcon,
           name: session?.user?.name || 'User' // Include name as it's required by the API
         }),
       })
@@ -129,18 +141,72 @@ export function PageSettings() {
       if (response.ok) {
         await update() // Update session
         router.refresh() // Refresh page
-        console.log('Username updated successfully')
+        console.log('Page info updated successfully')
       } else {
         const data = await response.json()
-        console.error('Failed to update username:', data.error || 'Unknown error')
-        alert(`Failed to update username: ${data.error || 'Unknown error'}`)
+        console.error('Failed to update page info:', data.error || 'Unknown error')
+        alert(`Failed to update: ${data.error || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Failed to update username:', error)
-      alert('Failed to update username. Please try again.')
+      console.error('Failed to update page info:', error)
+      alert('Failed to update. Please try again.')
     } finally {
-      setUsernameLoading(false)
+      setPageInfoLoading(false)
     }
+  }
+
+  // Check if page info has changed
+  const hasPageInfoChanges =
+    pageSlug !== (session?.user?.pageSlug || '') ||
+    pageName !== (session?.user?.pageName || '') ||
+    pageDescription !== (session?.user?.pageDescription || '') ||
+    pageIcon !== (session?.user?.pageIcon || '')
+
+  // Handle icon file upload
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be less than 2MB')
+      return
+    }
+
+    setIconUploadLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'page-icon')
+
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPageIcon(data.url)
+      } else {
+        const data = await response.json()
+        alert(`Upload failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to upload icon:', error)
+      alert('Failed to upload icon. Please try again.')
+    } finally {
+      setIconUploadLoading(false)
+    }
+  }
+
+  const handleRemoveIcon = () => {
+    setPageIcon('')
   }
 
   return (
@@ -152,49 +218,191 @@ export function PageSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Username Section */}
-        <div className="space-y-4">
+        {/* Sidebar Preview */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Sidebar Preview</Label>
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <div className="flex items-start gap-3">
+              {/* Icon */}
+              {pageIcon ? (
+                <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
+                  <Image
+                    src={pageIcon}
+                    alt="Page icon"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                  <span className="text-muted-foreground text-lg font-heading">
+                    {(pageName || session?.user?.name || 'P').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              {/* Name and Description */}
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm truncate">
+                  {pageName || session?.user?.name || 'Your Page Name'}
+                </h3>
+                {pageDescription && (
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {pageDescription}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This is how your page header will appear in the sidebar on your public page.
+          </p>
+        </div>
+
+        {/* Page Identity Section */}
+        <div className="space-y-4 border-t pt-6">
+          {/* Page Icon */}
           <div className="space-y-2">
-            <Label htmlFor="username" className="text-sm font-medium">Username</Label>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center flex-1">
-                <span className="px-3 py-2 bg-muted border border-r-0 border-input rounded-l-md text-muted-foreground text-sm h-10 flex items-center">
-                  {hostnamePrefix}
-                </span>
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))}
-                  className="rounded-l-none"
-                  placeholder="your-username"
-                  pattern="^[a-z0-9\-]+$"
-                  required
+            <Label className="text-sm font-medium">Page Icon</Label>
+            <div className="flex items-center gap-4">
+              {/* Current icon or placeholder */}
+              {pageIcon ? (
+                <div className="relative w-16 h-16">
+                  <div className="w-full h-full rounded-lg overflow-hidden bg-muted">
+                    <Image
+                      src={pageIcon}
+                      alt="Page icon"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveIcon}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/90 z-10"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                  <span className="text-muted-foreground text-2xl font-heading">
+                    {(pageName || session?.user?.name || 'P').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              {/* Upload button */}
+              <div>
+                <label htmlFor="icon-upload">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={iconUploadLoading}
+                    className="cursor-pointer"
+                    asChild
+                  >
+                    <span>
+                      {iconUploadLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Icon
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                </label>
+                <input
+                  id="icon-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleIconUpload}
+                  className="hidden"
                 />
               </div>
-              <Button
-                onClick={handleUsernameUpdate}
-                disabled={usernameLoading || username === session?.user?.username}
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                {usernameLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Save
-                  </>
-                )}
-              </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              This will be your public page URL. Only lowercase letters, numbers, and hyphens allowed.
+              Square image recommended. Max 2MB.
             </p>
           </div>
+
+          {/* Page URL */}
+          <div className="space-y-2">
+            <Label htmlFor="pageSlug" className="text-sm font-medium">Page URL</Label>
+            <div className="flex items-center flex-1">
+              <span className="px-3 py-2 bg-muted border border-r-0 border-input rounded-l-md text-muted-foreground text-sm h-10 flex items-center">
+                {hostnamePrefix}
+              </span>
+              <Input
+                id="pageSlug"
+                type="text"
+                value={pageSlug}
+                onChange={(e) => setPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))}
+                className="rounded-l-none"
+                placeholder="enter-page-slug"
+                pattern="^[a-z0-9\-]+$"
+                required
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {pageSlug
+                ? 'This is your public page URL. Only lowercase letters, numbers, and hyphens allowed.'
+                : 'Set a page URL to enable your public page. Only lowercase letters, numbers, and hyphens allowed.'}
+            </p>
+          </div>
+
+          {/* Page Name */}
+          <div className="space-y-2">
+            <Label htmlFor="pageName" className="text-sm font-medium">Page Name</Label>
+            <Input
+              id="pageName"
+              type="text"
+              value={pageName}
+              onChange={(e) => setPageName(e.target.value)}
+              placeholder="My Educational Page"
+            />
+            <p className="text-sm text-muted-foreground">
+              The display name shown on your public page. If empty, your profile name will be used.
+            </p>
+          </div>
+
+          {/* Page Description */}
+          <div className="space-y-2">
+            <Label htmlFor="pageDescription" className="text-sm font-medium">Page Description</Label>
+            <Textarea
+              id="pageDescription"
+              value={pageDescription}
+              onChange={(e) => setPageDescription(e.target.value)}
+              placeholder="A brief description of your page and content..."
+              rows={3}
+            />
+            <p className="text-sm text-muted-foreground">
+              Shown below your page name in the sidebar. Describe what visitors will find on your page.
+            </p>
+          </div>
+
+          {/* Save Button */}
+          <Button
+            onClick={handlePageInfoUpdate}
+            disabled={pageInfoLoading || !hasPageInfoChanges}
+            className="flex items-center gap-2"
+          >
+            {pageInfoLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Page Info
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Front Page Section */}

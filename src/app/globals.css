@@ -358,6 +358,7 @@ article.prose-theme > div > :first-child {
 .prose-theme h6 {
   @apply font-semibold leading-tight mt-0 mb-2;
   color: hsl(var(--prose-headings));
+  font-family: var(--font-heading), sans-serif;
 }
 
 .prose-theme h1 {

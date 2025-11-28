@@ -14,7 +14,7 @@ export async function GET() {
         id: true,
         email: true,
         name: true,
-        username: true,
+        pageSlug: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,
@@ -52,12 +52,12 @@ export async function POST(request: Request) {
   if (error) return error
 
   try {
-    const { email, name, username, title, password, isAdmin, requirePasswordReset } = await request.json()
+    const { email, name, pageSlug, title, password, isAdmin, requirePasswordReset } = await request.json()
 
     // Validate required fields
-    if (!email || !name || !username || !password) {
+    if (!email || !name || !pageSlug || !password) {
       return NextResponse.json(
-        { error: 'Email, name, username, and password are required' },
+        { error: 'Email, name, pageSlug, and password are required' },
         { status: 400 }
       )
     }
@@ -91,14 +91,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if username already exists
-    const existingUsername = await prisma.user.findUnique({
-      where: { username },
+    // Check if pageSlug already exists
+    const existingPageSlug = await prisma.user.findUnique({
+      where: { pageSlug },
     })
 
-    if (existingUsername) {
+    if (existingPageSlug) {
       return NextResponse.json(
-        { error: 'User with this username already exists' },
+        { error: 'User with this page slug already exists' },
         { status: 409 }
       )
     }
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
       data: {
         email,
         name,
-        username,
+        pageSlug,
+        pageName: name, // Use name as default page name
         title: title || null,
         hashedPassword,
         emailVerified: new Date(), // Auto-verify admin-created users
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
         id: true,
         email: true,
         name: true,
-        username: true,
+        pageSlug: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,

@@ -463,9 +463,9 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
             showText={false}
             size="sm"
           />
-          {sessionStatus === 'authenticated' && (session?.user as { username?: string })?.username && (
+          {sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
             <Link
-              href={`/${(session?.user as { username?: string })?.username}/${collection.slug}/${skript.slug}/${page.slug}`}
+              href={`/${(session?.user as { pageSlug?: string })?.pageSlug}/${collection.slug}/${skript.slug}/${page.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               prefetch={false}
@@ -571,7 +571,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               }
             }}
             skriptId={skript.id}
-            domain={(session?.user as { username?: string })?.username || undefined}
+            domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
             fileList={fileList}
             fileListLoading={fileListLoading}
             onFileUpload={refreshFileList}

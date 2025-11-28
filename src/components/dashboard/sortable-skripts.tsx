@@ -126,7 +126,7 @@ function SortableSkriptItem({
         <div 
           ref={provided.innerRef} 
           {...provided.draggableProps}
-          className={`border rounded-lg ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card'}`}
+          className={`border rounded-lg transition-all ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card hover:bg-muted/50'}`}
           style={{
             ...provided.draggableProps.style,
             opacity: snapshot.isDragging ? 0.5 : 1,
@@ -351,7 +351,7 @@ function StaticSkriptItem({
   }
 
   return (
-    <div className={`border rounded-lg ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card'}`}>
+    <div className={`border rounded-lg transition-all ${isViewOnly ? 'bg-muted/50 opacity-75' : 'bg-card hover:bg-muted/50'}`}>
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-muted-foreground">

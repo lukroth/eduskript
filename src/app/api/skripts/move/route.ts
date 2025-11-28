@@ -269,18 +269,18 @@ export async function POST(request: NextRequest) {
     // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { username: true }
+      select: { pageSlug: true }
     })
 
-    if (user?.username) {
+    if (user?.pageSlug) {
       // Revalidate relevant paths
-      revalidatePath(`/${user.username}`)
+      revalidatePath(`/${user.pageSlug}`)
       revalidatePath('/dashboard')
 
       // Revalidate old collection paths
       for (const cs of skript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.username}/${cs.collection.slug}`)
+          revalidatePath(`/${user.pageSlug}/${cs.collection.slug}`)
         }
       }
 
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
       if (result) {
         for (const cs of result.collectionSkripts) {
           if (cs.collection) {
-            revalidatePath(`/${user.username}/${cs.collection.slug}`)
+            revalidatePath(`/${user.pageSlug}/${cs.collection.slug}`)
           }
         }
       }

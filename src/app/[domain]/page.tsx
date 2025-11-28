@@ -110,9 +110,12 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
 
   const teacherData = {
     name: teacher.name || 'Teacher',
-    username: teacher.username || '',
-    bio: teacher.bio || undefined,
-    title: teacher.title || undefined
+    pageSlug: teacher.pageSlug || '',
+    pageName: teacher.pageName || null,
+    pageDescription: teacher.pageDescription || null,
+    pageIcon: teacher.pageIcon || null,
+    bio: teacher.bio || null,
+    title: teacher.title || null
   }
 
   const editUrl = isOwner ? '/dashboard/frontpage' : undefined

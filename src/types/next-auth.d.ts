@@ -8,7 +8,12 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
-      username?: string | null
+      // Page fields
+      pageSlug?: string | null
+      pageName?: string | null
+      pageDescription?: string | null
+      pageIcon?: string | null
+      // Profile fields
       title?: string | null
       bio?: string | null
       isAdmin?: boolean
@@ -24,7 +29,11 @@ declare module "next-auth" {
     name?: string | null
     email?: string | null
     image?: string | null
-    username?: string | null
+    // Page fields
+    pageSlug?: string | null
+    pageName?: string | null
+    pageDescription?: string | null
+    // Profile fields
     title?: string | null
     bio?: string | null
     isAdmin?: boolean
@@ -41,7 +50,11 @@ declare module "next-auth/jwt" {
     name?: string | null
     email?: string | null
     image?: string | null
-    username?: string | null
+    // Page fields
+    pageSlug?: string | null
+    pageName?: string | null
+    pageDescription?: string | null
+    // Profile fields
     title?: string | null
     bio?: string | null
     isAdmin?: boolean

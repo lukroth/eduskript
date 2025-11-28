@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         teacher: {
           select: {
             name: true,
-            username: true
+            pageSlug: true
           }
         }
       }
@@ -203,7 +203,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         teacher: {
           select: {
             name: true,
-            username: true
+            pageSlug: true
           }
         },
         _count: {

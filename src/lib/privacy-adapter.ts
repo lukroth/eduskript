@@ -39,36 +39,35 @@ function generateUsernameFromEmail(email: string): string {
 }
 
 /**
- * Finds a unique username, adding a random suffix if needed
+ * Finds a unique page slug, adding numeric suffix if needed (e.g., john-doe, john-doe-2, john-doe-3)
  */
-async function findUniqueUsername(prisma: PrismaClient, baseUsername: string): Promise<string> {
-  // First try the base username
+async function findUniquePageSlug(prisma: PrismaClient, baseSlug: string): Promise<string> {
+  // First try the base slug
   const existing = await prisma.user.findUnique({
-    where: { username: baseUsername },
+    where: { pageSlug: baseSlug },
     select: { id: true }
   })
 
   if (!existing) {
-    return baseUsername
+    return baseSlug
   }
 
-  // Add random suffix and try again (up to 10 attempts)
-  for (let i = 0; i < 10; i++) {
-    const suffix = Math.random().toString(36).substring(2, 6)
-    const candidateUsername = `${baseUsername}-${suffix}`
+  // Add numeric suffix and try again (2, 3, 4, ...)
+  for (let i = 2; i <= 100; i++) {
+    const candidateSlug = `${baseSlug}-${i}`
 
     const exists = await prisma.user.findUnique({
-      where: { username: candidateUsername },
+      where: { pageSlug: candidateSlug },
       select: { id: true }
     })
 
     if (!exists) {
-      return candidateUsername
+      return candidateSlug
     }
   }
 
-  // Fallback: use timestamp
-  return `${baseUsername}-${Date.now().toString(36)}`
+  // Fallback: use timestamp (extremely unlikely to reach here)
+  return `${baseSlug}-${Date.now().toString(36)}`
 }
 
 interface PrivacyAdapterOptions {
@@ -172,20 +171,20 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
       if (baseAdapter.createUser) {
         const createdUser = await baseAdapter.createUser(user as AdapterUser & Omit<AdapterUser, 'id'>)
 
-        // Generate a unique username from email
-        let username: string | null = null
+        // Generate a unique page slug from email
+        let pageSlug: string | null = null
         if (user.email) {
-          const baseUsername = generateUsernameFromEmail(user.email)
-          username = await findUniqueUsername(prisma, baseUsername)
+          const baseSlug = generateUsernameFromEmail(user.email)
+          pageSlug = await findUniquePageSlug(prisma, baseSlug)
         }
 
-        // Set account type to teacher and auto-generated username
+        // Set account type to teacher and auto-generated page slug
         await prisma.user.update({
           where: { id: createdUser.id },
           data: {
             accountType: 'teacher',
             lastSeenAt: new Date(),
-            username, // Auto-generated username for teachers
+            pageSlug, // Auto-generated page slug for teachers
           },
         })
 

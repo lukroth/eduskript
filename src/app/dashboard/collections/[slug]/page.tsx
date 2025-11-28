@@ -90,5 +90,5 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
       }))
   }
 
-  return <CollectionEditor collection={transformedCollection} userPermissions={userPermissions} currentUserId={session.user.id} username={session.user.username || ''} />
+  return <CollectionEditor collection={transformedCollection} userPermissions={userPermissions} currentUserId={session.user.id} username={session.user.pageSlug || ''} />
 }

@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ProfileSettings } from '@/components/dashboard/profile-settings'
 
 interface User {
   id: string
@@ -202,6 +203,9 @@ export default function CollaboratePage() {
         <h1 className="text-2xl font-bold">Collaborate</h1>
         <p className="text-gray-600">Connect with other teachers and collaborate on content.</p>
       </div>
+
+      {/* Profile Settings - Your public profile shown to collaborators */}
+      <ProfileSettings />
 
       {/* Search Section */}
       <Card className="p-6">

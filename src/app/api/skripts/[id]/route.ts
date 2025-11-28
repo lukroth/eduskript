@@ -185,23 +185,23 @@ export async function PATCH(
     // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { username: true }
+      select: { pageSlug: true }
     })
 
-    if (user?.username) {
+    if (user?.pageSlug) {
       // Invalidate cached data using tags
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
           // Invalidate skript-level cache
-          revalidateTag(CACHE_TAGS.skriptBySlug(user.username, cs.collection.slug, updatedSkript.slug), 'default')
+          revalidateTag(CACHE_TAGS.skriptBySlug(user.pageSlug, cs.collection.slug, updatedSkript.slug), 'default')
           // Invalidate collection-level cache
-          revalidateTag(CACHE_TAGS.collectionBySlug(user.username, cs.collection.slug), 'default')
+          revalidateTag(CACHE_TAGS.collectionBySlug(user.pageSlug, cs.collection.slug), 'default')
           // Revalidate paths as fallback
-          revalidatePath(`/${user.username}/${cs.collection.slug}/${updatedSkript.slug}`)
+          revalidatePath(`/${user.pageSlug}/${cs.collection.slug}/${updatedSkript.slug}`)
         }
       }
       // Invalidate teacher content cache (homepage, sidebar)
-      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
       revalidatePath('/dashboard')
     }
 
@@ -265,19 +265,19 @@ export async function DELETE(
     // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { username: true }
+      select: { pageSlug: true }
     })
 
-    if (user?.username) {
+    if (user?.pageSlug) {
       // Invalidate cached data using tags
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
           // Invalidate collection-level cache (skript was removed)
-          revalidateTag(CACHE_TAGS.collectionBySlug(user.username, cs.collection.slug), 'default')
+          revalidateTag(CACHE_TAGS.collectionBySlug(user.pageSlug, cs.collection.slug), 'default')
         }
       }
       // Invalidate teacher content cache (homepage, sidebar)
-      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
       revalidatePath('/dashboard')
     }
 

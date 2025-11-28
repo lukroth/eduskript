@@ -214,15 +214,15 @@ export async function PATCH(
     if (skriptOwner) {
       const ownerUser = await prisma.user.findUnique({
         where: { id: skriptOwner.id },
-        select: { username: true }
+        select: { pageSlug: true }
       })
 
-      if (ownerUser?.username) {
+      if (ownerUser?.pageSlug) {
         const collectionSlug = skript.collectionSkripts[0]?.collection?.slug
         if (collectionSlug) {
-          revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.username, collectionSlug, skript.slug), 'default')
+          revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, collectionSlug, skript.slug), 'default')
         }
-        revalidateTag(CACHE_TAGS.teacherContent(ownerUser.username), 'default')
+        revalidateTag(CACHE_TAGS.teacherContent(ownerUser.pageSlug), 'default')
       }
     }
 

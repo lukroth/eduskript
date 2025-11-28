@@ -20,7 +20,7 @@ export async function GET(
         id: true,
         email: true,
         name: true,
-        username: true,
+        pageSlug: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,
@@ -58,7 +58,7 @@ export async function PATCH(
   const { id } = await params
 
   try {
-    const { email, name, username, title, isAdmin, requirePasswordReset } = await request.json()
+    const { email, name, pageSlug, title, isAdmin, requirePasswordReset } = await request.json()
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -98,18 +98,18 @@ export async function PATCH(
       }
     }
 
-    // Check if username is taken by another user
-    if (username) {
-      const usernameTaken = await prisma.user.findFirst({
+    // Check if pageSlug is taken by another user
+    if (pageSlug) {
+      const pageSlugTaken = await prisma.user.findFirst({
         where: {
-          username,
+          pageSlug,
           id: { not: id },
         },
       })
 
-      if (usernameTaken) {
+      if (pageSlugTaken) {
         return NextResponse.json(
-          { error: 'Username already taken by another user' },
+          { error: 'Page slug already taken by another user' },
           { status: 409 }
         )
       }
@@ -121,7 +121,7 @@ export async function PATCH(
       data: {
         ...(email && { email }),
         ...(name && { name }),
-        ...(username && { username }),
+        ...(pageSlug && { pageSlug }),
         ...(title !== undefined && { title: title || null }),
         ...(isAdmin !== undefined && { isAdmin }),
         ...(requirePasswordReset !== undefined && { requirePasswordReset }),
@@ -130,7 +130,7 @@ export async function PATCH(
         id: true,
         email: true,
         name: true,
-        username: true,
+        pageSlug: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,

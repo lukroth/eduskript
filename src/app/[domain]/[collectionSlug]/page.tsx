@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: CollectionPreviewProps): Prom
   try {
     // Find the teacher and collection
     const teacher = await prisma.user.findUnique({
-      where: { username: domain },
+      where: { pageSlug: domain },
       select: { id: true, name: true, title: true }
     })
 
@@ -74,9 +74,12 @@ interface Teacher {
   id: string
   name: string | null
   email: string | null
+  pageSlug: string | null
+  pageName?: string | null
+  pageDescription?: string | null
+  pageIcon?: string | null
   title: string | null
   bio: string | null
-  username: string | null
   sidebarBehavior?: string | null
   typographyPreference?: string | null
 }
@@ -138,7 +141,7 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
   try {
     // Find the teacher
     teacher = await prisma.user.findUnique({
-      where: { username: domain }
+      where: { pageSlug: domain }
     })
 
     if (!teacher) {
@@ -262,10 +265,13 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
 
   // Prepare teacher data for the layout component
   const teacherForLayout = {
-    name: teacher.name || teacher.username || 'Unknown',
-    username: teacher.username || domain,
-    bio: teacher.bio || undefined,
-    title: teacher.title || undefined
+    name: teacher.name || teacher.pageSlug || 'Unknown',
+    pageSlug: teacher.pageSlug || domain,
+    pageName: teacher.pageName || null,
+    pageDescription: teacher.pageDescription || null,
+    pageIcon: teacher.pageIcon || null,
+    bio: teacher.bio || null,
+    title: teacher.title || null
   }
 
     // If no pages are available, show collection overview

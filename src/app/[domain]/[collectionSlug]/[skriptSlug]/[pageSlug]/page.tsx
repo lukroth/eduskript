@@ -285,10 +285,13 @@ export default async function PublicPage({ params }: PageProps) {
 
   // Prepare teacher data for the layout component
   const teacherForLayout = {
-    name: teacher.name || teacher.username || 'Unknown',
-    username: teacher.username || domain,
-    bio: teacher.bio || undefined,
-    title: teacher.title || undefined
+    name: teacher.name || teacher.pageSlug || 'Unknown',
+    pageSlug: teacher.pageSlug || domain,
+    pageName: teacher.pageName || null,
+    pageDescription: teacher.pageDescription || null,
+    pageIcon: teacher.pageIcon || null,
+    bio: teacher.bio || null,
+    title: teacher.title || null
   }
 
   const currentPath = `/${collectionSlug}/${skriptSlug}/${pageSlug}`

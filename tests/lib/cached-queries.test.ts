@@ -97,7 +97,9 @@ describe('cached-queries', () => {
         email: 'john@example.com',
         title: 'Professor',
         bio: 'Math teacher',
-        username: 'john',
+        pageSlug: 'john',
+        pageName: 'John\'s Page',
+        pageDescription: 'Math resources',
         sidebarBehavior: 'contextual',
         typographyPreference: 'modern',
       }
@@ -107,14 +109,17 @@ describe('cached-queries', () => {
       const result = await getTeacherByUsername('john')
 
       expect(prisma.user.findFirst).toHaveBeenCalledWith({
-        where: { username: 'john' },
+        where: { pageSlug: 'john' },
         select: {
           id: true,
           name: true,
           email: true,
           title: true,
           bio: true,
-          username: true,
+          pageSlug: true,
+          pageName: true,
+          pageDescription: true,
+          pageIcon: true,
           sidebarBehavior: true,
           typographyPreference: true,
         },

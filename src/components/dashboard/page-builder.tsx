@@ -450,37 +450,23 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            "bg-muted/30 border border-border rounded-lg hover:shadow-sm transition-shadow",
+            "bg-muted/30 border border-border rounded-lg hover:bg-muted/50 hover:shadow-sm transition-all",
             snapshot.isDragging && "opacity-50",
             !item.permissions?.canEdit && "opacity-70 bg-muted/50",
             item.permissions?.canView === false && "border-red-200 bg-red-50"
           )}
         >
-          <div className="flex items-center gap-3 p-2 relative">
+          <div className="flex items-center gap-3 p-2">
             {/* Drag Handle */}
             {item.permissions?.canView !== false && (
-              <div 
+              <div
                 {...provided.dragHandleProps}
                 className="opacity-70 hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
               >
                 <GripVertical className="w-4 h-4 text-muted-foreground" />
               </div>
             )}
-            {/* Remove button - positioned in top-right corner */}
-            {parentCanEdit && (
-              <div className="absolute top-2 right-2 z-10">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRemove(item.id, parentId)}
-                  className="text-destructive hover:text-destructive h-4 w-4 p-0"
-                  title="Remove from collection"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            )}
-            
+
             <div className="relative">
               <FileText className={cn(
                 "w-4 h-4 flex-shrink-0",
@@ -490,7 +476,7 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                 <Eye className="w-3 h-3 text-muted-foreground absolute -bottom-1 -right-1 bg-background rounded-full" />
               )}
             </div>
-            
+
             <div className="flex-1 min-w-0">
               {item.permissions?.canView === false ? (
                 <div className="space-y-1">
@@ -535,17 +521,30 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                 </>
               )}
             </div>
-            {/* Publish toggle for skripts with edit permission */}
-            {item.permissions?.canEdit && item.isPublished !== undefined && (
-              <PublishToggle
-                type="skript"
-                itemId={item.id}
-                isPublished={item.isPublished}
-                onToggle={() => {}}
-                size="sm"
-                showText={false}
-              />
-            )}
+            {/* Action buttons - aligned in a button bar */}
+            <div className="flex items-center gap-1">
+              {item.permissions?.canEdit && item.isPublished !== undefined && (
+                <PublishToggle
+                  type="skript"
+                  itemId={item.id}
+                  isPublished={item.isPublished}
+                  onToggle={() => {}}
+                  size="sm"
+                  showText={false}
+                />
+              )}
+              {parentCanEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRemove(item.id, parentId)}
+                  className="text-destructive hover:text-destructive h-6 w-6 p-0"
+                  title="Remove from collection"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}

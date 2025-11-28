@@ -64,7 +64,7 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
         <div 
           ref={provided.innerRef}
           {...provided.draggableProps}
-          className="flex items-center justify-between p-3 border rounded-md bg-background"
+          className="flex items-center justify-between p-3 border rounded-md bg-background hover:bg-muted/50 transition-all"
           style={{
             ...provided.draggableProps.style,
             opacity: snapshot.isDragging ? 0.5 : 1,
@@ -165,7 +165,7 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
   }
 
   return (
-    <div className="flex items-center justify-between p-3 border rounded-md bg-background">
+    <div className="flex items-center justify-between p-3 border rounded-md bg-background hover:bg-muted/50 transition-all">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-muted-foreground">
           {canEdit && <GripVertical className="w-4 h-4" />}
