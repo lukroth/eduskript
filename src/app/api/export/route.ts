@@ -3,9 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import JSZip from 'jszip'
-import { readFile } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { downloadTeacherFile, isTeacherS3Configured } from '@/lib/s3'
 
 interface ExportManifest {
   version: number
@@ -98,7 +96,8 @@ export async function GET(request: Request) {
       skripts: {}
     }
 
-    const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads')
+    // Check S3 configuration for file exports
+    const s3Configured = isTeacherS3Configured()
     const processedSkripts = new Set<string>()
 
     // Process collections
@@ -133,25 +132,23 @@ export async function GET(request: Request) {
           skriptFolder.file(pageFilename, content)
         }
 
-        // Add attachments
-        if (skript.files.length > 0) {
+        // Add attachments from S3
+        if (skript.files.length > 0 && s3Configured) {
           const attachmentsFolder = skriptFolder.folder('attachments')
           if (attachmentsFolder) {
             for (const file of skript.files) {
               if (file.isDirectory) continue
 
-              // Read physical file
+              // Download from S3
               if (file.hash) {
                 const ext = file.name.split('.').pop() || 'bin'
-                const physicalPath = join(uploadDir, `${file.hash}.${ext}`)
+                const s3Key = `files/${file.hash}.${ext}`
 
-                if (existsSync(physicalPath)) {
-                  try {
-                    const fileBuffer = await readFile(physicalPath)
-                    attachmentsFolder.file(file.name, fileBuffer)
-                  } catch (err) {
-                    console.error(`[export] Failed to read file ${file.name}:`, err)
-                  }
+                try {
+                  const fileBuffer = await downloadTeacherFile(s3Key)
+                  attachmentsFolder.file(file.name, fileBuffer)
+                } catch (err) {
+                  console.error(`[export] Failed to download file ${file.name} from S3:`, err)
                 }
               }
             }
@@ -188,22 +185,21 @@ export async function GET(request: Request) {
         skriptFolder.file(pageFilename, content)
       }
 
-      if (skript.files.length > 0) {
+      // Add attachments from S3
+      if (skript.files.length > 0 && s3Configured) {
         const attachmentsFolder = skriptFolder.folder('attachments')
         if (attachmentsFolder) {
           for (const file of skript.files) {
             if (file.isDirectory) continue
             if (file.hash) {
               const ext = file.name.split('.').pop() || 'bin'
-              const physicalPath = join(uploadDir, `${file.hash}.${ext}`)
+              const s3Key = `files/${file.hash}.${ext}`
 
-              if (existsSync(physicalPath)) {
-                try {
-                  const fileBuffer = await readFile(physicalPath)
-                  attachmentsFolder.file(file.name, fileBuffer)
-                } catch (err) {
-                  console.error(`[export] Failed to read file ${file.name}:`, err)
-                }
+              try {
+                const fileBuffer = await downloadTeacherFile(s3Key)
+                attachmentsFolder.file(file.name, fileBuffer)
+              } catch (err) {
+                console.error(`[export] Failed to download file ${file.name} from S3:`, err)
               }
             }
           }
