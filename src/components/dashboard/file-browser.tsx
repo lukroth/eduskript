@@ -284,6 +284,10 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
               </div>
             ) : (
               <div className="space-y-1">
+                <div className="text-xs text-muted-foreground mb-2">
+                  {getDisplayFiles().length} file{getDisplayFiles().length !== 1 ? 's' : ''}
+                </div>
+                <div className="space-y-1 max-h-96 overflow-y-auto">
                 {getDisplayFiles().map((file) => (
                   <div
                     key={file.id || file.url}
@@ -402,6 +406,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </div>
