@@ -98,11 +98,12 @@ function transformWikiLinks(content, topicDir, attachmentsDir) {
   // Transform image/video embeds: ![[filename]] or ![[filename|alt]]
   let transformed = content.replace(/!\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, (match, filename, alt) => {
     // Handle Excalidraw diagrams - flatten path for both asset tracking and output
-    if (!filename.includes('.') || filename.endsWith('.excalidraw')) {
-      const baseName = filename.replace(/\.excalidraw$/, '')
+    // Support both .excalidraw and .excalidraw.md extensions
+    if (!filename.includes('.') || filename.endsWith('.excalidraw') || filename.endsWith('.excalidraw.md')) {
+      const baseName = filename.replace(/\.excalidraw(\.md)?$/, '')
       const flatBaseName = basename(baseName)
-      referencedAssets.add(`${baseName}.excalidraw`) // Original path for finding asset
-      return `![${alt || ''}](${flatBaseName}.excalidraw)` // Flattened for output
+      referencedAssets.add(`${baseName}.excalidraw`) // Original path for finding asset (normalized)
+      return `![${alt || ''}](${flatBaseName}.excalidraw)` // Flattened for output (always .excalidraw)
     }
 
     // Videos - reference by filename, the .mp4.json metadata will be alongside
@@ -230,7 +231,26 @@ function slugify(str) {
 /**
  * Find asset file in various locations
  */
-function findAsset(filename, topicAttachmentsDir) {
+function findAsset(filename, topicAttachmentsDir, topicPath) {
+  // Handle relative paths like ../other-topic/attachments/sample.jpg
+  // These are resolved from the topic root, not from attachments/
+  if (filename.startsWith('../')) {
+    const resolvedPath = join(topicPath, filename)
+    if (existsSync(resolvedPath)) return resolvedPath
+  }
+
+  // Also search subdirectories of attachments (e.g., attachments/fde-demo/)
+  if (existsSync(topicAttachmentsDir)) {
+    const subdirs = readdirSync(topicAttachmentsDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name)
+
+    for (const subdir of subdirs) {
+      const subPath = join(topicAttachmentsDir, subdir, filename)
+      if (existsSync(subPath)) return subPath
+    }
+  }
+
   const possiblePaths = [
     join(topicAttachmentsDir, filename),
     join(globalAttachmentsDir, filename),
@@ -238,10 +258,33 @@ function findAsset(filename, topicAttachmentsDir) {
   ]
 
   // For Excalidraw, look for light/dark SVGs
-  if (filename.endsWith('.excalidraw')) {
-    const baseName = filename.replace(/\.excalidraw$/, '')
-    const lightPath = possiblePaths.map(p => p.replace('.excalidraw', '.excalidraw.light.svg')).find(p => existsSync(p))
-    const darkPath = possiblePaths.map(p => p.replace('.excalidraw', '.excalidraw.dark.svg')).find(p => existsSync(p))
+  // Support both .excalidraw and .excalidraw.md extensions
+  if (filename.endsWith('.excalidraw') || filename.endsWith('.excalidraw.md')) {
+    const baseName = filename.replace(/\.excalidraw(\.md)?$/, '')
+    // Build paths for SVG variants (including subdirectories)
+    const svgBasePaths = [
+      join(topicAttachmentsDir, baseName),
+      join(globalAttachmentsDir, baseName),
+      join(videosDir, baseName)
+    ]
+
+    // Also check subdirectories of attachments
+    if (existsSync(topicAttachmentsDir)) {
+      const subdirs = readdirSync(topicAttachmentsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name)
+      for (const subdir of subdirs) {
+        svgBasePaths.push(join(topicAttachmentsDir, subdir, baseName))
+      }
+    }
+
+    // Handle relative paths for Excalidraw
+    if (baseName.startsWith('../')) {
+      svgBasePaths.unshift(join(topicPath, baseName))
+    }
+
+    const lightPath = svgBasePaths.map(p => `${p}.excalidraw.light.svg`).find(p => existsSync(p))
+    const darkPath = svgBasePaths.map(p => `${p}.excalidraw.dark.svg`).find(p => existsSync(p))
     if (lightPath || darkPath) {
       return { type: 'excalidraw', lightPath, darkPath, baseName }
     }
@@ -371,7 +414,7 @@ async function processTopic(topicDir, outputTopicDir) {
     await mkdir(attachmentsOutputDir, { recursive: true })
 
     for (const assetName of allReferencedAssets) {
-      const found = findAsset(assetName, topicAttachmentsDir)
+      const found = findAsset(assetName, topicAttachmentsDir, topicPath)
 
       if (!found) {
         issues.push({

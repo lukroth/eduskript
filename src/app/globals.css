@@ -460,7 +460,8 @@ article.prose-theme > div > :first-child {
 }
 
 .prose-theme code {
-  @apply text-foreground bg-muted rounded-md text-sm font-semibold px-1.5 py-1;
+  @apply text-foreground bg-muted rounded-md font-semibold px-1.5 py-1;
+  font-size: 0.9em; /* Use em so code inherits heading size */
 }
 
 .prose-theme pre {
@@ -1030,15 +1031,6 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 
 .prose-theme h6 {
   font-size: calc(var(--user-font-scale, 1.1875) * 1rem);
-}
-
-/* Code blocks should also scale */
-.prose-theme code {
-  font-size: calc(var(--user-font-size, 19px) * 0.85);
-}
-
-.prose-theme pre code {
-  font-size: calc(var(--user-font-size, 19px) * 0.85);
 }
 
 /* ColorTitle - Fancy rainbow gradient for h1 headings */

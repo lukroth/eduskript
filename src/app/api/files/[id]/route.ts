@@ -11,6 +11,8 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
+    const { searchParams } = new URL(request.url)
+    const proxyContent = searchParams.get('proxy') === 'true'
 
     let { id: fileId } = await params
 
@@ -64,6 +66,31 @@ export async function GET(
     // Directories can't be served directly
     if (!file.s3Url) {
       return NextResponse.json({ error: 'Cannot serve directory' }, { status: 400 })
+    }
+
+    // If proxy mode is requested, fetch content from S3 and return it directly
+    // This is useful for avoiding CORS issues when fetching from client-side JS
+    if (proxyContent) {
+      try {
+        const s3Response = await fetch(file.s3Url)
+        if (!s3Response.ok) {
+          return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 502 })
+        }
+
+        const contentType = file.contentType || s3Response.headers.get('content-type') || 'application/octet-stream'
+        const body = await s3Response.arrayBuffer()
+
+        return new NextResponse(body, {
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          }
+        })
+      } catch (fetchError) {
+        console.error('Failed to proxy file from S3:', fetchError)
+        return NextResponse.json({ error: 'Storage fetch failed' }, { status: 502 })
+      }
     }
 
     // Redirect to S3 URL (public bucket, so direct access works)

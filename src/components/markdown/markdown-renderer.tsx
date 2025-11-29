@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useLayoutEffect, useRef, createContext, useContext } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, createContext, useContext, useDeferredValue, memo } from 'react'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkMath from 'remark-math'
@@ -25,7 +25,16 @@ import { remarkMuxVideo } from '@/lib/remark-plugins/mux-video'
 import { rehypeCodemirrorHighlight } from '@/lib/rehype-plugins/codemirror-highlight'
 import { rehypeSourceLine } from '@/lib/rehype-plugins/source-line'
 import { rehypeColorTitle } from '@/lib/rehype-plugins/color-title'
+import { rehypeMarkdownInHtml } from '@/lib/rehype-plugins/markdown-in-html'
+import { rehypeFileResolver } from '@/lib/rehype-plugins/file-resolver'
+import { remarkTabs } from '@/lib/remark-plugins/tabs'
+import { remarkYoutube } from '@/lib/remark-plugins/youtube'
+import { remarkQuiz } from '@/lib/remark-plugins/quiz'
+import { TabsContainer, TabItem } from './tabs'
+import { Youtube } from './youtube'
+import { Question, Option } from './quiz'
 import rehypeSlug from 'rehype-slug'
+import rehypeRaw from 'rehype-raw'
 import { useTheme } from 'next-themes'
 import {
   CheckCircle2,
@@ -67,7 +76,7 @@ function CodeComponent({ children, className, ...props }: React.HTMLAttributes<H
 
   if (!language) {
     return (
-      <code className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono" {...props}>
+      <code className="px-[0.4em] py-[0.2em] rounded bg-muted font-mono text-[0.9em]" {...props}>
         {children}
       </code>
     )
@@ -133,6 +142,12 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
   const dataWrap = ((props as Record<string, unknown>)['data-wrap'] as string) ||
                    ((props as Record<string, unknown>)['dataWrap'] as string)
 
+  const dataInvert = ((props as Record<string, unknown>)['data-invert'] as string) ||
+                     ((props as Record<string, unknown>)['dataInvert'] as string)
+
+  const dataSaturate = ((props as Record<string, unknown>)['data-saturate'] as string) ||
+                       ((props as Record<string, unknown>)['dataSaturate'] as string)
+
   return (
     <ImageWithResize
       key={`image-${originalSrc || src}`}
@@ -143,6 +158,8 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
       originalSrc={originalSrc}
       align={dataAlign as 'left' | 'center' | 'right'}
       wrap={dataWrap === 'true'}
+      invert={dataInvert as 'dark' | 'light' | 'always' | undefined}
+      saturate={dataSaturate}
       onWidthChange={onContentChange ? handleWidthChange : undefined}
     />
   )
@@ -337,6 +354,65 @@ function MuxVideoComponent({ ...props }: React.HTMLAttributes<HTMLElement> & Rec
   )
 }
 
+function YoutubeEmbedComponent({ ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
+  const id = (props['data-id'] as string) || (props['dataId'] as string) || ''
+  const playlist = (props['data-playlist'] as string) || (props['dataPlaylist'] as string) || ''
+  const startTimeStr = (props['data-start-time'] as string) || (props['dataStartTime'] as string) || ''
+  const startTime = startTimeStr ? parseInt(startTimeStr, 10) : undefined
+
+  return (
+    <Youtube
+      id={id || undefined}
+      playlist={playlist || undefined}
+      startTime={startTime}
+    />
+  )
+}
+
+function QuizQuestionComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
+  const { markdownContext } = useContext(MarkdownEditContext)
+  const id = (props['id'] as string) || ''
+  const type = ((props['type'] as string) || 'multiple') as 'single' | 'multiple' | 'text' | 'number'
+
+  // Extract options from children
+  const optionElements: React.ReactElement[] = []
+
+  React.Children.forEach(children, (child) => {
+    if (React.isValidElement(child)) {
+      optionElements.push(child)
+    }
+  })
+
+  return (
+    <Question
+      id={id}
+      pageId={markdownContext?.pageId || ''}
+      type={type}
+    >
+      {optionElements.map((option, index) => {
+        const optionProps = option.props as Record<string, unknown>
+        const is = optionProps['is'] as string
+        const feedback = decodeHtmlEntities((optionProps['feedback'] as string) || '')
+
+        return (
+          <Option
+            key={index}
+            is={is as 'true' | 'false' | undefined}
+            feedback={feedback || undefined}
+          >
+            {optionProps.children as React.ReactNode}
+          </Option>
+        )
+      })}
+    </Question>
+  )
+}
+
+function QuizOptionComponent({ children }: React.HTMLAttributes<HTMLElement>) {
+  // This is rendered by QuizQuestionComponent, so this is just a passthrough
+  return <>{children}</>
+}
+
 // Icon mapping for callout types
 const calloutIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   note: FileText,
@@ -432,6 +508,11 @@ const rehypeReactComponents = {
   blockquote: BlockquoteComponent,
   'code-editor': CodeEditorComponent,
   'muxvideo': MuxVideoComponent,
+  'tabs-container': TabsContainer,
+  'tab-item': TabItem,
+  'youtube-embed': YoutubeEmbedComponent,
+  'question': QuizQuestionComponent,
+  'option': QuizOptionComponent,
   h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={1} {...props} />,
   h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={2} {...props} />,
   h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={3} {...props} />,
@@ -447,13 +528,19 @@ interface MarkdownRendererProps {
   onContentChange?: (newContent: string) => void
 }
 
-export function MarkdownRenderer({ content, context, onContentChange }: MarkdownRendererProps) {
+// Inner component that does the actual rendering
+function MarkdownRendererInner({ content, context, onContentChange }: MarkdownRendererProps) {
+
+  // Defer content updates so typing doesn't block
+  const deferredContent = useDeferredValue(content)
+
   const [renderedContent, setRenderedContent] = useState<React.ReactNode>(null)
   const [error, setError] = useState<string | null>(null)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const { resolvedTheme } = useTheme()
   const scrollPositionRef = useRef(0)
   const hasRestoredScroll = useRef(false)
+  const processingRef = useRef(0) // Track current processing generation
 
   // Capture scroll position before any DOM changes
   useLayoutEffect(() => {
@@ -464,32 +551,42 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
   })
 
   useEffect(() => {
+    // Increment generation to cancel any in-flight processing
+    const currentGeneration = ++processingRef.current
+
     const processContent = async () => {
+      // Early bail-out if already superseded
+      if (currentGeneration !== processingRef.current) return
+
+      // Debounce - wait 150ms and check again (allows fast typing to batch)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      if (currentGeneration !== processingRef.current) return
+
       try {
         setError(null)
 
         // Build the processing pipeline
         const processor = unified()
           .use(remarkParse)
+          .use(remarkTabs)
+          .use(remarkQuiz)
           .use(remarkGfm)
           .use(remarkMath)
-          .use(remarkMuxVideo, { fileList: context?.fileList }) // Transform ![](video.mp4) to Mux player BEFORE file resolver
+          .use(remarkMuxVideo, { fileList: context?.fileList })
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
-          .use(remarkCodeEditor) // Convert code blocks with "editor" meta to interactive editors
-          .use(remarkCallouts) // Transform Obsidian-style callouts
-          .use(remarkRehype, { allowDangerousHtml: true }) // Need allowDangerousHtml for custom elements
-          // Add IDs to headings
+          .use(remarkCodeEditor)
+          .use(remarkCallouts)
+          .use(remarkYoutube)
+          .use(remarkRehype, { allowDangerousHtml: true })
+          .use(rehypeRaw)
+          .use(rehypeMarkdownInHtml)
+          .use(rehypeFileResolver, { fileList: context?.fileList })
           .use(rehypeSlug)
-          // Add rainbow gradient to h1 headings
           .use(rehypeColorTitle)
-          // Add KaTeX math rendering
           .use(rehypeKatex)
-          // Add source line markers BEFORE transformations happen
           .use(rehypeSourceLine)
-          // Add CodeMirror syntax highlighting (transforms pre -> div, preserves properties)
           .use(rehypeCodemirrorHighlight)
-          // Convert to React
           .use(rehypeReact, {
             jsx: prod.jsx,
             jsxs: prod.jsxs,
@@ -497,7 +594,12 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
             components: rehypeReactComponents,
           })
 
-        const result = await processor.process(content)
+        const result = await processor.process(deferredContent)
+
+        // Bail out if a newer generation started
+        if (currentGeneration !== processingRef.current) {
+          return
+        }
         setRenderedContent(result.result)
         setIsInitialLoad(false)
         hasRestoredScroll.current = false
@@ -509,7 +611,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
     }
 
     processContent()
-  }, [content, context, resolvedTheme])
+  }, [deferredContent, context, resolvedTheme])
 
   // Restore scroll position after DOM updates
   useLayoutEffect(() => {
@@ -594,3 +696,32 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
     </MarkdownEditContext.Provider>
   )
 }
+
+// Custom comparison function for memo
+function arePropsEqual(prevProps: MarkdownRendererProps, nextProps: MarkdownRendererProps): boolean {
+  // Return true if props are equal (skip re-render)
+  // Return false if props changed (re-render needed)
+
+  // Always re-render if content changed
+  if (prevProps.content !== nextProps.content) return false
+
+  // Compare context by meaningful fields
+  if (prevProps.context?.pageId !== nextProps.context?.pageId) return false
+  if (prevProps.context?.domain !== nextProps.context?.domain) return false
+  if (prevProps.context?.skriptId !== nextProps.context?.skriptId) return false
+
+  // Compare fileList length (full array comparison too expensive)
+  const prevFileCount = prevProps.context?.fileList?.length ?? 0
+  const nextFileCount = nextProps.context?.fileList?.length ?? 0
+  if (prevFileCount !== nextFileCount) return false
+
+  // onContentChange is a callback - reference changes are ok, skip comparison
+
+  return true // Props are equal, skip re-render
+}
+
+// Memoized export - only re-render when content or context actually changes
+export const MarkdownRenderer = memo(MarkdownRendererInner, arePropsEqual)
+
+// Add display name for debugging
+MarkdownRenderer.displayName = 'MarkdownRenderer'

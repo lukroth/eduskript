@@ -9,7 +9,23 @@
 
 ## 🎯 Priority List
 
-file browser doesn't show all files
+- migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
+- optimize image caching and isr, look at excalidraw
+
+### Technical Debt: `<Tabs>` Component Implementation
+The current Nextra-style `<Tabs>` implementation in `src/lib/remark-plugins/tabs.ts` uses a hacky serialize → regex extract → re-parse cycle:
+1. Custom `serializeNode()` converts MDAST back to markdown (preserving HTML tags)
+2. Regex extracts tab content from the serialized markdown
+3. `fromMarkdown()` re-parses the extracted content into fresh MDAST nodes
+
+**Why it's hacky**: The content gets parsed, serialized, and re-parsed - inefficient and fragile.
+
+**Cleaner alternatives to explore**:
+- Pre-process raw markdown string before parsing (find `<Tabs>` blocks, transform them before unified pipeline)
+- Access original source via node positions (requires passing source to plugin)
+- Custom micromark extension (proper parsing at the tokenizer level)
+
+**Current behavior**: Works correctly - Excalidraw images, bold, inline code, etc. all render inside tabs.
 
 - **Content migration** - continue content migration
 

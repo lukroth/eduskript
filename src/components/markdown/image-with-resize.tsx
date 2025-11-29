@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AlignLeft, AlignCenter, AlignRight, WrapText } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
 interface ImageWithResizeProps {
   src: string
@@ -13,11 +14,14 @@ interface ImageWithResizeProps {
   originalSrc?: string // The original filename from markdown (before URL resolution)
   align?: 'left' | 'center' | 'right'
   wrap?: boolean
+  invert?: 'dark' | 'light' | 'always' // Invert colors for diagrams
+  saturate?: string // Saturation percentage to apply with invert (e.g., '70' or '150')
 }
 
-export function ImageWithResize({ src, alt = '', title, style, onWidthChange, originalSrc, align = 'center', wrap = false }: ImageWithResizeProps) {
+export function ImageWithResize({ src, alt = '', title, style, onWidthChange, originalSrc, align = 'center', wrap = false, invert, saturate }: ImageWithResizeProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { resolvedTheme } = useTheme()
   const [isDragging, setIsDragging] = useState(false)
   const [currentAlign, setCurrentAlign] = useState<'left' | 'center' | 'right'>(align)
   const [currentWrap, setCurrentWrap] = useState(wrap)
@@ -152,6 +156,16 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     }
   }, [isDragging, handleMouseMove, handleMouseUp])
 
+  // Calculate if we should apply invert filter
+  const shouldInvert = invert === 'always' ||
+    (invert === 'dark' && resolvedTheme === 'dark') ||
+    (invert === 'light' && resolvedTheme === 'light')
+
+  // Build the filter string with optional saturate
+  const invertFilter = shouldInvert
+    ? `invert(1) hue-rotate(180deg)${saturate ? ` saturate(${saturate})` : ''}`
+    : undefined
+
   // Calculate alignment classes and styles
   const alignmentClasses = currentWrap
     ? currentAlign === 'left'
@@ -173,15 +187,22 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     >
       {/* Image */}
       <span ref={imageRef} className="block">
-        <Image
-          src={src}
-          alt={alt || ''}
-          title={title}
-          width={800}
-          height={600}
-          className="w-full h-auto rounded-md"
-          unoptimized={src.startsWith('/api/')}
-        />
+        {src.startsWith('/missing-file/') ? (
+          <span className="flex items-center justify-center w-full h-32 bg-muted border border-dashed border-border rounded-md text-muted-foreground text-sm">
+            Missing: {src.replace('/missing-file/', '').split('?')[0]}
+          </span>
+        ) : (
+          <Image
+            src={src}
+            alt={alt || ''}
+            title={title}
+            width={800}
+            height={600}
+            className="w-full h-auto rounded-md"
+            style={invertFilter ? { filter: invertFilter } : undefined}
+            unoptimized={src.startsWith('/api/')}
+          />
+        )}
       </span>
 
       {/* Caption */}

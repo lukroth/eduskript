@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: 's3.fr-par.scw.cloud',
         pathname: '/eduskript-teacher-files/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+        pathname: '/vi/**',
+      },
     ],
   },
   // Allow larger body sizes for import API (default is 10MB)

@@ -39,8 +39,11 @@ export function remarkImageAttributes() {
             if (attrMatch) {
               const attrsString = attrMatch[1]
               const attrs = attrsString.split(';').reduce((acc, attr) => {
-                const [key, value] = attr.split('=').map(s => s.trim())
-                if (key && value) acc[key] = value
+                const parts = attr.split('=').map(s => s.trim())
+                const key = parts[0]
+                const value = parts[1]
+                // Handle both key=value and bare keys (like 'invert')
+                if (key) acc[key] = value ?? ''
                 return acc
               }, {} as Record<string, string>)
 
@@ -63,6 +66,19 @@ export function remarkImageAttributes() {
               // Wrap
               if (attrs.wrap) {
                 child.data.hProperties['data-wrap'] = attrs.wrap
+              }
+
+              // Invert (for dark mode diagrams)
+              // Values: 'dark' (default if just 'invert'), 'light', 'always'
+              if ('invert' in attrs) {
+                // Handle bare 'invert' (no value) as 'dark'
+                child.data.hProperties['data-invert'] = attrs.invert || 'dark'
+              }
+
+              // Saturate (used with invert to restore colors)
+              // Value: percentage like '70' or '150'
+              if (attrs.saturate) {
+                child.data.hProperties['data-saturate'] = attrs.saturate
               }
 
               // Remove the attribute text from the markdown

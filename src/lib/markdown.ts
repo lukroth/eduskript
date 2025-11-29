@@ -7,6 +7,7 @@ import remarkRehype from 'remark-rehype'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeStringify from 'rehype-stringify'
+import rehypeRaw from 'rehype-raw'
 import matter from 'gray-matter'
 import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -19,6 +20,9 @@ import { rehypeImageWrapper } from './rehype-plugins/image-wrapper'
 import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
 import { remarkCodeEditor } from './remark-plugins/code-editor'
 import { remarkCallouts } from './remark-plugins/callouts'
+import { remarkTabs } from './remark-plugins/tabs'
+import { remarkYoutube } from './remark-plugins/youtube'
+import { remarkMuxVideo } from './remark-plugins/mux-video'
 import { rehypeUnwrapBlockElements } from './rehype-plugins/unwrap-block-elements'
 
 export interface ProcessedMarkdown {
@@ -52,14 +56,17 @@ export async function processMarkdown(
   // Build plugin list
   const remarkPlugins: PluggableList = [
     remarkParse,
+    remarkTabs, // Transform Nextra-style Tabs - MUST run early so tab content goes through pipeline
+    remarkGfm,
+    remarkMath,
+    [remarkMuxVideo, { fileList: context?.fileList }], // Transform ![](video.mp4) to Mux player
     [remarkFileResolver, {
       fileList: context?.fileList
     }],
     remarkImageAttributes, // Parse image width attributes
     remarkCodeEditor, // Convert code blocks with "editor" meta to interactive editors
     remarkCallouts, // Transform Obsidian-style callouts
-    remarkMath,
-    remarkGfm,
+    remarkYoutube, // Transform <Youtube> components
   ]
 
   // Add server-only plugin dynamically
@@ -74,6 +81,7 @@ export async function processMarkdown(
 
   const rehypePlugins: PluggableList = [
     [remarkRehype, { allowDangerousHtml: true }],
+    rehypeRaw, // Parse raw HTML into proper AST nodes (needed for custom elements like tabs-container)
     rehypeUnwrapBlockElements, // Fix block elements inside paragraphs (must come early)
     rehypeSlug, // Add IDs to headings
     rehypeHeadingSectionIds, // Add data-section-id for annotations (must come after rehypeSlug)

@@ -2,6 +2,7 @@
 
 import { signIn, useSession } from 'next-auth/react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { LogIn, UserCheck, Pencil } from 'lucide-react'
 import { getAccountTypeFromWindow } from '@/lib/domain-utils'
@@ -47,21 +48,21 @@ export function AuthButton({ editUrl }: AuthButtonProps) {
   // If user can edit this page, show edit button instead of dashboard button
   if (editUrl && !isStudent) {
     return (
-      <button
-        onClick={() => router.push(editUrl)}
+      <Link
+        href={editUrl}
         title="Edit this page"
-        className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden"
+        className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
       >
         <Pencil className="h-4 w-4 text-primary" />
-      </button>
+      </Link>
     )
   }
 
   return (
-    <button
-      onClick={() => router.push('/dashboard')}
+    <Link
+      href="/dashboard"
       title={`Go to dashboard (${userName})`}
-      className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden"
+      className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
     >
       {session.user?.image && !isStudent ? (
         // Show profile picture for teachers (Microsoft provides it, not stored on server)
@@ -77,6 +78,6 @@ export function AuthButton({ editUrl }: AuthButtonProps) {
         // Show icon for students or teachers without images
         <UserCheck className="h-4 w-4 text-primary" />
       )}
-    </button>
+    </Link>
   )
 }

@@ -5,7 +5,16 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, List, ListOrdered, Link } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, List, ListOrdered, Link, Palette, Highlighter, Circle } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Sketch } from '@uiw/react-color'
 import { ExcalidrawEditor } from './excalidraw-editor'
 import { InteractivePreview } from './interactive-preview'
 import type { EditorView } from '@codemirror/view'
@@ -51,23 +60,28 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
   const [excalidrawOpen, setExcalidrawOpen] = useState(false)
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false)
+  const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const alert = useAlertDialog()
 
-  // Track current heading/paragraph
+  // Track current heading/paragraph (use refs to avoid re-renders on every keystroke)
   const [currentHeading, setCurrentHeading] = useState<string>('')
   const [selectionStartLine, setSelectionStartLine] = useState<number>(1)
   const [selectionEndLine, setSelectionEndLine] = useState<number>(1)
+
+  // Debounce ref for selection updates - avoids excessive re-renders while typing
+  const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingSelectionRef = useRef<{ start: number; end: number; heading: string } | null>(null)
 
   // Scroll sync
   const scrollSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isScrollingSyncRef = useRef(false)
 
   // Calculate visibility based on width
-  const MIN_VISIBLE_WIDTH = 100 // pixels
-  const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
-  const showPreview = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
+  const showEditor = editorWidth > 0
+  const showPreview = editorWidth < 100
 
   // Update the onChange ref when it changes
   useEffect(() => {
@@ -247,8 +261,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       const containerRect = containerRef.current.getBoundingClientRect()
       const newEditorWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
 
-      // Clamp between 5% and 95%
-      setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
+      // Snap to edges if dragged past threshold, otherwise clamp to 10-90%
+      if (newEditorWidth > 92) {
+        setEditorWidth(100) // Snap to hide preview
+      } else if (newEditorWidth < 8) {
+        setEditorWidth(0) // Snap to hide editor
+      } else {
+        setEditorWidth(Math.max(10, Math.min(90, newEditorWidth)))
+      }
     }
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -257,8 +277,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       const containerRect = containerRef.current.getBoundingClientRect()
       const newEditorWidth = ((e.touches[0].clientX - containerRect.left) / containerRect.width) * 100
 
-      // Clamp between 5% and 95%
-      setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
+      // Snap to edges if dragged past threshold, otherwise clamp to 10-90%
+      if (newEditorWidth > 92) {
+        setEditorWidth(100) // Snap to hide preview
+      } else if (newEditorWidth < 8) {
+        setEditorWidth(0) // Snap to hide editor
+      } else {
+        setEditorWidth(Math.max(10, Math.min(90, newEditorWidth)))
+      }
     }
 
     const handleMouseUp = () => {
@@ -375,7 +401,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 onChange(newContent)
               }
 
-              // Track selection range and current heading
+              // Track selection range and current heading (debounced to avoid re-renders while typing)
               if (update.selectionSet || update.docChanged) {
                 const { state } = update
                 const selection = state.selection.main
@@ -383,9 +409,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 // Get start and end lines of selection
                 const startLine = state.doc.lineAt(selection.from).number
                 const endLine = state.doc.lineAt(selection.to).number
-
-                setSelectionStartLine(startLine)
-                setSelectionEndLine(endLine)
 
                 // Find the current heading by searching backwards from cursor
                 const text = state.doc.toString()
@@ -401,7 +424,23 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                   }
                 }
 
-                setCurrentHeading(heading || 'Top of document')
+                // Store pending values and debounce the state updates
+                pendingSelectionRef.current = { start: startLine, end: endLine, heading: heading || 'Top of document' }
+
+                // Clear existing debounce
+                if (selectionDebounceRef.current) {
+                  clearTimeout(selectionDebounceRef.current)
+                }
+
+                // Apply state updates after 100ms of inactivity
+                selectionDebounceRef.current = setTimeout(() => {
+                  const pending = pendingSelectionRef.current
+                  if (pending) {
+                    setSelectionStartLine(pending.start)
+                    setSelectionEndLine(pending.end)
+                    setCurrentHeading(pending.heading)
+                  }
+                }, 100)
               }
             }),
             EditorView.theme({
@@ -744,6 +783,96 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const insertNumberedList = () => insertAtCursor('\n1. ')
   const insertLink = () => wrapSelection('[', '](url)')
 
+  // Text color and highlight helpers
+  const insertTextColor = (color: string) => {
+    if (!editorViewRef.current || useSimpleEditor) return
+    const view = editorViewRef.current
+    const { from, to } = view.state.selection.main
+    const text = view.state.doc.sliceString(from, to)
+    const styled = `<span style="color: ${color}">${text}</span>`
+    view.dispatch({
+      changes: { from, to, insert: styled },
+      selection: { anchor: from + styled.length }
+    })
+    view.focus()
+  }
+
+  const insertHighlight = (color: string) => {
+    if (!editorViewRef.current || useSimpleEditor) return
+    const view = editorViewRef.current
+    const { from, to } = view.state.selection.main
+    const text = view.state.doc.sliceString(from, to)
+    const styled = `<span style="background-color: ${color}">${text}</span>`
+    view.dispatch({
+      changes: { from, to, insert: styled },
+      selection: { anchor: from + styled.length }
+    })
+    view.focus()
+  }
+
+  // Insert/replace invert attribute for images (only works when cursor is on an image)
+  const insertInvert = (mode: 'dark' | 'light' | 'always' = 'dark') => {
+    if (!editorViewRef.current || useSimpleEditor) return
+    const view = editorViewRef.current
+    const pos = view.state.selection.main.head
+    const doc = view.state.doc.toString()
+
+    // Find if cursor is inside or touching an image tag
+    // Pattern: ![alt](src){optional attributes}
+    const imageRegex = /!\[[^\]]*\]\([^)]+\)(\{[^}]*\})?/g
+    let match
+    let foundImage: { start: number; end: number; hasAttrs: boolean; attrsStart: number; attrsEnd: number; attrs: string } | null = null
+
+    while ((match = imageRegex.exec(doc)) !== null) {
+      const start = match.index
+      const end = start + match[0].length
+
+      // Check if cursor is inside or touching this image (within 1 char)
+      if (pos >= start && pos <= end + 1) {
+        const hasAttrs = !!match[1]
+        foundImage = {
+          start,
+          end,
+          hasAttrs,
+          attrsStart: hasAttrs ? end - match[1].length : end,
+          attrsEnd: end,
+          attrs: hasAttrs ? match[1].slice(1, -1) : '' // Remove { and }
+        }
+        break
+      }
+    }
+
+    // If cursor is not on an image, do nothing
+    if (!foundImage) return
+
+    const invertValue = mode === 'dark' ? 'invert' : `invert=${mode}`
+
+    if (foundImage.hasAttrs) {
+      // Update existing attributes - replace or add invert
+      let newAttrs = foundImage.attrs
+        .split(';')
+        .map(a => a.trim())
+        .filter(a => !a.startsWith('invert')) // Remove existing invert
+        .filter(a => a) // Remove empty
+
+      newAttrs.unshift(invertValue) // Add new invert at start
+      const newAttrsStr = `{${newAttrs.join(';')}}`
+
+      view.dispatch({
+        changes: { from: foundImage.attrsStart, to: foundImage.attrsEnd, insert: newAttrsStr },
+        selection: { anchor: foundImage.attrsStart + newAttrsStr.length }
+      })
+    } else {
+      // Add new attributes block
+      const newAttrsStr = `{${invertValue}}`
+      view.dispatch({
+        changes: { from: foundImage.end, insert: newAttrsStr },
+        selection: { anchor: foundImage.end + newAttrsStr.length }
+      })
+    }
+    view.focus()
+  }
+
   return (
     <div 
       className={`border border-border rounded-lg bg-card ${
@@ -814,6 +943,111 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               >
                 <Link className="w-4 h-4" />
               </Button>
+              <div className="h-4 w-px bg-border" />
+              {/* Text Color Button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Text Color"
+                    className="px-2"
+                  >
+                    <Palette className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => insertTextColor('#dc2626')}>
+                    <span className="w-4 h-4 rounded-full bg-red-600 mr-2" /> Red
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertTextColor('#2563eb')}>
+                    <span className="w-4 h-4 rounded-full bg-blue-600 mr-2" /> Blue
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertTextColor('#16a34a')}>
+                    <span className="w-4 h-4 rounded-full bg-green-600 mr-2" /> Green
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertTextColor('#9333ea')}>
+                    <span className="w-4 h-4 rounded-full bg-purple-600 mr-2" /> Purple
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertTextColor('#ea580c')}>
+                    <span className="w-4 h-4 rounded-full bg-orange-600 mr-2" /> Orange
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowTextColorPicker(true)}>
+                    Custom color...
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {/* Highlight Button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Highlight"
+                    className="px-2"
+                  >
+                    <Highlighter className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => insertHighlight('#fef08a')}>
+                    <span className="w-4 h-4 rounded-full bg-yellow-200 mr-2" /> Yellow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHighlight('#bbf7d0')}>
+                    <span className="w-4 h-4 rounded-full bg-green-200 mr-2" /> Green
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHighlight('#bfdbfe')}>
+                    <span className="w-4 h-4 rounded-full bg-blue-200 mr-2" /> Blue
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHighlight('#fbcfe8')}>
+                    <span className="w-4 h-4 rounded-full bg-pink-200 mr-2" /> Pink
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHighlight('#fed7aa')}>
+                    <span className="w-4 h-4 rounded-full bg-orange-200 mr-2" /> Orange
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowHighlightPicker(true)}>
+                    Custom color...
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {/* Invert Button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Invert image colors (for dark mode diagrams)"
+                    className="px-2"
+                  >
+                    <span className="w-4 h-4 rounded-full border border-current overflow-hidden flex">
+                      <span className="w-1/2 bg-current" />
+                      <span className="w-1/2" />
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => insertInvert('dark')}>
+                    <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
+                      <span className="w-1/2 bg-black" />
+                      <span className="w-1/2 bg-white" />
+                    </span>
+                    Invert in dark mode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertInvert('light')}>
+                    <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
+                      <span className="w-1/2 bg-white" />
+                      <span className="w-1/2 bg-black" />
+                    </span>
+                    Invert in light mode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertInvert('always')}>
+                    <span className="w-4 h-4 rounded-full mr-2 border bg-gray-400" />
+                    Always invert
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <div className="h-4 w-px bg-border" />
             </>
           )}
@@ -947,6 +1181,38 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           skriptId={skriptId}
         />
       )}
+      {/* Custom Text Color Picker */}
+      <Popover open={showTextColorPicker} onOpenChange={setShowTextColorPicker}>
+        <PopoverTrigger asChild>
+          <span />
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-2" align="start">
+          <Sketch
+            color="#000000"
+            onChange={(color) => {
+              insertTextColor(color.hex)
+              setShowTextColorPicker(false)
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+
+      {/* Custom Highlight Picker */}
+      <Popover open={showHighlightPicker} onOpenChange={setShowHighlightPicker}>
+        <PopoverTrigger asChild>
+          <span />
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-2" align="start">
+          <Sketch
+            color="#fef08a"
+            onChange={(color) => {
+              insertHighlight(color.hex)
+              setShowHighlightPicker(false)
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+
       <AlertDialogModal
         open={alert.open}
         onOpenChange={alert.setOpen}

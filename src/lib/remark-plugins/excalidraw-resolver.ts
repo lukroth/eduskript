@@ -76,9 +76,8 @@ export function remarkExcalidrawResolver(options: ExcalidrawResolverOptions = {}
           console.log('[Excalidraw] Found both files:', lightSvgFile.name, darkSvgFile.name)
 
           const altText = filename.replace('.excalidraw', '')
-          const cacheBuster = Date.now()
-          const lightUrl = `${lightSvgFile.url || `/api/files/${lightSvgFile.id}`}?v=${cacheBuster}`
-          const darkUrl = `${darkSvgFile.url || `/api/files/${darkSvgFile.id}`}?v=${cacheBuster}`
+          const lightUrl = lightSvgFile.url || `/api/files/${lightSvgFile.id}`
+          const darkUrl = darkSvgFile.url || `/api/files/${darkSvgFile.id}`
 
           // Create HTML wrapper with both images and CSS to toggle them
           const html = `<span class="excalidraw-wrapper" data-excalidraw="${filename}">

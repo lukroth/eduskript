@@ -52,6 +52,16 @@ export interface CodeEditorData {
   }
 }
 
+/**
+ * Quiz question-specific data structure
+ */
+export interface QuizData {
+  selected?: number[]    // Selected option indices (for single/multiple choice)
+  textAnswer?: string    // Free text answer
+  numberAnswer?: number  // Numeric answer (for slider/number input)
+  isSubmitted: boolean   // Whether the question has been submitted
+}
+
 export interface PythonFile {
   name: string
   content: string

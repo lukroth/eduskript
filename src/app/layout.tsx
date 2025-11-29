@@ -3,6 +3,7 @@ import { Inter, Roboto_Slab, EB_Garamond, Barlow_Condensed } from "next/font/goo
 import "./globals.css";
 import { Providers } from '@/components/providers'
 import { GitInfo } from '@/components/GitInfo'
+import { DevConsole } from '@/components/dev/dev-console'
 
 const inter = Inter({
   subsets: ["latin"],
@@ -59,6 +60,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <GitInfo />
+          <DevConsole />
         </Providers>
       </body>
     </html>

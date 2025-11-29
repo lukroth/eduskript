@@ -25,7 +25,7 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
     const { fileList } = options
 
     // Visit all nodes that can embed files (image, link, etc.)
-     
+
     visit(tree as Parameters<typeof visit>[0], (node: any) => {
       // Only process nodes with a 'url' property (image, link, etc.)
       if (!node.url || typeof node.url !== 'string') return
@@ -95,9 +95,8 @@ function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]
   const darkSvgFile = findFile(darkSvgFilename)
 
   if (lightSvgFile && darkSvgFile) {
-    const cacheBuster = Date.now()
-    const lightUrl = `${lightSvgFile.url || `/api/files/${lightSvgFile.id}`}?v=${cacheBuster}`
-    const darkUrl = `${darkSvgFile.url || `/api/files/${darkSvgFile.id}`}?v=${cacheBuster}`
+    const lightUrl = lightSvgFile.url || `/api/files/${lightSvgFile.id}`
+    const darkUrl = darkSvgFile.url || `/api/files/${darkSvgFile.id}`
 
     // Set the primary URL to light version
     node.url = lightUrl

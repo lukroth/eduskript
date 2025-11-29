@@ -118,7 +118,11 @@ async function fetchMuxMetadataFromFileList(
     }
 
     // Fetch and parse the JSON metadata
-    const response = await fetch(jsonFile.url)
+    // Use proxy=true to avoid CORS issues with S3 redirects
+    const fetchUrl = jsonFile.url.includes('?')
+      ? `${jsonFile.url}&proxy=true`
+      : `${jsonFile.url}?proxy=true`
+    const response = await fetch(fetchUrl)
     if (!response.ok) {
       console.warn(`[remarkMuxVideo] Failed to fetch metadata: ${jsonFile.url}`)
       return null

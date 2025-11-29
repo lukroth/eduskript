@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, memo } from 'react'
 import { ChevronDown, Copy, Check } from 'lucide-react'
 import { EditorView, Decoration, DecorationSet } from '@codemirror/view'
 import { EditorState, Extension, StateEffect, StateField } from '@codemirror/state'
@@ -126,7 +126,7 @@ const lineAnnotationField = StateField.define<DecorationSet>({
   provide: field => EditorView.decorations.from(field)
 })
 
-export function CodeMirrorCodeBlock({
+function CodeMirrorCodeBlockInner({
   children,
   className,
   language: propLanguage,
@@ -298,3 +298,15 @@ export function CodeMirrorCodeBlock({
     </div>
   )
 }
+
+// Memoize to prevent recreating CodeMirror instances on every markdown re-render
+export const CodeMirrorCodeBlock = memo(CodeMirrorCodeBlockInner, (prevProps, nextProps) => {
+  // Only re-render if the actual code content or language changed
+  if (prevProps.children !== nextProps.children) return false
+  if (prevProps.language !== nextProps.language) return false
+  if (prevProps.className !== nextProps.className) return false
+  // Deep compare lineAnnotations
+  if (JSON.stringify(prevProps.lineAnnotations) !== JSON.stringify(nextProps.lineAnnotations)) return false
+  // onLanguageChange can change reference without needing re-render
+  return true
+})
