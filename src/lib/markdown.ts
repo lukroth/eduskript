@@ -1,119 +1,13 @@
-import { unified } from 'unified'
-import type { PluggableList } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkMath from 'remark-math'
-import remarkGfm from 'remark-gfm'
-import remarkRehype from 'remark-rehype'
-import rehypeKatex from 'rehype-katex'
-import rehypeHighlight from 'rehype-highlight'
-import rehypeStringify from 'rehype-stringify'
-import rehypeRaw from 'rehype-raw'
-import matter from 'gray-matter'
-import rehypeSlug from 'rehype-slug'
-import rehypeAutolinkHeadings from 'rehype-autolink-headings'
-import { remarkFileResolver } from './remark-plugins/file-resolver'
-import { rehypeImageOptimizer } from './remark-plugins/image-optimizer'
-import { remarkImageAttributes } from './remark-plugins/image-attributes'
-import { rehypeInteractiveElements } from './rehype-plugins/interactive-elements'
-import { rehypeExcalidrawDualImage } from './rehype-plugins/excalidraw-dual-image'
-import { rehypeImageWrapper } from './rehype-plugins/image-wrapper'
-import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
-import { remarkCodeEditor } from './remark-plugins/code-editor'
-import { remarkCallouts } from './remark-plugins/callouts'
-import { remarkTabs } from './remark-plugins/tabs'
-import { remarkYoutube } from './remark-plugins/youtube'
-import { remarkMuxVideo } from './remark-plugins/mux-video'
-import { rehypeUnwrapBlockElements } from './rehype-plugins/unwrap-block-elements'
+/**
+ * Markdown utility functions
+ *
+ * Note: MDX compilation is now handled by mdx-compiler.ts
+ * This file only contains utility functions for text processing.
+ */
 
-export interface ProcessedMarkdown {
-  content: string
-  frontmatter: Record<string, unknown>
-  excerpt?: string
-}
-
-export interface MarkdownContext {
-  /** The page ID for user data persistence */
-  pageId?: string
-  /** The domain/username for the current content */
-  domain?: string
-  /** The skript ID for skript-specific file searches */
-  skriptId?: string
-  /** Pre-fetched file list for client-side image resolution */
-  fileList?: Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>
-  /** Current theme for Excalidraw SVG selection */
-  theme?: 'light' | 'dark'
-}
-
-export async function processMarkdown(
-  markdown: string,
-  context?: MarkdownContext // Now properly used for image path resolution
-): Promise<ProcessedMarkdown> {
-  // Parse frontmatter
-  const { content, data: frontmatter } = matter(markdown)
-
-  const isServer = typeof window === 'undefined'
-
-  // Build plugin list
-  const remarkPlugins: PluggableList = [
-    remarkParse,
-    remarkTabs, // Transform Nextra-style Tabs - MUST run early so tab content goes through pipeline
-    remarkGfm,
-    remarkMath,
-    [remarkMuxVideo, { fileList: context?.fileList }], // Transform ![](video.mp4) to Mux player
-    [remarkFileResolver, {
-      fileList: context?.fileList
-    }],
-    remarkImageAttributes, // Parse image width attributes
-    remarkCodeEditor, // Convert code blocks with "editor" meta to interactive editors
-    remarkCallouts, // Transform Obsidian-style callouts
-    remarkYoutube, // Transform <Youtube> components
-  ]
-
-  // Add server-only plugin dynamically
-  if (isServer) {
-    const { remarkServerImageOptimizer } = await import('./remark-plugins/server-image-optimizer')
-    remarkPlugins.push([remarkServerImageOptimizer, {
-      domain: context?.domain,
-      skriptId: context?.skriptId,
-      fileList: context?.fileList
-    }])
-  }
-
-  const rehypePlugins: PluggableList = [
-    [remarkRehype, { allowDangerousHtml: true }],
-    rehypeRaw, // Parse raw HTML into proper AST nodes (needed for custom elements like tabs-container)
-    rehypeUnwrapBlockElements, // Fix block elements inside paragraphs (must come early)
-    rehypeSlug, // Add IDs to headings
-    rehypeHeadingSectionIds, // Add data-section-id for annotations (must come after rehypeSlug)
-    [rehypeAutolinkHeadings, {
-      behavior: 'wrap',
-      properties: { className: ['heading-link'] }
-    }],
-    rehypeExcalidrawDualImage, // Convert Excalidraw images to dual light/dark variants
-    rehypeImageWrapper, // Wrap regular images with alignment and caption support
-    rehypeImageOptimizer, // Optimize images for better loading
-    rehypeInteractiveElements, // Add data attributes for interactive controls
-    rehypeKatex,
-    rehypeHighlight,
-    [rehypeStringify, { allowDangerousHtml: true }]
-  ]
-
-  // Process markdown to HTML
-  const processor = unified()
-
-  // Apply plugins
-  processor.use(remarkPlugins)
-  processor.use(rehypePlugins)
-
-  const processedContent = await processor.process(content)
-
-  return {
-    content: String(processedContent),
-    frontmatter,
-    excerpt: generateExcerpt(content)
-  }
-}
-
+/**
+ * Generate an excerpt from markdown content
+ */
 export function generateExcerpt(content: string, maxLength: number = 160): string {
   // Remove markdown syntax for excerpt
   const plainText = content
@@ -136,6 +30,9 @@ export function generateExcerpt(content: string, maxLength: number = 160): strin
   return truncated.substring(0, lastSpace) + '...'
 }
 
+/**
+ * Generate a URL-friendly slug from a title
+ */
 export function generateSlug(title: string): string {
   return title
     .toLowerCase()
@@ -145,6 +42,9 @@ export function generateSlug(title: string): string {
     .trim()
 }
 
+/**
+ * Validate markdown content for common syntax errors
+ */
 export function validateMarkdown(content: string): string[] {
   const errors: string[] = []
 

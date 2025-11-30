@@ -1,24 +1,33 @@
 'use client'
 
 import Image from 'next/image'
-import { useTheme } from 'next-themes'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AlignLeft, AlignCenter, AlignRight, WrapText } from 'lucide-react'
+import type { SkriptFilesData } from '@/lib/skript-files'
+import { resolveExcalidraw } from '@/lib/skript-files'
 
 interface ExcalidrawImageProps {
-  lightSrc: string
-  darkSrc: string
+  src: string // Filename (e.g., "drawing.excalidraw")
   alt?: string
-  filename: string
   style?: React.CSSProperties
   onWidthChange?: (markdown: string) => void
   align?: 'left' | 'center' | 'right'
   wrap?: boolean
+  // Files data for resolving URLs (serializable)
+  files?: SkriptFilesData
 }
 
-export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWidthChange, align = 'center', wrap = false }: ExcalidrawImageProps) {
-  const { resolvedTheme } = useTheme()
-  const [imageLoaded, setImageLoaded] = useState(false)
+export function ExcalidrawImage({ src, alt, style, onWidthChange, align = 'center', wrap = false, files }: ExcalidrawImageProps) {
+  const filename = src
+
+  // Resolve light/dark URLs
+  const resolved = files ? resolveExcalidraw(files, src) : undefined
+  const lightSrc = resolved?.lightUrl ?? ''
+  const darkSrc = resolved?.darkUrl ?? ''
+
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
+  const [lightLoaded, setLightLoaded] = useState(false)
+  const [darkLoaded, setDarkLoaded] = useState(false)
   const containerRef = useRef<HTMLElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [currentAlign, setCurrentAlign] = useState<'left' | 'center' | 'right'>(align)
@@ -35,6 +44,11 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
 
   // Track initial drag state
   const dragStartRef = useRef<{ startX: number; startWidth: number; parentWidth: number } | null>(null)
+
+  // Get the effective width for display (convert null to 100 for percentage display)
+  const effectiveWidth = currentWidth ?? 100
+
+  const caption = alt || ''
 
   // Update width when style prop changes (e.g., when markdown is edited)
   useEffect(() => {
@@ -66,14 +80,6 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
   useEffect(() => {
     setCurrentWrap(wrap)
   }, [wrap])
-
-  // Get the effective width for display (convert null to 100 for percentage display)
-  const effectiveWidth = currentWidth ?? 100
-
-  // Use dark src if theme is dark, otherwise use light
-  const src = resolvedTheme === 'dark' ? darkSrc : lightSrc
-
-  const caption = alt || ''
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -114,16 +120,16 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
   const updateMarkdown = useCallback((width: number, alignment: 'left' | 'center' | 'right', wrapEnabled: boolean) => {
     if (!onWidthChange) return
 
-    // Build attributes string
-    let attributes = `width=${Math.round(width)}%`
+    // Build <Image> component with props
+    let props = `src="${filename}" alt="${alt || ''}" width="${Math.round(width)}%"`
     if (alignment !== 'center') {
-      attributes += `;align=${alignment}`
+      props += ` align="${alignment}"`
     }
     if (wrapEnabled) {
-      attributes += `;wrap=true`
+      props += ` wrap`
     }
 
-    onWidthChange(`![${alt || ''}](${filename}){${attributes}}`)
+    onWidthChange(`<Image ${props} />`)
   }, [alt, filename, onWidthChange])
 
   const handleMouseUp = useCallback(() => {
@@ -170,6 +176,16 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
     ? 'ml-auto'
     : 'mx-auto'
 
+  // Early return if file can't be resolved (AFTER all hooks)
+  if (!lightSrc && !darkSrc) {
+    return (
+      <span className="block bg-muted rounded-lg p-4 text-center text-muted-foreground my-4">
+        <span className="block">Excalidraw file not found: {src}</span>
+        <span className="block text-xs mt-1">Make sure the .excalidraw file has light/dark SVG exports</span>
+      </span>
+    )
+  }
+
   return (
     <span
       ref={containerRef}
@@ -177,17 +193,33 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
       data-excalidraw={filename}
       style={currentWidth !== null ? { ...style, width: `${currentWidth}%` } : style}
     >
-      <Image
-        src={src}
-        alt={caption}
-        width={800}
-        height={600}
-        onLoad={() => setImageLoaded(true)}
-        className={`w-full h-auto rounded-md transition-opacity duration-200 ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-        unoptimized
-      />
+      {/* Render both images, CSS controls visibility based on theme */}
+      {lightSrc && (
+        <Image
+          src={lightSrc}
+          alt={caption}
+          width={800}
+          height={600}
+          onLoad={() => setLightLoaded(true)}
+          className={`excalidraw-light w-full h-auto rounded-md transition-opacity duration-200 dark:hidden ${
+            lightLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          unoptimized
+        />
+      )}
+      {darkSrc && (
+        <Image
+          src={darkSrc}
+          alt={caption}
+          width={800}
+          height={600}
+          onLoad={() => setDarkLoaded(true)}
+          className={`excalidraw-dark w-full h-auto rounded-md transition-opacity duration-200 hidden dark:block ${
+            darkLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          unoptimized
+        />
+      )}
       {caption && (
         <span className="block mt-2 text-sm text-center text-muted-foreground italic">
           {caption}

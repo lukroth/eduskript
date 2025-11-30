@@ -199,23 +199,36 @@ The markdown transformation follows this **exact plugin order** (critical for pr
 
 1. **`remarkParse`** - Parse markdown string into MDAST (Markdown Abstract Syntax Tree)
 
-2. **`remarkFileResolver`** (`src/lib/remark-plugins/file-resolver.ts`)
-   - Resolves file paths using pre-fetched `fileList`
-   - Special handling for Excalidraw files (`.excalidraw` → finds light/dark SVG variants)
-   - Sets `data-light-src`, `data-dark-src`, `data-excalidraw` attributes
+2. **`remarkImageResolver`** (`src/lib/remark-plugins/image-resolver.ts`)
+   - **Hybrid plugin**: Queries DB on server (skriptId), uses fileList on client
+   - Resolves relative image paths to `/api/files/{id}` URLs
+   - Skips absolute URLs, .excalidraw files, and video files (handled by other plugins)
+   - Sets `data-original-src` attribute for reference
 
-3. **`remarkImageAttributes`** (`src/lib/remark-plugins/image-attributes.ts`)
+3. **`remarkExcalidraw`** (`src/lib/remark-plugins/excalidraw.ts`)
+   - **Hybrid plugin**: Queries DB on server (skriptId), uses fileList on client
+   - Handles `.excalidraw` files by finding light/dark SVG variants
+   - Sets `data-light-src`, `data-dark-src`, `data-excalidraw` attributes
+   - Falls back to `/missing-file/` URL with `?missing=` query param if variants not found
+
+4. **`remarkMuxVideo`** (`src/lib/remark-plugins/mux-video.ts`)
+   - **Hybrid plugin**: Queries DB on server (skriptId), uses fileList on client
+   - Transforms `.mp4`/`.mov` references to Mux video components
+   - Looks up `{video}.json` metadata file for playback ID, poster, blur data
+   - Creates custom `<muxvideo>` element with Mux-specific data attributes
+
+5. **`remarkImageAttributes`** (`src/lib/remark-plugins/image-attributes.ts`)
    - Parses image attribute syntax: `![alt](image.png){width=50%;align=center}`
    - Applies inline styles and `data-align`, `data-wrap` attributes
    - Removes attribute syntax from markdown
 
-4. **`remarkCodeEditor`** (`src/lib/remark-plugins/code-editor.ts`)
+6. **`remarkCodeEditor`** (`src/lib/remark-plugins/code-editor.ts`)
    - Converts code blocks with `editor` keyword to interactive editors
    - Syntax: ` ```python editor``` ` or ` ```sql editor db="database.db"``` `
    - Transforms to custom `<code-editor>` element with `data-*` attributes
    - Supports multi-file syntax, IDs, and database references
 
-5. **`remarkCallouts`** (`src/lib/remark-plugins/callouts.ts`)
+7. **`remarkCallouts`** (`src/lib/remark-plugins/callouts.ts`)
    - Transforms Obsidian-style callouts: `> [!type]` syntax
    - **41 callout types** with aliases:
      - Base types: note, tip, warning, abstract, info, todo, success, question, failure, danger, bug, example, quote, solution, discuss
@@ -229,11 +242,11 @@ The markdown transformation follows this **exact plugin order** (critical for pr
      </blockquote>
      ```
 
-6. **`remarkMath`** - Parse LaTeX math (`$...$` or `$$...$$`)
+8. **`remarkMath`** - Parse LaTeX math (`$...$` or `$$...$$`)
 
-7. **`remarkGfm`** - GitHub-Flavored Markdown (tables, strikethrough, task lists)
+9. **`remarkGfm`** - GitHub-Flavored Markdown (tables, strikethrough, task lists)
 
-8. **`remarkServerImageOptimizer`** (Server-only, dynamically added)
+10. **`remarkServerImageOptimizer`** (Server-only, dynamically added)
    - Downloads remote images and caches in `/public/cache/images/[domain]/[skriptId]/`
    - Only runs in Node.js environment
 

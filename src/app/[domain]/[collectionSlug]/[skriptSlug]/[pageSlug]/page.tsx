@@ -3,12 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { AnnotatableContent } from '@/components/public/annotatable-content'
+import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
+import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import { ExportPDF } from '@/components/public/export-pdf'
 import { checkPagePermissions } from '@/lib/permissions'
-// Debug overlay removed after fixing iPad layout issue
-// import { LayoutDebug } from '@/components/debug/layout-debug'
-// import { Comments } from '@/components/public/comments'
 import type { Metadata } from 'next'
 import {
   getTeacherByUsernameDeduped,
@@ -327,12 +325,13 @@ export default async function PublicPage({ params }: PageProps) {
         )}
 
         <article className="prose-theme">
-          <AnnotatableContent
-            pageId={page.id}
-            content={page.content}
-            domain={domain}
-            skriptId={skript.id}
-          />
+          <AnnotationWrapper pageId={page.id} content={page.content}>
+            <ServerMarkdownRenderer
+              content={page.content}
+              skriptId={skript.id}
+              pageId={page.id}
+            />
+          </AnnotationWrapper>
         </article>
 
         <div className="mt-8 pt-8 border-t border-border">

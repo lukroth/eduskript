@@ -4,9 +4,11 @@ import Image from 'next/image'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AlignLeft, AlignCenter, AlignRight, WrapText } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import type { SkriptFilesData } from '@/lib/skript-files'
+import { resolveUrl } from '@/lib/skript-files'
 
 interface ImageWithResizeProps {
-  src: string
+  src: string // Filename (e.g., "image.png")
   alt?: string
   title?: string
   style?: React.CSSProperties
@@ -16,9 +18,19 @@ interface ImageWithResizeProps {
   wrap?: boolean
   invert?: 'dark' | 'light' | 'always' // Invert colors for diagrams
   saturate?: string // Saturation percentage to apply with invert (e.g., '70' or '150')
+  // Files data for resolving URLs (serializable)
+  files?: SkriptFilesData
 }
 
-export function ImageWithResize({ src, alt = '', title, style, onWidthChange, originalSrc, align = 'center', wrap = false, invert, saturate }: ImageWithResizeProps) {
+export function ImageWithResize({ src, alt = '', title, style, onWidthChange, originalSrc, align = 'center', wrap = false, invert, saturate, files }: ImageWithResizeProps) {
+  const filename = originalSrc || src
+
+  // Resolve the image URL
+  const isRelativePath = src && !src.startsWith('http') && !src.startsWith('/')
+  const resolvedSrc = isRelativePath && files ? resolveUrl(files, src) : undefined
+  const imageSrc = resolvedSrc ?? src
+  const isMissing = isRelativePath && !resolvedSrc
+
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { resolvedTheme } = useTheme()
@@ -110,20 +122,17 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
   const updateMarkdown = useCallback((width: number, alignment: 'left' | 'center' | 'right', wrapEnabled?: boolean) => {
     if (!onWidthChange) return
 
-    // Use original source for markdown (the filename, not the resolved URL)
-    const srcForMarkdown = originalSrc || src
-
-    // Build attributes string
-    let attributes = `width=${Math.round(width)}%`
+    // Build <Image> component with props (use filename, not resolved URL)
+    let props = `src="${filename}" alt="${alt}" width="${Math.round(width)}%"`
     if (alignment !== 'center') {
-      attributes += `;align=${alignment}`
+      props += ` align="${alignment}"`
     }
     if (wrapEnabled) {
-      attributes += `;wrap=true`
+      props += ` wrap`
     }
 
-    onWidthChange(`![${alt}](${srcForMarkdown}){${attributes}}`)
-  }, [alt, src, originalSrc, onWidthChange])
+    onWidthChange(`<Image ${props} />`)
+  }, [alt, filename, onWidthChange])
 
   const handleMouseUp = useCallback(() => {
     if (isDragging && onWidthChange) {
@@ -187,20 +196,20 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     >
       {/* Image */}
       <span ref={imageRef} className="block">
-        {src.startsWith('/missing-file/') ? (
+        {isMissing ? (
           <span className="flex items-center justify-center w-full h-32 bg-muted border border-dashed border-border rounded-md text-muted-foreground text-sm">
-            Missing: {src.replace('/missing-file/', '').split('?')[0]}
+            Missing: {filename}
           </span>
         ) : (
           <Image
-            src={src}
+            src={imageSrc}
             alt={alt || ''}
             title={title}
             width={800}
             height={600}
             className="w-full h-auto rounded-md"
             style={invertFilter ? { filter: invertFilter } : undefined}
-            unoptimized={src.startsWith('/api/')}
+            unoptimized={imageSrc.startsWith('/api/')}
           />
         )}
       </span>

@@ -753,6 +753,8 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   --callout-idea-accent: #fff59d;
   --callout-code: #69f0ae;
   --callout-code-accent: #b9f6ca;
+  --callout-discuss: #ffe357;
+  --callout-discuss-accent: #fff9c4;
 }
 
 .dark {
@@ -947,6 +949,51 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 }
 .prose-theme blockquote.callout-code .callout-title {
   background-color: var(--callout-code-accent) !important;
+}
+
+.prose-theme blockquote.callout-danger,
+.prose-theme blockquote.callout-error {
+  border-left: 6px solid var(--callout-danger) !important;
+}
+.prose-theme blockquote.callout-danger .callout-title,
+.prose-theme blockquote.callout-error .callout-title {
+  background-color: var(--callout-danger-accent) !important;
+}
+
+.prose-theme blockquote.callout-failure,
+.prose-theme blockquote.callout-fail,
+.prose-theme blockquote.callout-missing {
+  border-left: 6px solid var(--callout-fail) !important;
+}
+.prose-theme blockquote.callout-failure .callout-title,
+.prose-theme blockquote.callout-fail .callout-title,
+.prose-theme blockquote.callout-missing .callout-title {
+  background-color: var(--callout-fail-accent) !important;
+}
+
+.prose-theme blockquote.callout-bug {
+  border-left: 6px solid var(--callout-bug) !important;
+}
+.prose-theme blockquote.callout-bug .callout-title {
+  background-color: var(--callout-bug-accent) !important;
+}
+
+.prose-theme blockquote.callout-example {
+  border-left: 6px solid var(--callout-example) !important;
+}
+.prose-theme blockquote.callout-example .callout-title {
+  background-color: var(--callout-example-accent) !important;
+}
+
+.prose-theme blockquote.callout-question,
+.prose-theme blockquote.callout-help,
+.prose-theme blockquote.callout-faq {
+  border-left: 6px solid var(--callout-question) !important;
+}
+.prose-theme blockquote.callout-question .callout-title,
+.prose-theme blockquote.callout-help .callout-title,
+.prose-theme blockquote.callout-faq .callout-title {
+  background-color: var(--callout-question-accent) !important;
 }
 
 /* ===== Typography Styles ===== */

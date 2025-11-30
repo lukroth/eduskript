@@ -7,7 +7,17 @@
 
 ---
 
+rendering pipeline:
+- we unified the pipelines as far as possible so we only have ONE compileMDX()
+- we render ssr in markdown-renderer-server and csr in markdown-renderer-client.
+- before rendering, we create a skriptfiles object that we can pass to plugins if they need files. skriptfiles contains all skript files and their resolved urls on scaleway or video providers. in markdown-renderer-server we get this from the database, in markdown-renderer-client from the file browser component. the skriptfiles contains a environment attribute ("ssr" or "csr").
+- then we first convert markdown stuff to mdx components WITHOUT adapting filenames AT ALL! so ![](video.mp4) becomes <MuxVideo src="video.mp4" />, ![](picture.png) becomes <Image src="picture.png">, ![](drawing.excalidraw) or ![](drawing2.excalidraw.md) become <ExcalidrawImage src="drawing.excalidraw" />  or <ExcalidrawImage src="drawing2.excalidraw.md">
+- we then pass filelist to the components and they resolve the filenames they are given themselves usling filelist.
+
 ## 🎯 Priority List
+
+- resize / layout box component to simplify positioning: currently 
+- move to mdx then remove technical debt. in the database, rename ALL .md files to .mdx to signal the correct syntax to users
 
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - optimize image caching and isr, look at excalidraw
@@ -18,17 +28,8 @@ The current Nextra-style `<Tabs>` implementation in `src/lib/remark-plugins/tabs
 2. Regex extracts tab content from the serialized markdown
 3. `fromMarkdown()` re-parses the extracted content into fresh MDAST nodes
 
-**Why it's hacky**: The content gets parsed, serialized, and re-parsed - inefficient and fragile.
-
-**Cleaner alternatives to explore**:
-- Pre-process raw markdown string before parsing (find `<Tabs>` blocks, transform them before unified pipeline)
-- Access original source via node positions (requires passing source to plugin)
-- Custom micromark extension (proper parsing at the tokenizer level)
-
-**Current behavior**: Works correctly - Excalidraw images, bold, inline code, etc. all render inside tabs.
 
 - **Content migration** - continue content migration
-
 - Run exams in two weeks on eduskript already? how?
 
 **LMS Features:**

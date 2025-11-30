@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { AnnotatableContent } from '@/components/public/annotatable-content'
+import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
+import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import {
   getTeacherByUsernameDeduped,
   getTeacherWithLayout,
@@ -143,11 +144,12 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
         {/* Frontpage content or empty state for owners */}
         {frontPage?.content ? (
           <article className="prose-theme">
-            <AnnotatableContent
-              pageId={frontPage.id}
-              content={frontPage.content}
-              domain={domain}
-            />
+            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content}>
+              <ServerMarkdownRenderer
+                content={frontPage.content}
+                pageId={frontPage.id}
+              />
+            </AnnotationWrapper>
           </article>
         ) : isOwner ? (
           <div className="text-center py-12">

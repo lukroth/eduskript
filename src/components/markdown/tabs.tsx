@@ -3,57 +3,43 @@
 import { useState, Children, ReactNode, ReactElement, isValidElement } from 'react'
 import { cn } from '@/lib/utils'
 
-interface TabsContainerProps {
-  'data-items'?: string
-  children: ReactNode
+interface TabsProps {
+  items: string[]
+  children?: ReactNode
+  /** Pre-extracted tab contents (alternative to children with Tabs.Tab) */
+  tabContents?: ReactNode[]
   className?: string
 }
 
 /**
- * TabsContainer - wrapper component for tabs
- * Receives items as JSON string in data-items attribute
- * Children are tab-item elements with already-processed markdown content
+ * Tabs component for MDX - supports Nextra-style syntax:
+ * <Tabs items={['Tab 1', 'Tab 2']}>
+ *   <Tabs.Tab>Content 1</Tabs.Tab>
+ *   <Tabs.Tab>Content 2</Tabs.Tab>
+ * </Tabs>
+ *
+ * Or with pre-extracted contents:
+ * <Tabs items={['Tab 1', 'Tab 2']} tabContents={[content1, content2]} />
  */
-export function TabsContainer({ 'data-items': dataItems, children, className }: TabsContainerProps) {
+function TabsComponent({ items, children, tabContents: preExtractedContents, className }: TabsProps) {
   const [activeTab, setActiveTab] = useState(0)
 
-  // Parse items from data attribute
-  let items: string[] = []
-  if (dataItems) {
-    try {
-      items = JSON.parse(dataItems)
-    } catch (e) {
-      console.error('Failed to parse tabs items:', e)
-    }
-  }
+  // Use pre-extracted contents if provided, otherwise collect from children
+  let tabContents: ReactNode[] = preExtractedContents || []
 
-  // Collect tab-item children
-  const tabContents: ReactNode[] = []
-
-  const collectTabItems = (node: ReactNode): void => {
-    Children.forEach(node, (child) => {
-      if (!isValidElement(child)) return
-
-      const element = child as ReactElement<{ children?: ReactNode }>
-
-      // Check if this is a tab-item (either string type or TabItem component)
-      const isTabItem =
-        (typeof element.type === 'string' && element.type === 'tab-item') ||
-        element.type === TabItem
-
-      if (isTabItem) {
-        tabContents.push(element.props.children)
-      } else if (element.props.children) {
-        // Recursively search in children
-        collectTabItems(element.props.children)
+  if (!preExtractedContents && children) {
+    Children.forEach(children, (child) => {
+      if (isValidElement(child)) {
+        // Check if it's a Tab component (Tabs.Tab)
+        const element = child as ReactElement<{ children?: ReactNode }>
+        if (element.type === Tab) {
+          tabContents.push(element.props.children)
+        }
       }
     })
   }
 
-  collectTabItems(children)
-
   if (items.length === 0 || tabContents.length === 0) {
-    // Fallback: just render children
     return <>{children}</>
   }
 
@@ -77,7 +63,7 @@ export function TabsContainer({ 'data-items': dataItems, children, className }: 
           </button>
         ))}
       </div>
-      {/* Tab content - only show active tab */}
+      {/* Tab content */}
       <div className="p-4 bg-card">
         {tabContents[activeTab]}
       </div>
@@ -85,16 +71,20 @@ export function TabsContainer({ 'data-items': dataItems, children, className }: 
   )
 }
 
-interface TabItemProps {
+interface TabProps {
   children: ReactNode
 }
 
 /**
- * TabItem - individual tab content
- * Content is rendered by parent TabsContainer based on active tab
+ * Tab content component - used as Tabs.Tab
  */
-export function TabItem({ children }: TabItemProps) {
-  // This component doesn't render directly - TabsContainer extracts its children
-  // But we still need to return something for the tree
+function Tab({ children }: TabProps) {
   return <>{children}</>
 }
+
+// Create compound component pattern: Tabs.Tab
+export const Tabs = Object.assign(TabsComponent, { Tab })
+
+// Legacy exports for remarkTabs plugin output
+export { TabsComponent as TabsContainer }
+export { Tab as TabItem }

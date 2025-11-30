@@ -1,0 +1,68 @@
+/**
+ * Server-only SkriptFiles functions.
+ *
+ * This file contains functions that use Prisma and should only be imported
+ * in server components or API routes.
+ */
+
+import { prisma } from './prisma'
+import type { SkriptFilesData, SkriptFile, VideoInfo } from './skript-files'
+
+/**
+ * SSR: Query database for all files and videos associated with a skript.
+ * Call this once at the start of rendering, not per-file.
+ */
+export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData> {
+  // Fetch all files for this skript
+  const dbFiles = await prisma.file.findMany({
+    where: {
+      skriptId,
+      isDirectory: false,
+    },
+    select: {
+      id: true,
+      name: true,
+      hash: true,
+    },
+  })
+
+  // Also fetch videos by filename that might not be associated yet
+  // This helps during the transition period
+  const allVideos = await prisma.video.findMany({
+    select: {
+      filename: true,
+      provider: true,
+      metadata: true,
+    },
+  })
+
+  // Build files record
+  const files: Record<string, SkriptFile> = {}
+  for (const file of dbFiles) {
+    files[file.name] = {
+      id: file.id,
+      name: file.name,
+      url: `/api/files/${file.id}`,
+    }
+  }
+
+  // Build videos record - include all videos for now (they're global)
+  const videos: Record<string, VideoInfo> = {}
+  for (const video of allVideos) {
+    const metadata = video.metadata as Record<string, unknown>
+    videos[video.filename] = {
+      filename: video.filename,
+      provider: video.provider,
+      metadata: {
+        playbackId: metadata?.playbackId as string | undefined,
+        poster: metadata?.poster as string | undefined,
+        blurDataURL: metadata?.blurDataURL as string | undefined,
+        aspectRatio: typeof metadata?.aspectRatio === 'number' ? metadata.aspectRatio : undefined,
+        assetId: metadata?.assetId as string | undefined,
+        status: metadata?.status as string | undefined,
+      },
+    }
+  }
+
+  return { env: 'ssr', files, videos }
+}

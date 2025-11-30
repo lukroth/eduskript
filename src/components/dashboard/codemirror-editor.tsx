@@ -1165,7 +1165,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 markdown={useSimpleEditor ? textareaContent : editorContent}
                 onContentChange={onChange}
                 fileList={fileList}
-                theme={isDark ? 'dark' : 'light'}
               />
             </div>
           </div>

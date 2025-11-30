@@ -1,146 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
-import { processMarkdown, generateExcerpt, generateSlug, validateMarkdown } from '@/lib/markdown'
+import { describe, it, expect } from 'vitest'
+import { generateExcerpt, generateSlug, validateMarkdown } from '@/lib/markdown'
 
 describe('Markdown Processing', () => {
-  describe('processMarkdown', () => {
-    it('should process basic markdown to HTML', async () => {
-      const markdown = '# Hello World\n\nThis is **bold** text.'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('<h1')
-      expect(result.content).toContain('Hello World')
-      expect(result.content).toContain('<strong>bold</strong>')
-      expect(result.frontmatter).toEqual({})
-    })
-
-    it('should parse frontmatter', async () => {
-      const markdown = `---
-title: Test Post
-author: John Doe
-tags: [test, markdown]
----
-
-# Content here`
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.frontmatter).toEqual({
-        title: 'Test Post',
-        author: 'John Doe',
-        tags: ['test', 'markdown']
-      })
-      expect(result.content).toContain('Content here')
-      expect(result.content).not.toContain('title: Test Post')
-    })
-
-    it('should generate excerpt from content', async () => {
-      const markdown = 'This is a test markdown content that should be excerpted.'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.excerpt).toBeDefined()
-      expect(result.excerpt).toContain('This is a test')
-    })
-
-    it('should process markdown math', async () => {
-      const markdown = 'Inline math: $x^2$ and block math:\n\n$$\ny = mx + b\n$$'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('math')
-    })
-
-    it('should process GFM tables', async () => {
-      const markdown = `| Header 1 | Header 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |`
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('<table')
-      expect(result.content).toContain('<th')
-      expect(result.content).toContain('Header 1')
-    })
-
-    it('should add IDs to headings (rehypeSlug)', async () => {
-      const markdown = '# Test Heading\n\n## Another Heading'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('id="test-heading"')
-      expect(result.content).toContain('id="another-heading"')
-    })
-
-    it('should add autolink to headings', async () => {
-      const markdown = '# Test Heading'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('heading-link')
-    })
-
-    it('should process code blocks with syntax highlighting', async () => {
-      const markdown = '```javascript\nconst x = 1;\n```'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('<pre')
-      expect(result.content).toContain('<code')
-    })
-
-    it('should handle empty content with frontmatter only', async () => {
-      const markdown = `---
-title: Empty Post
----`
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.frontmatter).toEqual({ title: 'Empty Post' })
-      expect(result.content).toBeDefined()
-    })
-
-    it('should process markdown with context (fileList)', async () => {
-      const markdown = '![test](image.jpg)'
-      const context = {
-        fileList: [
-          { id: 'file1', name: 'image.jpg', url: '/files/image.jpg' }
-        ]
-      }
-
-      const result = await processMarkdown(markdown, context)
-
-      expect(result.content).toContain('/files/image.jpg')
-    })
-
-    it('should handle markdown with image attributes', async () => {
-      const markdown = '![test](image.jpg){width=50%}'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('width')
-    })
-
-    it('should process code editor blocks', async () => {
-      const markdown = '```python editor\nprint("hello")\n```'
-
-      const result = await processMarkdown(markdown)
-
-      expect(result.content).toContain('code-editor')
-    })
-
-    it('should handle context with domain and skriptId', async () => {
-      const markdown = '# Test'
-      const context = {
-        domain: 'testuser',
-        skriptId: 'test123'
-      }
-
-      const result = await processMarkdown(markdown, context)
-
-      expect(result.content).toBeTruthy()
-    })
-  })
+  // Note: processMarkdown was removed in the unified MDX pipeline refactor
+  // MDX compilation is now handled by compileMDX in mdx-compiler.ts
+  // See tests/lib/mdx-compiler.test.ts for MDX compilation tests
 
   describe('generateExcerpt', () => {
     it('should generate excerpt from plain text', () => {
@@ -270,7 +134,6 @@ title: Empty Post
       expect(excerpt).toContain('italic')
       expect(excerpt).toContain('code')
       expect(excerpt).toContain('link')
-      // Note: The regex removes ![...], but a single ! before img might remain
     })
   })
 

@@ -216,6 +216,9 @@ model Skript {
   // Files associated with this skript
   files       File[]
 
+  // Videos associated with this skript (many-to-many)
+  videos      Video[] @relation("SkriptVideos")
+
   // Front page (intro/landing page for skript)
   frontPage   FrontPage?
 
@@ -317,6 +320,24 @@ model File {
   @@index([parentId, skriptId], name: "parent_skript_idx")
   @@index([hash], name: "hash_idx")
   @@map("files")
+}
+
+// Video storage for hosted video files (Mux, etc.)
+// Uses JSONB for provider-specific metadata (flexible for future providers)
+model Video {
+  id        String   @id @default(cuid())
+  filename  String   // e.g., "lecture.mp4"
+  provider  String   @default("mux")  // "mux", future: "bunny", "cloudflare"
+  metadata  Json     // Provider-specific: { playbackId, poster, blurDataURL, aspectRatio }
+
+  skripts   Skript[] @relation("SkriptVideos")  // Many-to-many
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([filename, provider])
+  @@index([filename])
+  @@map("videos")
 }
 
 // Collaboration request model for pending requests

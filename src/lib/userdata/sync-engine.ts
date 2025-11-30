@@ -325,6 +325,12 @@ export class SyncEngine {
         `/api/user-data/${serverItem.adapter}/${encodeURIComponent(serverItem.itemId)}`
       )
 
+      // 404 means the item doesn't exist on the server yet - that's fine, just skip
+      if (response.status === 404) {
+        this.updateOperation(opId, 'success', 'No server data (404)')
+        return
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to fetch item: ${response.status}`)
       }

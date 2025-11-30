@@ -2,18 +2,18 @@
 
 import dynamic from 'next/dynamic'
 import type { ReactElement } from 'react'
+import type { SkriptFilesData } from '@/lib/skript-files'
+import { resolveVideo } from '@/lib/skript-files'
 
 interface MuxVideoProps {
-  src: string // playbackId
-  poster?: string
-  className?: string
+  src: string // Filename (e.g., "video.mp4")
   alt?: string
-  blurDataURL?: string | null
-  aspectRatio?: number | null
+  className?: string
+  // Files data for resolving video metadata (serializable)
+  files?: SkriptFilesData
 }
 
 // Dynamic import with ssr: false ensures client-only rendering
-// The loading component handles the server-side placeholder
 const MuxPlayer = dynamic(
   () => import('@mux/mux-player-react').then((mod) => mod.default),
   {
@@ -27,8 +27,20 @@ const MuxPlayer = dynamic(
   }
 )
 
-export function MuxVideo(props: MuxVideoProps): ReactElement {
-  const { src: playbackId, poster, blurDataURL, aspectRatio, alt, className } = props
+export function MuxVideo({ src, alt = '', className, files }: MuxVideoProps): ReactElement {
+  // Resolve video metadata
+  const videoInfo = files ? resolveVideo(files, src) : undefined
+  const { playbackId, poster, blurDataURL, aspectRatio } = videoInfo?.metadata ?? {}
+
+  // If no playback ID, show placeholder
+  if (!playbackId) {
+    return (
+      <span className="block bg-muted rounded-lg p-4 text-center text-muted-foreground" style={{ aspectRatio: '16/9' }}>
+        <span className="block">Video not found: {src}</span>
+        <span className="block text-xs mt-1">Make sure the video has been uploaded to Mux</span>
+      </span>
+    )
+  }
 
   return (
     <MuxPlayer
@@ -36,10 +48,10 @@ export function MuxVideo(props: MuxVideoProps): ReactElement {
       poster={poster}
       placeholder={blurDataURL ?? ''}
       accentColor="hsl(var(--primary))"
-      className={className}
+      className={`rounded-lg overflow-hidden ${className ?? ''}`}
       style={{ aspectRatio: aspectRatio ?? 16 / 9 }}
-      autoPlay={alt ? alt.includes('autoplay') : false}
-      loop={alt ? alt.includes('loop') : false}
+      autoPlay={alt.includes('autoplay')}
+      loop={alt.includes('loop')}
       disableTracking // Disable Mux analytics to avoid CORS issues
     />
   )

@@ -1,137 +1,49 @@
-import type { Image, Root } from 'mdast'
+import type { Root, Image } from 'mdast'
 import { visit } from 'unist-util-visit'
 
-interface FileInfo {
-  id: string
-  name: string
-  url?: string
-  isDirectory?: boolean
-}
-
-interface MuxVideoOptions {
-  fileList?: FileInfo[]
-}
-
-interface MuxMetadata {
-  providerMetadata?: {
-    mux?: {
-      playbackId?: string
-    }
-  }
-  poster?: string
-  blurDataURL?: string
-  aspectRatio?: number
-}
-
 /**
- * Remark plugin to transform video references (![](video.mp4)) into Mux video components.
+ * Remark plugin to transform video references (![](video.mp4)) into MuxVideo components.
  *
- * Looks for corresponding .mp4.json metadata files in the fileList to get:
- * - Mux playbackId
- * - Poster image URL
- * - Optional blur placeholder and aspect ratio
+ * This plugin ONLY transforms the markdown AST - it does NOT resolve files or fetch metadata.
+ * File resolution happens in the MuxVideo component itself (via the component factory).
  *
  * Usage in markdown:
  * ![Video title](my-video.mp4)
  * ![autoplay loop](background-video.mp4)
  */
-export function remarkMuxVideo(options: MuxVideoOptions = {}) {
-  return async function transformer(tree: Root) {
-    const { fileList } = options
+export function remarkMuxVideo() {
+  return function transformer(tree: Root) {
+    visit(tree, 'image', (node: Image) => {
+      const url = node.url
 
-    if (!fileList || fileList.length === 0) {
-      return tree
-    }
-
-    const nodesToProcess: Array<{ node: Image; index: number; parent: { children: unknown[] } }> = []
-
-    // First, collect all video nodes to process
-    visit(tree, 'image', (node, index, parent) => {
-      if (index === undefined || !parent) return
-
-      const imageNode = node as Image
-
-      // Check for .mp4 or .mov files that aren't external URLs
-      if (
-        !imageNode.url.startsWith('http') &&
-        (imageNode.url.endsWith('.mp4') || imageNode.url.endsWith('.mov'))
-      ) {
-        nodesToProcess.push({
-          node: imageNode,
-          index,
-          parent: parent as { children: unknown[] }
-        })
+      // Skip already-resolved URLs (http, https, or absolute paths)
+      if (!url || url.startsWith('http') || url.startsWith('https') || url.startsWith('/')) {
+        return
       }
-    })
 
-    // Process each video node
-    for (const { node, index, parent } of nodesToProcess) {
-      const metadata = await fetchMuxMetadataFromFileList(node.url, fileList)
+      // Only handle video files
+      if (!url.endsWith('.mp4') && !url.endsWith('.mov')) {
+        return
+      }
 
-      if (metadata) {
-        // Create muxvideo node that will be rendered by MuxVideo component
-        const muxvideoNode = {
-          type: 'muxvideo',
-          data: {
-            hName: 'muxvideo',
-            hProperties: {
-              className: 'muxvideo',
-              src: metadata.providerMetadata?.mux?.playbackId || '',
-              poster: metadata.poster || '',
-              alt: node.alt || '',
-              blurDataURL: metadata.blurDataURL || '',
-              aspectRatio: metadata.aspectRatio || 16 / 9
-            }
-          }
+      // Transform to muxvideo element with raw filename
+      // The MuxVideo component will handle file resolution and metadata fetching
+      const alt = node.alt || ''
+
+      // Modify node in place (like code-editor plugin)
+      const mutableNode = node as unknown as Record<string, unknown>
+      mutableNode.type = 'muxvideo'
+      mutableNode.data = {
+        hName: 'muxvideo',
+        hProperties: {
+          src: url, // Raw filename - component resolves it
+          alt: alt
         }
-
-        // Replace the original image node with the muxvideo node
-        parent.children[index] = muxvideoNode
       }
-    }
+      delete mutableNode.url
+      delete mutableNode.alt
+    })
 
     return tree
-  }
-}
-
-/**
- * Look up the .mp4.json metadata file from the fileList and parse it
- */
-async function fetchMuxMetadataFromFileList(
-  videoSrc: string,
-  fileList: FileInfo[]
-): Promise<MuxMetadata | null> {
-  try {
-    // Look for the corresponding .json metadata file
-    // e.g., "my-video.mp4" -> "my-video.mp4.json"
-    const jsonFilename = `${videoSrc}.json`
-
-    // Find the JSON file in the fileList
-    const jsonFile = fileList.find(f => {
-      if (f.isDirectory) return false
-      // Match exact name or basename
-      return f.name === jsonFilename || f.name.endsWith(`/${jsonFilename}`)
-    })
-
-    if (!jsonFile || !jsonFile.url) {
-      return null
-    }
-
-    // Fetch and parse the JSON metadata
-    // Use proxy=true to avoid CORS issues with S3 redirects
-    const fetchUrl = jsonFile.url.includes('?')
-      ? `${jsonFile.url}&proxy=true`
-      : `${jsonFile.url}?proxy=true`
-    const response = await fetch(fetchUrl)
-    if (!response.ok) {
-      console.warn(`[remarkMuxVideo] Failed to fetch metadata: ${jsonFile.url}`)
-      return null
-    }
-
-    const metadata = await response.json() as MuxMetadata
-    return metadata
-  } catch (error) {
-    console.error('[remarkMuxVideo] Failed to fetch video metadata:', error)
-    return null
   }
 }

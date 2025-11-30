@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkCodeEditor from '@/lib/remark-plugins/code-editor'
-import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
-import { remarkFileResolver } from '@/lib/remark-plugins/file-resolver'
+import { remarkImageResolver } from '@/lib/remark-plugins/image-resolver'
+import { remarkExcalidraw } from '@/lib/remark-plugins/excalidraw'
 
 describe('Remark Plugins', () => {
   describe('remarkCodeEditor', () => {
@@ -174,303 +174,173 @@ console.log("second")
     })
   })
 
-  describe('remarkImageAttributes', () => {
-    it('should parse width attribute and apply as inline style', () => {
-      const markdown = '![test](image.jpg){width=50%}'
+  describe('remarkImageResolver', () => {
+    // Note: remarkImageResolver is now a PURE TRANSFORMER
+    // It does NOT resolve file URLs - that happens in the ImageWithResize component
+    // It only adds data-original-src attribute to mark images for resolution
 
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.style).toContain('width: 50%')
-      expect(img?.data?.hProperties?.style).toContain('height: auto')
-    })
-
-    it('should parse align attribute', () => {
-      const markdown = '![test](image.jpg){align=left}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.['data-align']).toBe('left')
-    })
-
-    it('should parse multiple attributes separated by semicolon', () => {
-      const markdown = '![test](image.jpg){width=75%;align=center}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.style).toContain('width: 75%')
-      expect(img?.data?.hProperties?.['data-align']).toBe('center')
-    })
-
-    it('should parse wrap attribute', () => {
-      const markdown = '![test](image.jpg){wrap=true}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.['data-wrap']).toBe('true')
-    })
-
-    it('should remove attribute text from markdown after parsing', () => {
-      const markdown = '![test](image.jpg){width=50%}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      // Find the paragraph node
-      const paragraph = findNode(tree, (node: any) => node.type === 'paragraph')
-
-      // Check if there's a text node with the attributes (should be removed or empty)
-      const textNode = paragraph?.children?.find((child: any) => child.type === 'text')
-
-      if (textNode) {
-        expect(textNode.value).not.toContain('{width=50%}')
-      }
-    })
-
-    it('should handle images without attributes', () => {
-      const markdown = '![test](image.jpg)'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties).toBeUndefined()
-    })
-
-    it('should support various width units', () => {
-      const markdown = '![test](image.jpg){width=500px}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.style).toContain('width: 500px')
-    })
-
-    it('should handle all three attributes together', () => {
-      const markdown = '![test](image.jpg){width=60%;align=right;wrap=true}'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkImageAttributes)
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.data?.hProperties?.style).toContain('width: 60%')
-      expect(img?.data?.hProperties?.['data-align']).toBe('right')
-      expect(img?.data?.hProperties?.['data-wrap']).toBe('true')
-    })
-  })
-
-  describe('remarkFileResolver', () => {
-    it('should resolve file path from file list', () => {
+    it('should add data-original-src attribute for relative paths', async () => {
       const markdown = '![test](myimage.jpg)'
 
-      const fileList = [
-        { id: 'file1', name: 'myimage.jpg', url: '/files/myimage.jpg' }
-      ]
-
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
+        .use(remarkImageResolver)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
       const img = findNode(tree, (node: any) => node.type === 'image')
 
-      expect(img?.url).toBe('/files/myimage.jpg')
+      // URL should remain unchanged (component resolves it)
+      expect(img?.url).toBe('myimage.jpg')
+      // data-original-src should be set for the component to use
       expect(img?.data?.hProperties?.['data-original-src']).toBe('myimage.jpg')
     })
 
-    it('should skip absolute URLs', () => {
+    it('should skip absolute URLs', async () => {
       const markdown = '![test](https://example.com/image.jpg)'
 
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList: [] })
+        .use(remarkImageResolver)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
       const img = findNode(tree, (node: any) => node.type === 'image')
 
       expect(img?.url).toBe('https://example.com/image.jpg')
+      // No data-original-src for absolute URLs
+      expect(img?.data?.hProperties?.['data-original-src']).toBeUndefined()
     })
 
-    it('should skip URLs starting with slash', () => {
+    it('should skip URLs starting with slash', async () => {
       const markdown = '![test](/absolute/path.jpg)'
 
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList: [] })
+        .use(remarkImageResolver)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
       const img = findNode(tree, (node: any) => node.type === 'image')
 
       expect(img?.url).toBe('/absolute/path.jpg')
+      // No data-original-src for absolute paths
+      expect(img?.data?.hProperties?.['data-original-src']).toBeUndefined()
     })
 
-    it('should handle missing files with /missing-file/ path', () => {
-      const markdown = '![test](notfound.jpg)'
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkFileResolver, { fileList: [] })
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.url).toBe('/missing-file/notfound.jpg')
-    })
-
-    it('should resolve file by basename when path differs', () => {
-      const markdown = '![test](subdir/image.jpg)'
-
-      const fileList = [
-        { id: 'file1', name: 'image.jpg', url: '/files/image.jpg' }
-      ]
-
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
-
-      const tree = processor.parse(markdown)
-      processor.runSync(tree)
-
-      const img = findNode(tree, (node: any) => node.type === 'image')
-
-      expect(img?.url).toBe('/files/image.jpg')
-    })
-
-    it('should handle excalidraw files with light and dark variants', () => {
+    it('should skip excalidraw files', async () => {
       const markdown = '![test](diagram.excalidraw)'
 
-      const fileList = [
-        { id: 'light1', name: 'diagram.excalidraw.light.svg', url: '/files/light.svg' },
-        { id: 'dark1', name: 'diagram.excalidraw.dark.svg', url: '/files/dark.svg' }
-      ]
-
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
+        .use(remarkImageResolver)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
       const img = findNode(tree, (node: any) => node.type === 'image')
 
-      expect(img?.url).toContain('/files/light.svg')
-      expect(img?.data?.hProperties?.['data-excalidraw']).toBe('diagram.excalidraw')
-      expect(img?.data?.hProperties?.['data-light-src']).toContain('/files/light.svg')
-      expect(img?.data?.hProperties?.['data-dark-src']).toContain('/files/dark.svg')
+      // Should not be modified (excalidraw handled by remarkExcalidraw)
+      expect(img?.url).toBe('diagram.excalidraw')
+      expect(img?.data?.hProperties?.['data-original-src']).toBeUndefined()
     })
 
-    it('should handle excalidraw files with missing variants', () => {
+    it('should skip video files', async () => {
+      const markdown = '![test](video.mp4)'
+
+      const processor = unified()
+        .use(remarkParse)
+        .use(remarkImageResolver)
+
+      const tree = processor.parse(markdown)
+      await processor.run(tree)
+
+      const img = findNode(tree, (node: any) => node.type === 'image')
+
+      // Should not be modified (videos handled by remarkMuxVideo)
+      expect(img?.url).toBe('video.mp4')
+      expect(img?.data?.hProperties?.['data-original-src']).toBeUndefined()
+    })
+  })
+
+  describe('remarkExcalidraw', () => {
+    // Note: remarkExcalidraw is now a PURE TRANSFORMER
+    // It transforms ![](*.excalidraw) to <excalidraw-image src="..." />
+    // File resolution (light/dark variants) happens in the ExcalidrawImage component
+
+    it('should transform excalidraw files to excalidraw-image elements', async () => {
       const markdown = '![test](diagram.excalidraw)'
 
-      const fileList = [
-        { id: 'light1', name: 'diagram.excalidraw.light.svg', url: '/files/light.svg' }
-        // Missing dark variant
-      ]
-
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
+        .use(remarkExcalidraw)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
-      const img = findNode(tree, (node: any) => node.type === 'image')
+      // Should now be an excalidraw-image element, not an image
+      const excalidrawNode = findNode(tree, (node: any) => node.type === 'excalidraw-image')
 
-      expect(img?.url).toContain('/missing-file/diagram.excalidraw')
-      expect(img?.url).toContain('missing=dark')
+      expect(excalidrawNode).toBeDefined()
+      expect(excalidrawNode?.data?.hName).toBe('excalidraw-image')
+      expect(excalidrawNode?.data?.hProperties?.src).toBe('diagram.excalidraw')
+      expect(excalidrawNode?.data?.hProperties?.alt).toBe('test')
+      expect(excalidrawNode?.data?.hProperties?.['data-original-src']).toBe('diagram.excalidraw')
     })
 
-    it('should use file id when url not provided', () => {
-      const markdown = '![test](myfile.jpg)'
-
-      const fileList = [
-        { id: 'abc123', name: 'myfile.jpg' } // No url property
-      ]
+    it('should handle excalidraw.md files', async () => {
+      const markdown = '![test](diagram.excalidraw.md)'
 
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
+        .use(remarkExcalidraw)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
-      const img = findNode(tree, (node: any) => node.type === 'image')
+      const excalidrawNode = findNode(tree, (node: any) => node.type === 'excalidraw-image')
 
-      expect(img?.url).toBe('/api/files/abc123')
+      expect(excalidrawNode).toBeDefined()
+      expect(excalidrawNode?.data?.hProperties?.src).toBe('diagram.excalidraw.md')
     })
 
-    it('should skip directories in file list', () => {
-      const markdown = '![test](folder)'
-
-      const fileList = [
-        { id: 'dir1', name: 'folder', isDirectory: true }
-      ]
+    it('should skip non-excalidraw files', async () => {
+      const markdown = '![test](regular-image.jpg)'
 
       const processor = unified()
         .use(remarkParse)
-        .use(remarkFileResolver, { fileList })
+        .use(remarkExcalidraw)
 
       const tree = processor.parse(markdown)
-      processor.runSync(tree)
+      await processor.run(tree)
 
+      // Should remain as image node
       const img = findNode(tree, (node: any) => node.type === 'image')
+      const excalidrawNode = findNode(tree, (node: any) => node.type === 'excalidraw-image')
 
-      expect(img?.url).toBe('/missing-file/folder')
+      expect(img?.url).toBe('regular-image.jpg')
+      expect(excalidrawNode).toBeUndefined()
+    })
+
+    it('should skip already-resolved URLs', async () => {
+      const markdown = '![test](https://example.com/diagram.excalidraw)'
+
+      const processor = unified()
+        .use(remarkParse)
+        .use(remarkExcalidraw)
+
+      const tree = processor.parse(markdown)
+      await processor.run(tree)
+
+      // Should remain as image node (absolute URLs are not transformed)
+      const img = findNode(tree, (node: any) => node.type === 'image')
+      const excalidrawNode = findNode(tree, (node: any) => node.type === 'excalidraw-image')
+
+      expect(img?.url).toBe('https://example.com/diagram.excalidraw')
+      expect(excalidrawNode).toBeUndefined()
     })
   })
 })

@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { SkriptRedirect } from '@/components/SkriptRedirect'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { AnnotatableContent } from '@/components/public/annotatable-content'
+import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
+import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import { headers } from 'next/headers'
-import { getTeacherByUsernameDeduped, getAllPublishedCollections } from '@/lib/cached-queries'
+import { getAllPublishedCollections } from '@/lib/cached-queries'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -291,12 +292,13 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
             {/* Frontpage content or empty state for authors */}
             {frontPage?.content ? (
               <article className="prose-theme">
-                <AnnotatableContent
-                  pageId={frontPage.id}
-                  content={frontPage.content}
-                  domain={domain}
-                  skriptId={skript.id}
-                />
+                <AnnotationWrapper pageId={frontPage.id} content={frontPage.content}>
+                  <ServerMarkdownRenderer
+                    content={frontPage.content}
+                    skriptId={skript.id}
+                    pageId={frontPage.id}
+                  />
+                </AnnotationWrapper>
               </article>
             ) : isAuthor ? (
               <div className="text-center py-12">

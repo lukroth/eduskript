@@ -1,33 +1,29 @@
 'use client'
 
-import { useMemo } from 'react'
-import { MarkdownRenderer } from '@/components/markdown/markdown-renderer'
-import type { MarkdownContext } from '@/lib/markdown'
+import { MarkdownRenderer } from '@/components/markdown/markdown-renderer.client'
 
 interface InteractivePreviewProps {
   markdown: string
   onContentChange?: (newContent: string) => void
   fileList?: Array<{ id: string; name: string; url?: string; isDirectory?: boolean }>
-  theme?: 'light' | 'dark'
+  pageId?: string
 }
 
 export function InteractivePreview({
   markdown,
   onContentChange,
   fileList,
-  theme = 'light'
+  pageId,
 }: InteractivePreviewProps) {
-  // Memoize context to prevent recreating on every render
-  const context: MarkdownContext = useMemo(() => ({
-    fileList,
-    theme,
-  }), [fileList, theme])
+  // Filter out directories from the file list
+  const filteredFileList = fileList?.filter(f => !f.isDirectory)
 
   return (
     <div className="prose-theme" key="markdown-preview">
       <MarkdownRenderer
         content={markdown}
-        context={context}
+        fileList={filteredFileList}
+        pageId={pageId}
         onContentChange={onContentChange}
       />
     </div>

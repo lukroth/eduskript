@@ -45,7 +45,7 @@ export const calloutTypes: Record<string, string> = {
 // match breaks
 const find = /[\t ]*(?:\r?\n|\r)/g
 
-export const remarkCallouts: Plugin = function () {
+export const remarkCallouts: Plugin<[], Root> = function () {
   return function (tree: Root) {
     visit(tree, (node: Node, index, parent: Parent) => {
       // Filter required elems
