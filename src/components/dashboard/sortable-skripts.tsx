@@ -96,7 +96,10 @@ function SortableSkriptItem({
   const handlePreview = () => {
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
-      window.open(`/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+      // Use /preview/ route for unpublished content
+      const isFullyPublished = skript.isPublished && firstPage.isPublished
+      const basePath = isFullyPublished ? '' : '/preview'
+      window.open(`${basePath}/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
     }
   }
 
@@ -326,7 +329,10 @@ function StaticSkriptItem({
   const handlePreview = () => {
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
-      window.open(`/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+      // Use /preview/ route for unpublished content
+      const isFullyPublished = skript.isPublished && firstPage.isPublished
+      const basePath = isFullyPublished ? '' : '/preview'
+      window.open(`${basePath}/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
     }
   }
 

@@ -9,7 +9,6 @@
 
 ## 🎯 Priority List
 
-- optimize image caching and isr, look at excalidraw
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration
 

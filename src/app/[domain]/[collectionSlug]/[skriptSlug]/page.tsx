@@ -262,10 +262,6 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
         isAuthor || page.isPublished
       )
 
-      // Check if current user can edit this frontpage
-      const canEdit = isAuthor
-      const editUrl = canEdit ? `/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/frontpage` : undefined
-
       // Check if this is a preview (unpublished)
       const isPreviewMode = isAuthor && frontPage && !frontPage.isPublished
 
@@ -276,7 +272,6 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
           rootSkripts={[]}
           sidebarBehavior={teacherPrefs?.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
           typographyPreference={teacherPrefs?.typographyPreference as 'modern' | 'classic' || 'modern'}
-          editUrl={editUrl}
         >
           <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10" style={{ maxWidth: 'min(1280px, calc(100vw - 48px))', marginLeft: 'auto', marginRight: 'auto' }}>
             {/* Preview mode indicator for unpublished frontpage */}

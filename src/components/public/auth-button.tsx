@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -8,13 +9,41 @@ import { LogIn, UserCheck, Pencil } from 'lucide-react'
 import { getAccountTypeFromWindow } from '@/lib/domain-utils'
 
 interface AuthButtonProps {
-  editUrl?: string // URL to edit current page (only shown if user has permission)
+  pageId?: string // Page ID to check edit permissions (lazy loaded)
 }
 
-export function AuthButton({ editUrl }: AuthButtonProps) {
+export function AuthButton({ pageId }: AuthButtonProps) {
   const router = useRouter()
   const pathname = usePathname() ?? '/'
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const [editUrl, setEditUrl] = useState<string | null>(null)
+
+  // Fetch edit permissions client-side (only when logged in and pageId is provided)
+  useEffect(() => {
+    // Skip if not authenticated, no pageId, or student account
+    if (status !== 'authenticated' || !pageId || session?.user?.accountType === 'student') {
+      return
+    }
+
+    let cancelled = false
+
+    fetch(`/api/pages/${pageId}/can-edit`)
+      .then(res => res.json())
+      .then(data => {
+        if (!cancelled) {
+          setEditUrl(data.canEdit && data.editUrl ? data.editUrl : null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEditUrl(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageId, status, session?.user?.accountType])
 
   const handleSignIn = () => {
     // Detect account type based on domain

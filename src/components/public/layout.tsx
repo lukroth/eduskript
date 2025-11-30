@@ -56,7 +56,7 @@ interface PublicSiteLayoutProps {
   fullSiteStructure?: SiteStructure[] // Full site structure when sidebarBehavior is "full"
   sidebarBehavior?: 'contextual' | 'full'
   typographyPreference?: 'modern' | 'classic'
-  editUrl?: string // URL to edit current page (only shown if user has permission)
+  pageId?: string // Page ID for lazy edit permission check
 }
 
 export function PublicSiteLayout({
@@ -68,7 +68,7 @@ export function PublicSiteLayout({
   fullSiteStructure,
   sidebarBehavior = 'contextual',
   typographyPreference = 'modern',
-  editUrl
+  pageId
 }: PublicSiteLayoutProps) {
   const router = useRouter()
   const { setSidebarCollapsed: setSidebarCollapsedInContext, sidebarWidth } = useLayout()
@@ -237,7 +237,7 @@ export function PublicSiteLayout({
       <div className="lg:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
         <FontSizeControls />
         <PublicThemeToggle />
-        <AuthButton editUrl={editUrl} />
+        <AuthButton pageId={pageId} />
       </div>
 
       {/* Mobile menu button */}
@@ -287,7 +287,7 @@ export function PublicSiteLayout({
                 >
                   <ChevronRight className="w-5 h-5" />
                 </Button>
-                <AuthButton editUrl={editUrl} />
+                <AuthButton pageId={pageId} />
                 <PublicThemeToggle />
                 <FontSizeControls orientation="vertical" />
               </div>
@@ -331,7 +331,7 @@ export function PublicSiteLayout({
                   <div className="flex-1 flex items-center justify-center gap-2">
                     <FontSizeControls />
                     <PublicThemeToggle />
-                    <AuthButton editUrl={editUrl} />
+                    <AuthButton pageId={pageId} />
                   </div>
                   <Button
                     variant="ghost"
