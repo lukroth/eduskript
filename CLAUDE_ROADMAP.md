@@ -9,16 +9,20 @@
 
 ## 🎯 Priority List
 
+- All student snaps on "my snaps" page
+
+- Privacy consideration: Currently teachers send student emails to the server cleartext. would it increase privacy if we hashed them first, and the server hashes+salts them again? we'd need a hash function that the server and client can both do and arrive at the same hash.
+
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration
 
 **LMS Features:**
 - **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
-- **Teacher/author ability to publsih snaps globally or per class**
-- **Teacher/author ability to publish annotations globally or per class**
-- **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
 - **Randomized questions** maybe through special skripts?
+- **Teacher/author ability to publish/distribute snaps globally or per class**
+- **Teacher/author ability to publish/distribute annotations globally or per class**
+- **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
 
 **Infrastructure:**
 - **Backup System** - Easy database exports and UI to restore if necessary
