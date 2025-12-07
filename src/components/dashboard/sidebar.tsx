@@ -5,8 +5,9 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
 const navigation = [
   { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
@@ -31,6 +32,7 @@ export function DashboardSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { data: session } = useSession()
+  const hasPendingInvitations = usePendingInvitations()
 
   // Determine which navigation to show based on account type
   const isStudent = session?.user?.accountType === 'student'
@@ -62,19 +64,22 @@ export function DashboardSidebar() {
 
 
         {/* Navigation */}
-        <nav className="space-y-2 flex-1">
+        <nav className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon
             // Highlight page-builder for both /dashboard and /dashboard/page-builder
             const isActive = pathname === item.href ||
                            (item.href === '/dashboard/page-builder' && pathname === '/dashboard')
 
+            // Show red dot on My Classes if there are pending invitations
+            const showDot = hasPendingInvitations && item.href === '/dashboard/my-classes'
+
             return (
               <Link
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
+                  'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors relative',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -84,6 +89,9 @@ export function DashboardSidebar() {
               >
                 <Icon className="w-5 h-5" />
                 {!isCollapsed && <span>{item.name}</span>}
+                {showDot && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                )}
               </Link>
             )
           })}
@@ -110,6 +118,23 @@ export function DashboardSidebar() {
           )}
         </nav>
 
+        {/* Back to Teacher Page link (students only) */}
+        {isStudent && session?.user?.signedUpFromPageSlug && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <Link
+              href={`/${session.user.signedUpFromPageSlug}`}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
+                'text-muted-foreground hover:bg-muted hover:text-foreground',
+                isCollapsed ? 'justify-center px-2' : ''
+              )}
+              title={isCollapsed ? `Back to ${session.user.signedUpFromPageSlug}` : undefined}
+            >
+              <ExternalLink className="w-5 h-5" />
+              {!isCollapsed && <span>Back to {session.user.signedUpFromPageSlug}</span>}
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )

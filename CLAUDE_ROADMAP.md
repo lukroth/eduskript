@@ -9,12 +9,14 @@
 
 ## 🎯 Priority List
 
+- **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
+
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration
 
 **LMS Features:**
-- **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
-- **Interactive Quizzes** - In-lesson quizzes with progress tracking
+- **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component.
+
 - **Randomized questions** maybe through special skripts?
 - **Teacher/author ability to publish/distribute snaps globally or per class**
 - **Teacher/author ability to publish/distribute annotations globally or per class**

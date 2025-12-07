@@ -77,7 +77,7 @@ export function ProfileSettings() {
           <CardTitle>Profile Settings</CardTitle>
         </div>
         <CardDescription>
-          Update your public profile information
+          This information will be stored and displayed when you interact with teachers and students.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -25,6 +25,7 @@ declare module "next-auth" {
       studentPseudonym?: string | null
       typographyPreference?: string | null
       signedUpFromPageSlug?: string | null // For students: the teacher page they signed up from
+      oauthEmail?: string | null // For students: their real OAuth email (not stored in DB, only in token)
     }
   }
 
@@ -73,5 +74,6 @@ declare module "next-auth/jwt" {
     studentPseudonym?: string | null
     typographyPreference?: string | null
     signedUpFromPageSlug?: string | null // For students: the teacher page they signed up from
+    oauthEmail?: string | null // For students: their real OAuth email (not stored in DB, only in token)
   }
 }

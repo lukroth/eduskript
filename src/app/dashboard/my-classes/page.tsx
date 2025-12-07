@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Users, BookOpen } from 'lucide-react'
+import { Users, BookOpen, ShieldCheck } from 'lucide-react'
 
 interface JoinRequest {
   classId: string
@@ -15,6 +15,7 @@ interface JoinRequest {
   classDescription: string | null
   teacherName: string | null
   inviteCode: string
+  allowAnonymous: boolean
   addedAt: string
 }
 
@@ -63,7 +64,14 @@ export default function MyClassesPage() {
 
       const data = await response.json()
       setClasses(data.classes)
-      setJoinRequests(data.joinRequests || [])
+      const requests = data.joinRequests || []
+      setJoinRequests(requests)
+
+      // Update sessionStorage with current invitation status
+      const hasPending = requests.length > 0
+      sessionStorage.setItem('hasPendingInvitations', String(hasPending))
+      // Dispatch event so other components (auth-button, nav, sidebar) update immediately
+      window.dispatchEvent(new CustomEvent('invitationStatusChanged', { detail: { hasPending } }))
     } catch (error) {
       console.error('Error loading classes:', error)
     } finally {
@@ -71,7 +79,7 @@ export default function MyClassesPage() {
     }
   }
 
-  const handleJoinClass = async (inviteCode: string, teacherName: string) => {
+  const handleJoinClass = async (inviteCode: string) => {
     try {
       setJoining(inviteCode)
 
@@ -89,8 +97,6 @@ export default function MyClassesPage() {
 
       // Reload classes to show the newly joined class
       await loadClasses()
-
-      alert.showSuccess(`You've joined the class! ${teacherName} can now see your identity.`)
     } catch (error) {
       console.error('Error joining class:', error)
       alert.showError(error instanceof Error ? error.message : 'Failed to join class')
@@ -128,16 +134,24 @@ export default function MyClassesPage() {
                 <Card key={request.inviteCode} className="border-blue-200 dark:border-blue-900">
                   <CardContent className="p-4">
                     <div className="space-y-3">
-                      <div>
-                        <h3 className="font-semibold text-lg mb-1">{request.className}</h3>
-                        {request.classDescription && (
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {request.classDescription}
-                          </p>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg mb-1">{request.className}</h3>
+                          {request.classDescription && (
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {request.classDescription}
+                            </p>
+                          )}
+                        </div>
+                        {!request.allowAnonymous && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded-md">
+                            <ShieldCheck className="w-3 h-3" />
+                            Identity required
+                          </span>
                         )}
                       </div>
-                      <div className="rounded-md p-3 border bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                      <div className="rounded-md p-3 border bg-blue-500/10 border-blue-500/20">
+                        <p className="text-sm">
                           Teacher <strong>{request.teacherName}</strong> has asked you to join this class.
                           They will be able to identify you if you join.
                         </p>
@@ -147,7 +161,7 @@ export default function MyClassesPage() {
                           Invited {new Date(request.addedAt).toLocaleDateString()}
                         </p>
                         <Button
-                          onClick={() => handleJoinClass(request.inviteCode, request.teacherName || 'Unknown')}
+                          onClick={() => handleJoinClass(request.inviteCode)}
                           disabled={joining === request.inviteCode}
                         >
                           {joining === request.inviteCode ? 'Joining...' : 'Join Class'}

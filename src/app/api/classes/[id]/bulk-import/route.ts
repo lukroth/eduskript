@@ -175,3 +175,68 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     )
   }
 }
+
+// DELETE /api/classes/[id]/bulk-import - Remove a pre-authorized student by email
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id: classId } = await params
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify class exists and user owns it
+    const classRecord = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { teacherId: true }
+    })
+
+    if (!classRecord) {
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+    }
+
+    if (classRecord.teacherId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'You do not have permission to modify this class' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { email } = body
+
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json(
+        { error: 'email is required' },
+        { status: 400 }
+      )
+    }
+
+    // Generate pseudonym from email
+    const pseudonym = generatePseudonym(email.toLowerCase().trim())
+
+    // Delete the pre-authorization
+    const deleted = await prisma.preAuthorizedStudent.deleteMany({
+      where: {
+        classId,
+        pseudonym
+      }
+    })
+
+    if (deleted.count === 0) {
+      return NextResponse.json(
+        { error: 'Pre-authorization not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[API] Error deleting pre-authorized student:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete pre-authorization' },
+      { status: 500 }
+    )
+  }
+}

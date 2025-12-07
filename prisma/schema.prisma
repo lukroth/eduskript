@@ -444,14 +444,15 @@ model StudentSubmission {
 
 // Class model - teacher-owned groups of students
 model Class {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  teacherId   String   @map("teacher_id")
-  inviteCode  String   @unique @map("invite_code")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  teacherId      String   @map("teacher_id")
+  inviteCode     String   @unique @map("invite_code")
+  isActive       Boolean  @default(true) @map("is_active")
+  allowAnonymous Boolean  @default(false) @map("allow_anonymous")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   // Relations
   teacher               User                      @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)

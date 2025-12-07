@@ -120,14 +120,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
       })
       wasPreAuthorized = !!preAuth
+    }
 
-      // If pre-authorized, teacher has their email - consent is REQUIRED
-      if (wasPreAuthorized && !identityConsent) {
-        return NextResponse.json({
-          error: 'This teacher has your email address. You must consent to identity reveal to join this class.',
-          requiresConsent: true
-        }, { status: 400 })
-      }
+    // If class doesn't allow anonymous students, they must be pre-authorized
+    if (!classRecord.allowAnonymous && !wasPreAuthorized) {
+      return NextResponse.json({
+        error: 'This class requires teacher approval. Ask your teacher to add your email address before joining.',
+        requiresPreAuthorization: true
+      }, { status: 403 })
+    }
+
+    // If pre-authorized (or class doesn't allow anonymous), consent is required
+    if ((wasPreAuthorized || !classRecord.allowAnonymous) && !identityConsent) {
+      return NextResponse.json({
+        error: 'This class requires identity consent. Your teacher will be able to identify you.',
+        requiresConsent: true
+      }, { status: 400 })
     }
 
     // Create membership with identity consent
@@ -228,13 +236,52 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    // Check if current user is pre-authorized (if logged in)
+    let isPreAuthorized = false
+    let isAlreadyMember = false
+    const session = await getServerSession(authOptions)
+
+    if (session?.user?.id) {
+      // Check if already a member
+      const membership = await prisma.classMembership.findUnique({
+        where: {
+          classId_studentId: {
+            classId: classRecord.id,
+            studentId: session.user.id
+          }
+        }
+      })
+      isAlreadyMember = !!membership
+
+      // Check if pre-authorized
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { studentPseudonym: true }
+      })
+
+      if (user?.studentPseudonym) {
+        const preAuth = await prisma.preAuthorizedStudent.findUnique({
+          where: {
+            classId_pseudonym: {
+              classId: classRecord.id,
+              pseudonym: user.studentPseudonym
+            }
+          }
+        })
+        isPreAuthorized = !!preAuth
+      }
+    }
+
     return NextResponse.json({
       class: {
         name: classRecord.name,
         description: classRecord.description,
         teacherName: classRecord.teacher.name,
-        memberCount: classRecord._count.memberships
-      }
+        memberCount: classRecord._count.memberships,
+        allowAnonymous: classRecord.allowAnonymous
+      },
+      isPreAuthorized,
+      isAlreadyMember
     })
   } catch (error) {
     console.error('[API] Error previewing class:', error)

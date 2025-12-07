@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
 export function Navigation() {
   const { data: session } = useSession()
+  const hasPendingInvitations = usePendingInvitations()
 
   return (
     <nav className="border-b border-border bg-background/80 backdrop-blur-sm">
@@ -21,8 +23,11 @@ export function Navigation() {
             
             {session ? (
               <div className="flex items-center gap-4">
-                <Link href="/dashboard">
+                <Link href="/dashboard" className="relative">
                   <Button variant="ghost">Dashboard</Button>
+                  {hasPendingInvitations && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                  )}
                 </Link>
                 <Button
                   variant="outline"

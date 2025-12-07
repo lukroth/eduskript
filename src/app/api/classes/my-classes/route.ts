@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     // Verify user is a student
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { accountType: true }
+      select: { accountType: true, studentPseudonym: true }
     })
 
     if (!user) {
@@ -27,6 +27,22 @@ export async function GET(request: NextRequest) {
         { error: 'Only students can view enrolled classes' },
         { status: 403 }
       )
+    }
+
+    // Fast path: just check if any pending invitations exist
+    const { searchParams } = new URL(request.url)
+    if (searchParams.get('checkOnly') === 'true') {
+      if (!user.studentPseudonym) {
+        return NextResponse.json({ hasPendingInvitations: false })
+      }
+      const hasInvitations = await prisma.preAuthorizedStudent.findFirst({
+        where: {
+          pseudonym: user.studentPseudonym,
+          class: { isActive: true }
+        },
+        select: { id: true }
+      })
+      return NextResponse.json({ hasPendingInvitations: !!hasInvitations })
     }
 
     // Get all classes the student is enrolled in
@@ -56,17 +72,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Get student's pseudonym to check for pre-authorizations (join requests)
-    const studentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { studentPseudonym: true }
-    })
-
     // Get all pending join requests for this student (via pseudonym match)
-    const joinRequests = studentUser?.studentPseudonym
+    const joinRequests = user.studentPseudonym
       ? await prisma.preAuthorizedStudent.findMany({
           where: {
-            pseudonym: studentUser.studentPseudonym
+            pseudonym: user.studentPseudonym
           },
           include: {
             class: {
@@ -75,6 +85,7 @@ export async function GET(request: NextRequest) {
                 name: true,
                 description: true,
                 inviteCode: true,
+                allowAnonymous: true,
                 teacher: {
                   select: {
                     name: true
@@ -112,6 +123,7 @@ export async function GET(request: NextRequest) {
         classDescription: req.class.description,
         teacherName: req.class.teacher.name,
         inviteCode: req.class.inviteCode,
+        allowAnonymous: req.class.allowAnonymous,
         addedAt: req.addedAt
       }))
     })

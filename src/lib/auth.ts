@@ -132,7 +132,7 @@ export const authOptions: NextAuthOptions = {
             tenantId: process.env.AZURE_AD_TENANT_ID || 'common',
             authorization: {
               params: {
-                scope: 'openid profile email offline_access',
+                scope: 'openid profile email User.Read offline_access',
                 prompt: 'select_account' // Always show account selector
               }
             }
@@ -173,11 +173,10 @@ export const authOptions: NextAuthOptions = {
     },
   } : undefined,
   callbacks: {
-    async signIn({ user, account, profile }) {
-      // No cleanup needed - we now use callback URL instead of cookies
+    async signIn() {
       return true
     },
-    async jwt({ token, user, trigger, account }) {
+    async jwt({ token, user, trigger, account, profile }) {
       if (user) {
         token.id = user.id
         // Fetch additional user data once during sign-in and store in token
@@ -214,15 +213,46 @@ export const authOptions: NextAuthOptions = {
           token.bio = dbUser.bio
           token.name = dbUser.name
           token.email = dbUser.email
-          // For students, use OAuth image directly (not stored in DB for privacy)
+
+          // For students, fetch OAuth profile image (not stored in DB for privacy)
           // For teachers, use stored image (allows manual upload override)
-          token.image = dbUser.accountType === 'student' ? user.image : dbUser.image
+          let oauthImage = (profile as any)?.image || (profile as any)?.picture || (profile as any)?.avatar_url || user.image
+
+          // If no image yet and we have an Azure AD access token, fetch from Microsoft Graph API
+          // The built-in provider fetch sometimes fails silently, so we do it explicitly here
+          if (!oauthImage && account?.provider === 'azure-ad' && account?.access_token) {
+            try {
+              const photoResponse = await fetch('https://graph.microsoft.com/v1.0/me/photos/48x48/$value', {
+                headers: { Authorization: `Bearer ${account.access_token}` }
+              })
+              if (photoResponse.ok) {
+                const pictureBuffer = await photoResponse.arrayBuffer()
+                const pictureBase64 = Buffer.from(pictureBuffer).toString('base64')
+                oauthImage = `data:image/jpeg;base64,${pictureBase64}`
+              }
+            } catch {
+              // Photo fetch failed - user may not have a profile photo set
+            }
+          }
+
+          // GitHub uses avatar_url in profile
+          if (!oauthImage && account?.provider === 'github' && (profile as any)?.avatar_url) {
+            oauthImage = (profile as any).avatar_url
+          }
+
+          token.image = dbUser.accountType === 'student' ? oauthImage : dbUser.image
           token.isAdmin = dbUser.isAdmin
           token.requirePasswordReset = dbUser.requirePasswordReset
           token.needsProfileCompletion = dbUser.needsProfileCompletion
           token.accountType = dbUser.accountType
           token.studentPseudonym = dbUser.studentPseudonym
           token.typographyPreference = dbUser.typographyPreference
+
+          // For students, store OAuth email in token (for display purposes, NOT stored in DB)
+          // This allows showing the student their email when they need to share it with teachers
+          if (dbUser.accountType === 'student' && user.email) {
+            token.oauthEmail = user.email
+          }
 
           // For students, extract and store the teacher page they signed up from (for signout redirect)
           if (dbUser.accountType === 'student' && account?.provider) {
@@ -353,6 +383,7 @@ export const authOptions: NextAuthOptions = {
         session.user.studentPseudonym = token.studentPseudonym as string | null
         session.user.typographyPreference = token.typographyPreference as string | null
         session.user.signedUpFromPageSlug = token.signedUpFromPageSlug as string | null
+        session.user.oauthEmail = token.oauthEmail as string | null
       }
       return session
     },

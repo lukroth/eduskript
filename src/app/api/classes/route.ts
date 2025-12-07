@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         name: c.name,
         description: c.description,
         inviteCode: c.inviteCode,
+        allowAnonymous: c.allowAnonymous,
         memberCount: c._count.memberships,
         preAuthorizedCount: c._count.preAuthorizedStudents,
         createdAt: c.createdAt,
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description } = body
+    const { name, description, allowAnonymous } = body
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Class name is required' }, { status: 400 })
@@ -125,7 +126,8 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         description: description?.trim() || null,
         teacherId: session.user.id,
-        inviteCode: inviteCode!
+        inviteCode: inviteCode!,
+        allowAnonymous: allowAnonymous === true // Default false if not provided
       },
       include: {
         _count: {
@@ -150,6 +152,7 @@ export async function POST(request: NextRequest) {
         name: newClass.name,
         description: newClass.description,
         inviteCode: newClass.inviteCode,
+        allowAnonymous: newClass.allowAnonymous,
         memberCount: 0,
         preAuthorizedCount: 0,
         createdAt: newClass.createdAt,

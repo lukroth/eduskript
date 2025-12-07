@@ -8,10 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   Plus,
   Users,
   Link as LinkIcon,
+  Link2Off,
   Check,
   ChevronDown,
   ChevronRight,
@@ -21,6 +23,9 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ShieldOff,
+  ShieldUser,
+  Pencil,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -59,6 +64,7 @@ interface Class {
   name: string
   description: string | null
   inviteCode: string
+  allowAnonymous: boolean
   memberCount: number
   preAuthorizedCount: number
   createdAt: string
@@ -94,6 +100,15 @@ export default function ClassesPage() {
 
   // Sorting state per class
   const [sortConfig, setSortConfig] = useState<Record<string, { key: string; direction: 'asc' | 'desc' }>>({})
+
+  // State for toggling allowAnonymous
+  const [updatingAnonymous, setUpdatingAnonymous] = useState<Record<string, boolean>>({})
+
+  // State for editing class details
+  const [editingClassId, setEditingClassId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [savingClass, setSavingClass] = useState(false)
 
 
   // Check if user is a teacher
@@ -257,25 +272,7 @@ export default function ClassesPage() {
       // Save emails to local unmapped list for later resolution
       addUnmappedEmails(classId, emails)
 
-      let message = ''
-      if (data.imported > 0) {
-        message += `${data.imported} new pre-authorization${data.imported !== 1 ? 's' : ''} added\n`
-      }
-      if (data.alreadyMembers > 0) {
-        message += `${data.alreadyMembers} already enrolled\n`
-      }
-      if (data.alreadyPreAuthorized > 0) {
-        message += `${data.alreadyPreAuthorized} already pre-authorized\n`
-      }
-      if (data.revealRequestsSent > 0) {
-        message += `${data.revealRequestsSent} identity reveal request${data.revealRequestsSent !== 1 ? 's' : ''} sent to enrolled students\n(Students must consent before you can identify them)`
-      }
-
-      setDialogType('success')
-      setDialogTitle('Students Added Successfully')
-      setDialogMessage(message.trim())
-      setDialogOpen(true)
-
+      // Clear the input and reload to show new students/invitations
       setEmailInputs({ ...emailInputs, [classId]: '' })
       await loadClassDetails(classId)
 
@@ -316,6 +313,7 @@ export default function ClassesPage() {
       console.log('[Resolve] Resolution response:', data)
 
       // Update mappings for resolved emails
+      let hasNewMappings = false
       for (const item of data.resolved) {
         if (item.resolved && item.pseudonym) {
           // Save mapping: realEmail -> pseudonymEmail
@@ -323,11 +321,21 @@ export default function ClassesPage() {
           // Remove from unmapped list
           removeUnmappedEmail(classId, item.email)
           console.log('[Resolve] Mapped:', item.email, '->', item.pseudonym)
+          hasNewMappings = true
         }
       }
 
-      // Reload class details to show updated mappings
-      await loadClassDetails(classId)
+      // Update local state with new mappings (don't call loadClassDetails to avoid infinite loop)
+      if (hasNewMappings) {
+        const updatedMapping = await getEmailMappingsForClass(classId)
+        setClasses((prev) =>
+          prev.map((c) =>
+            c.id === classId
+              ? { ...c, emailMapping: updatedMapping }
+              : c
+          )
+        )
+      }
     } catch (error) {
       console.error('[Resolve] Error resolving emails:', error)
     }
@@ -363,10 +371,31 @@ export default function ClassesPage() {
     }
   }
 
-  const handleDeleteUnmappedEmail = (classId: string, email: string) => {
-    removeUnmappedEmail(classId, email)
-    // Force re-render by reloading class details
-    loadClassDetails(classId)
+  const handleDeleteUnmappedEmail = async (classId: string, email: string) => {
+    try {
+      // Delete from database
+      const response = await fetch(`/api/classes/${classId}/bulk-import`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to delete')
+      }
+
+      // Also remove from local cache
+      removeUnmappedEmail(classId, email)
+      // Force re-render by reloading class details
+      loadClassDetails(classId)
+    } catch (error) {
+      console.error('Error deleting pre-authorization:', error)
+      setDialogType('error')
+      setDialogTitle('Failed to Delete')
+      setDialogMessage(error instanceof Error ? error.message : 'An unexpected error occurred.')
+      setDialogOpen(true)
+    }
   }
 
   const getEmailForPseudonym = (classId: string, pseudonymEmail: string): string | null => {
@@ -385,6 +414,89 @@ export default function ClassesPage() {
     const currentSort = sortConfig[classId]
     const direction = currentSort?.key === key && currentSort?.direction === 'asc' ? 'desc' : 'asc'
     setSortConfig({ ...sortConfig, [classId]: { key, direction } })
+  }
+
+  const startEditingClass = (classItem: ClassWithDetails) => {
+    setEditingClassId(classItem.id)
+    setEditName(classItem.name)
+    setEditDescription(classItem.description || '')
+  }
+
+  const cancelEditingClass = () => {
+    setEditingClassId(null)
+    setEditName('')
+    setEditDescription('')
+  }
+
+  const saveClassDetails = async (classId: string) => {
+    if (!editName.trim()) return
+
+    try {
+      setSavingClass(true)
+
+      const response = await fetch(`/api/classes/${classId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDescription.trim() || null
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update class')
+      }
+
+      // Update local state
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === classId
+            ? { ...c, name: editName.trim(), description: editDescription.trim() || null }
+            : c
+        )
+      )
+
+      setEditingClassId(null)
+    } catch (error) {
+      console.error('Error updating class:', error)
+      setDialogType('error')
+      setDialogTitle('Failed to Update')
+      setDialogMessage('Could not update the class details. Please try again.')
+      setDialogOpen(true)
+    } finally {
+      setSavingClass(false)
+    }
+  }
+
+  const handleToggleAnonymous = async (classId: string, allowAnonymous: boolean) => {
+    try {
+      setUpdatingAnonymous({ ...updatingAnonymous, [classId]: true })
+
+      const response = await fetch(`/api/classes/${classId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowAnonymous }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update class')
+      }
+
+      // Update local state
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === classId ? { ...c, allowAnonymous } : c
+        )
+      )
+    } catch (error) {
+      console.error('Error updating class:', error)
+      setDialogType('error')
+      setDialogTitle('Failed to Update')
+      setDialogMessage('Could not update the anonymous students setting. Please try again.')
+      setDialogOpen(true)
+    } finally {
+      setUpdatingAnonymous({ ...updatingAnonymous, [classId]: false })
+    }
   }
 
   const getSortedStudents = (classId: string, students: Student[]) => {
@@ -571,12 +683,88 @@ export default function ClassesPage() {
                           <Users className="w-4 h-4" />
                           <span>{classItem.memberCount}</span>
                         </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="text-muted-foreground">
+                              {classItem.allowAnonymous ? (
+                                <ShieldOff className="w-4 h-4" />
+                              ) : (
+                                <ShieldUser className="w-4 h-4" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {classItem.allowAnonymous
+                              ? 'Anonymous joins allowed'
+                              : 'Identity required to join'}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </button>
 
                     {/* Expanded Content */}
                     {isExpanded && (
                       <div className="border-t p-4 space-y-6 bg-muted/20">
+                        {/* Class Name/Description Edit Section */}
+                        {editingClassId === classItem.id ? (
+                          <div className="space-y-3 p-3 border rounded-lg bg-background">
+                            <div>
+                              <Label htmlFor={`edit-name-${classItem.id}`}>Class Name</Label>
+                              <Input
+                                id={`edit-name-${classItem.id}`}
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Class name"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`edit-desc-${classItem.id}`}>Description (optional)</Label>
+                              <Input
+                                id={`edit-desc-${classItem.id}`}
+                                value={editDescription}
+                                onChange={(e) => setEditDescription(e.target.value)}
+                                placeholder="Brief description"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => saveClassDetails(classItem.id)}
+                                disabled={savingClass || !editName.trim()}
+                              >
+                                {savingClass ? 'Saving...' : 'Save'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEditingClass}
+                                disabled={savingClass}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold">{classItem.name}</h4>
+                              {classItem.description && (
+                                <p className="text-sm text-muted-foreground">{classItem.description}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => startEditingClass(classItem)}
+                              className="h-8 w-8"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+
                         {/* Add Students Section */}
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -586,23 +774,33 @@ export default function ClassesPage() {
                             </Label>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    copyInviteLink(classItem.inviteCode)
-                                  }}
-                                >
-                                  {copiedCode === classItem.inviteCode ? (
-                                    <Check className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <LinkIcon className="w-4 h-4" />
-                                  )}
-                                </Button>
+                                <span className="inline-block">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (classItem.allowAnonymous) {
+                                        copyInviteLink(classItem.inviteCode)
+                                      }
+                                    }}
+                                    disabled={!classItem.allowAnonymous}
+                                    className={!classItem.allowAnonymous ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}
+                                  >
+                                    {copiedCode === classItem.inviteCode ? (
+                                      <Check className="w-4 h-4 text-green-600" />
+                                    ) : classItem.allowAnonymous ? (
+                                      <LinkIcon className="w-4 h-4" />
+                                    ) : (
+                                      <Link2Off className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>Copy anonymous invite link</p>
+                                {classItem.allowAnonymous
+                                  ? 'Copy invite link'
+                                  : 'Invite links are disabled for classes that require identity'}
                               </TooltipContent>
                             </Tooltip>
                           </div>
@@ -771,6 +969,30 @@ export default function ClassesPage() {
                               </div>
                             )
                           })()}
+                        </div>
+
+                        {/* Class Settings - subtle at bottom */}
+                        <div className="pt-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              {classItem.allowAnonymous ? (
+                                <ShieldOff className="w-4 h-4" />
+                              ) : (
+                                <ShieldUser className="w-4 h-4" />
+                              )}
+                              <span>
+                                {classItem.allowAnonymous
+                                  ? 'Anonymous joins allowed'
+                                  : 'Identity required to join'}
+                              </span>
+                            </div>
+                            <Switch
+                              id={`anonymous-${classItem.id}`}
+                              checked={classItem.allowAnonymous}
+                              onCheckedChange={(checked) => handleToggleAnonymous(classItem.id, checked)}
+                              disabled={updatingAnonymous[classItem.id]}
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
