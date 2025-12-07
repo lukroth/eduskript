@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -71,9 +72,21 @@ export function PublicSiteLayout({
   pageId
 }: PublicSiteLayoutProps) {
   const router = useRouter()
+  const { data: session } = useSession()
   const { setSidebarCollapsed: setSidebarCollapsedInContext, sidebarWidth } = useLayout()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Track last visited teacher page for students (used for "Back to" link and signout redirect)
+  useEffect(() => {
+    if (session?.user?.accountType === 'student' && teacher.pageSlug) {
+      const lastTeacherPage = {
+        slug: teacher.pageSlug,
+        name: teacher.pageName || teacher.name || teacher.pageSlug
+      }
+      localStorage.setItem('lastTeacherPage', JSON.stringify(lastTeacherPage))
+    }
+  }, [session?.user?.accountType, teacher.pageSlug, teacher.pageName, teacher.name])
 
   // Sync local sidebar collapse state with global context
   useEffect(() => {

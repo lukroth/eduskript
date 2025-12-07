@@ -49,6 +49,7 @@ export function usePendingInvitations() {
     // Check sessionStorage cache first (unless cleared by reload)
     const cached = sessionStorage.getItem(CACHE_KEY)
     if (cached !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasPendingInvitations(cached === 'true')
     } else {
       checkPendingInvitations()

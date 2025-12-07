@@ -8,11 +8,29 @@ import { ThemeToggle } from './theme-toggle'
 export function DashboardNav() {
   const { data: session } = useSession()
 
-  // For students, redirect to the teacher page they signed up from
+  // For students, redirect to last visited teacher page (from localStorage or session fallback)
   // For teachers, redirect to homepage
-  const signOutUrl = session?.user?.accountType === 'student' && session?.user?.signedUpFromPageSlug
-    ? `/${session.user.signedUpFromPageSlug}`
-    : '/'
+  const getSignOutUrl = () => {
+    if (session?.user?.accountType !== 'student') return '/'
+
+    // Try localStorage first (last visited teacher page)
+    try {
+      const stored = localStorage.getItem('lastTeacherPage')
+      if (stored) {
+        const { slug } = JSON.parse(stored)
+        if (slug) return `/${slug}`
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    // Fallback to session (signed up from page)
+    if (session?.user?.signedUpFromPageSlug) {
+      return `/${session.user.signedUpFromPageSlug}`
+    }
+
+    return '/'
+  }
 
   return (
     <nav className="border-b border-border bg-card px-6 py-4">
@@ -30,7 +48,7 @@ export function DashboardNav() {
           <ThemeToggle />
           <Button
             variant="outline"
-            onClick={() => signOut({ callbackUrl: signOutUrl })}
+            onClick={() => signOut({ callbackUrl: getSignOutUrl() })}
           >
             Sign Out
           </Button>

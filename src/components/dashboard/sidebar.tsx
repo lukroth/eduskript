@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink } from 'lucide-react'
@@ -33,12 +33,28 @@ export function DashboardSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { data: session } = useSession()
   const hasPendingInvitations = usePendingInvitations()
+  const [lastTeacherPage, setLastTeacherPage] = useState<{ slug: string; name: string } | null>(null)
 
   // Determine which navigation to show based on account type
   const isStudent = session?.user?.accountType === 'student'
   const isTeacher = session?.user?.accountType === 'teacher'
 
   const navItems = isStudent ? studentNavigation : isTeacher ? teacherNavigation : navigation
+
+  // Load last visited teacher page from localStorage (students only)
+  useEffect(() => {
+    if (!isStudent) return
+
+    try {
+      const stored = localStorage.getItem('lastTeacherPage')
+      if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLastTeacherPage(JSON.parse(stored))
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [isStudent])
 
   return (
     <div className={cn(
@@ -119,19 +135,19 @@ export function DashboardSidebar() {
         </nav>
 
         {/* Back to Teacher Page link (students only) */}
-        {isStudent && session?.user?.signedUpFromPageSlug && (
+        {isStudent && (lastTeacherPage || session?.user?.signedUpFromPageSlug) && (
           <div className="mt-4 pt-4 border-t border-border">
             <Link
-              href={`/${session.user.signedUpFromPageSlug}`}
+              href={`/${lastTeacherPage?.slug || session?.user?.signedUpFromPageSlug}`}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
                 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 isCollapsed ? 'justify-center px-2' : ''
               )}
-              title={isCollapsed ? `Back to ${session.user.signedUpFromPageSlug}` : undefined}
+              title={isCollapsed ? `Back to ${lastTeacherPage?.name || session?.user?.signedUpFromPageSlug}` : undefined}
             >
               <ExternalLink className="w-5 h-5" />
-              {!isCollapsed && <span>Back to {session.user.signedUpFromPageSlug}</span>}
+              {!isCollapsed && <span>Back to {lastTeacherPage?.name || session?.user?.signedUpFromPageSlug}</span>}
             </Link>
           </div>
         )}
