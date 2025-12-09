@@ -60,6 +60,7 @@ export function useRealtimeEvents<T extends EventType>(
   const { enabled = true, onConnect, onDisconnect, onError } = options
   const { status } = useSession()
   const eventSourceRef = useRef<EventSource | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
 
   // Use refs for callbacks to avoid reconnection on callback changes
   const onEventRef = useRef(onEvent)
@@ -90,6 +91,7 @@ export function useRealtimeEvents<T extends EventType>(
 
     eventSource.onopen = () => {
       console.log('[SSE Hook] Connection established')
+      setIsConnected(true)
       onConnectRef.current?.()
     }
 
@@ -126,13 +128,9 @@ export function useRealtimeEvents<T extends EventType>(
     return () => {
       eventSource.close()
       eventSourceRef.current = null
+      setIsConnected(false)
     }
   }, [enabled, status, eventTypesKey])
-
-  // Return connection state for debugging (safe for SSR)
-  // Note: EventSource.OPEN is 1, we use literal to avoid SSR reference error
-  const isConnected = typeof window !== 'undefined' &&
-    eventSourceRef.current?.readyState === 1
 
   return { isConnected }
 }

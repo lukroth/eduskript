@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, ReactNode, ReactElement, Children } from 'react'
-import { useUserData } from '@/lib/userdata/hooks'
+import { useSyncedUserData } from '@/lib/userdata'
 import type { QuizData } from '@/lib/userdata/types'
 import { cn } from '@/lib/utils'
 import { Check, X } from 'lucide-react'
@@ -292,7 +292,7 @@ function Question({
   ...rest
 }: QuestionProps) {
   const componentId = `quiz-${id}`
-  const { data, updateData, isLoading } = useUserData<QuizData>(
+  const { data, updateData, isLoading } = useSyncedUserData<QuizData>(
     pageId,
     componentId,
     null

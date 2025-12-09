@@ -114,8 +114,19 @@ export class SyncEngine {
 
   /**
    * Queue data for sync
+   * @param adapter - Adapter type (e.g., 'quiz-{id}')
+   * @param itemId - Item identifier (e.g., pageId)
+   * @param data - JSON stringified data
+   * @param version - Data version number
+   * @param options.immediate - If true, sync immediately without debounce (for quiz submissions)
    */
-  public queueSync(adapter: string, itemId: string, data: string, version: number): void {
+  public queueSync(
+    adapter: string,
+    itemId: string,
+    data: string,
+    version: number,
+    options: { immediate?: boolean } = {}
+  ): void {
     const key = `${adapter}:${itemId}`
 
     this.syncQueue.set(key, {
@@ -127,6 +138,16 @@ export class SyncEngine {
     })
 
     this.updateStatus({ pending: this.syncQueue.size })
+
+    // If immediate, sync now without debounce
+    if (options.immediate) {
+      if (this.syncTimeout) {
+        clearTimeout(this.syncTimeout)
+        this.syncTimeout = null
+      }
+      this.sync()
+      return
+    }
 
     // Debounce the sync
     if (this.syncTimeout) {

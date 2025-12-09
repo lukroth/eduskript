@@ -155,7 +155,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Publish real-time events for each pre-authorized student
       // Students subscribed to their pseudonym channel will receive this
+      console.log(`[Bulk Import] Publishing ${pseudonymsToAdd.length} class-invitation events`)
       for (const pseudonym of pseudonymsToAdd) {
+        console.log(`[Bulk Import] Publishing to channel: pseudonym:${pseudonym}`)
         await eventBus.publish(`pseudonym:${pseudonym}`, {
           type: 'class-invitation',
           classId,

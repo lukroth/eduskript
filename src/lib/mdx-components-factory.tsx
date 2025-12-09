@@ -384,6 +384,11 @@ export function createMDXComponents(
   function QuizQuestionComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
     const id = (props['id'] as string) || ''
     const type = ((props['type'] as string) || 'multiple') as 'single' | 'multiple' | 'text' | 'number'
+    const showFeedback = props['showFeedback'] !== false && props['showfeedback'] !== 'false'
+    const allowUpdate = props['allowUpdate'] === true || props['allowupdate'] === 'true'
+    const minValue = props['minValue'] !== undefined ? Number(props['minValue']) : (props['minvalue'] !== undefined ? Number(props['minvalue']) : undefined)
+    const maxValue = props['maxValue'] !== undefined ? Number(props['maxValue']) : (props['maxvalue'] !== undefined ? Number(props['maxvalue']) : undefined)
+    const step = props['step'] !== undefined ? Number(props['step']) : undefined
 
     // Don't render quiz if pageId is missing (e.g., in dashboard preview without context)
     if (!pageId) {
@@ -395,14 +400,26 @@ export function createMDXComponents(
     }
 
     return (
-      <Question id={id} pageId={pageId} type={type}>
+      <Question
+        id={id}
+        pageId={pageId}
+        type={type}
+        showFeedback={showFeedback}
+        allowUpdate={allowUpdate}
+        minValue={minValue}
+        maxValue={maxValue}
+        step={step}
+      >
         {children}
       </Question>
     )
   }
 
-  function QuizOptionComponent({ children }: React.HTMLAttributes<HTMLElement>) {
-    return <>{children}</>
+  // QuizOptionComponent - wrapper that preserves props for parent Question to read
+  // Uses data-attributes on a span so Question can access is/feedback via element.props
+  function QuizOptionComponent({ children, is, feedback }: React.HTMLAttributes<HTMLElement> & { is?: string; feedback?: string }) {
+    // Return an Option component that the Question can read props from
+    return <Option is={is as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
   }
 
   // MDX Image component - for direct use in MDX as <Image src="..." />
@@ -483,7 +500,7 @@ export function createMDXComponents(
     'muxvideo': MuxVideoComponent,
     'excalidraw-image': ExcalidrawImageComponent,
     'question': QuizQuestionComponent,
-    'option': QuizOptionComponent,
+    'quiz-option': QuizOptionComponent,
 
     // Direct MDX component access
     CodeEditor: CodeEditorComponent,
@@ -491,8 +508,9 @@ export function createMDXComponents(
     Tabs: Object.assign(Tabs, { Tab: TabItem }),
     Youtube,
     MuxVideo: MuxVideoComponent,
-    Question,
-    Option,
+    // Question and Option use the wrapped versions that have pageId bound
+    Question: QuizQuestionComponent,
+    Option: QuizOptionComponent,
     Image: MDXImageComponent,
   }
 }

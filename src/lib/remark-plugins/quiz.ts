@@ -65,16 +65,27 @@ export function remarkQuiz() {
       // Parse the Question block
       const result = parseQuestionBlock(fullContent)
       if (result) {
-        // Create option elements
-        const optionElements: RootContent[] = result.options.map(opt => ({
+        const { attrs, options } = result
+
+        // Create option elements (using quiz-option to avoid conflict with HTML <option>)
+        const optionElements: RootContent[] = options.map(opt => ({
           type: 'html',
-          value: `<option${opt.is ? ` is="${opt.is}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</option>`
+          value: `<quiz-option${opt.is ? ` is="${opt.is}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</quiz-option>`
         } as RootContent))
+
+        // Build attributes string with all Question props
+        let attrStr = `id="${attrs.id}"`
+        if (attrs.type) attrStr += ` type="${attrs.type}"`
+        if (attrs.showFeedback) attrStr += ` showFeedback="${attrs.showFeedback}"`
+        if (attrs.allowUpdate) attrStr += ` allowUpdate="${attrs.allowUpdate}"`
+        if (attrs.minValue) attrStr += ` minValue="${attrs.minValue}"`
+        if (attrs.maxValue) attrStr += ` maxValue="${attrs.maxValue}"`
+        if (attrs.step) attrStr += ` step="${attrs.step}"`
 
         // Create the question wrapper
         const questionHtml: RootContent = {
           type: 'html',
-          value: `<question id="${result.id}"${result.type ? ` type="${result.type}"` : ''}>\n${optionElements.map(o => (o as any).value).join('\n')}\n</question>`
+          value: `<question ${attrStr}>\n${optionElements.map(o => (o as any).value).join('\n')}\n</question>`
         }
 
         // Replace the nodes
@@ -117,7 +128,17 @@ interface ParsedOption {
   content: string
 }
 
-function parseQuestionBlock(content: string): { id: string; type?: string; options: ParsedOption[] } | null {
+interface QuestionAttributes {
+  id: string
+  type?: string
+  showFeedback?: string
+  allowUpdate?: string
+  minValue?: string
+  maxValue?: string
+  step?: string
+}
+
+function parseQuestionBlock(content: string): { attrs: QuestionAttributes; options: ParsedOption[] } | null {
   // Extract Question attributes
   const questionMatch = content.match(/<Question\s+([^>]*)>/)
   if (!questionMatch) return null
@@ -125,11 +146,23 @@ function parseQuestionBlock(content: string): { id: string; type?: string; optio
   const attrString = questionMatch[1]
   const idMatch = attrString.match(/id=["']([^"']+)["']/)
   const typeMatch = attrString.match(/type=["']([^"']+)["']/)
+  const showFeedbackMatch = attrString.match(/showFeedback=["']([^"']+)["']/)
+  const allowUpdateMatch = attrString.match(/allowUpdate=["']([^"']+)["']/)
+  const minValueMatch = attrString.match(/minValue=["']([^"']+)["']/)
+  const maxValueMatch = attrString.match(/maxValue=["']([^"']+)["']/)
+  const stepMatch = attrString.match(/step=["']([^"']+)["']/)
 
   if (!idMatch) return null
 
-  const id = idMatch[1]
-  const type = typeMatch?.[1]
+  const attrs: QuestionAttributes = {
+    id: idMatch[1],
+    type: typeMatch?.[1],
+    showFeedback: showFeedbackMatch?.[1],
+    allowUpdate: allowUpdateMatch?.[1],
+    minValue: minValueMatch?.[1],
+    maxValue: maxValueMatch?.[1],
+    step: stepMatch?.[1],
+  }
 
   // Extract options
   const options: ParsedOption[] = []
@@ -152,5 +185,5 @@ function parseQuestionBlock(content: string): { id: string; type?: string; optio
 
   if (options.length === 0) return null
 
-  return { id, type, options }
+  return { attrs, options }
 }

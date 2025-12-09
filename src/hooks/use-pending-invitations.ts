@@ -39,8 +39,9 @@ export function usePendingInvitations() {
   // Subscribe to real-time class invitation events via SSE
   useRealtimeEvents(
     ['class-invitation'],
-    () => {
+    (event) => {
       // When we receive a class-invitation event, set to true immediately
+      console.log('[Pending Invitations] Received class-invitation via SSE!', event)
       setHasPendingInvitations(true)
       sessionStorage.setItem(CACHE_KEY, 'true')
     },

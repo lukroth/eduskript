@@ -63,7 +63,12 @@ export function QuizProgressBar({
         componentId,
         correctIndices: JSON.stringify(correctIndices)
       })
-      const res = await fetch(`/api/classes/${classId}/quiz-responses?${params}`)
+      const res = await fetch(`/api/classes/${classId}/quiz-responses?${params}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      })
 
       if (!res.ok) {
         throw new Error('Failed to fetch responses')
@@ -85,13 +90,21 @@ export function QuizProgressBar({
     ['quiz-submission'],
     (event) => {
       // Only refresh if this event is for our class and page/component
+      const match = {
+        classMatch: event.classId === classId,
+        pageMatch: event.pageId === pageId,
+        questionMatch: event.questionId === componentId,
+      }
+      console.log(`[QuizProgressBar] Event: classId=${event.classId}, pageId=${event.pageId}, questionId=${event.questionId}`)
+      console.log(`[QuizProgressBar] Expected: classId=${classId}, pageId=${pageId}, componentId=${componentId}`)
+      console.log(`[QuizProgressBar] Match result:`, match)
       if (
         event.type === 'quiz-submission' &&
-        event.classId === classId &&
-        event.pageId === pageId &&
-        event.questionId === componentId
+        match.classMatch &&
+        match.pageMatch &&
+        match.questionMatch
       ) {
-        console.log('[QuizProgressBar] Received quiz submission via SSE, refreshing')
+        console.log('[QuizProgressBar] ALL MATCH! Fetching responses...')
         fetchResponses()
       }
     },

@@ -172,7 +172,8 @@ export function useSyncedUserData<T>(
               componentId, // adapter
               pageId, // itemId
               JSON.stringify(newData),
-              record.version
+              record.version,
+              { immediate: options.immediate } // Pass immediate flag to bypass debounce
             )
           }
         }
