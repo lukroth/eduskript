@@ -79,8 +79,8 @@ export function useRealtimeEvents<T extends EventType>(
   const eventTypesKey = eventTypes.join(',')
 
   useEffect(() => {
-    // Only connect when authenticated and enabled
-    if (!enabled || status !== 'authenticated') {
+    // Only connect when authenticated, enabled, and in browser
+    if (!enabled || status !== 'authenticated' || typeof window === 'undefined') {
       return
     }
 
@@ -89,6 +89,7 @@ export function useRealtimeEvents<T extends EventType>(
     eventSourceRef.current = eventSource
 
     eventSource.onopen = () => {
+      console.log('[SSE Hook] Connection established')
       onConnectRef.current?.()
     }
 
@@ -98,12 +99,16 @@ export function useRealtimeEvents<T extends EventType>(
 
         // Skip connection confirmation messages
         if ((event as { type: string }).type === 'connected') {
+          console.log('[SSE Hook] Connected to server, subscribed to channels')
           return
         }
+
+        console.log('[SSE Hook] Received event:', event.type, event)
 
         // Only handle events we're subscribed to
         const types = eventTypesKey.split(',')
         if (types.includes(event.type)) {
+          console.log('[SSE Hook] Event matches subscription, calling handler')
           onEventRef.current(event as Extract<AppEvent, { type: T }>)
         }
       } catch {
@@ -124,8 +129,10 @@ export function useRealtimeEvents<T extends EventType>(
     }
   }, [enabled, status, eventTypesKey])
 
-  // Return connection state for debugging
-  const isConnected = eventSourceRef.current?.readyState === EventSource.OPEN
+  // Return connection state for debugging (safe for SSR)
+  // Note: EventSource.OPEN is 1, we use literal to avoid SSR reference error
+  const isConnected = typeof window !== 'undefined' &&
+    eventSourceRef.current?.readyState === 1
 
   return { isConnected }
 }
