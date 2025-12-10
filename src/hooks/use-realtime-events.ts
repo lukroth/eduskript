@@ -90,7 +90,6 @@ export function useRealtimeEvents<T extends EventType>(
     eventSourceRef.current = eventSource
 
     eventSource.onopen = () => {
-      console.log('[SSE Hook] Connection established')
       setIsConnected(true)
       onConnectRef.current?.()
     }
@@ -101,16 +100,12 @@ export function useRealtimeEvents<T extends EventType>(
 
         // Skip connection confirmation messages
         if ((event as { type: string }).type === 'connected') {
-          console.log('[SSE Hook] Connected to server, subscribed to channels')
           return
         }
-
-        console.log('[SSE Hook] Received event:', event.type, event)
 
         // Only handle events we're subscribed to
         const types = eventTypesKey.split(',')
         if (types.includes(event.type)) {
-          console.log('[SSE Hook] Event matches subscription, calling handler')
           onEventRef.current(event as Extract<AppEvent, { type: T }>)
         }
       } catch {
