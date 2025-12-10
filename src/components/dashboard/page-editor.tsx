@@ -282,8 +282,6 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   // Handle saving edited Excalidraw drawing
   const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
     try {
-      console.log('[handleExcalidrawSave] Starting save...', { name, skriptId: skript.id })
-
       // Call the Excalidraw API endpoint
       const response = await fetch('/api/excalidraw', {
         method: 'POST',
@@ -297,11 +295,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         })
       })
 
-      console.log('[handleExcalidrawSave] Response status:', response.status, 'ok:', response.ok)
-
       if (response.ok) {
-        const result = await response.json()
-        console.log('[handleExcalidrawSave] Success:', result)
+        await response.json()
 
         // Close modal and clear state first
         setExcalidrawEditorOpen(false)

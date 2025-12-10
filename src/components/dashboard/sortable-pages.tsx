@@ -265,22 +265,19 @@ export function SortablePages({
 
   const handleDragEnd = async (result: DropResult) => {
     if (!isMounted) return
-    
+
     const { destination, source } = result
-    console.log('Page drag end event:', { sourceIndex: source.index, destIndex: destination?.index })
 
     if (!destination || destination.index === source.index) return
 
     const newItems = Array.from(items)
     const [reorderedItem] = newItems.splice(source.index, 1)
     newItems.splice(destination.index, 0, reorderedItem)
-    
-    console.log('Reordering pages:', { oldIndex: source.index, newIndex: destination.index })
+
     setItems(newItems)
-    
+
     const pageIds = newItems.map(item => item.id)
-    console.log('Sending page reorder request:', { skriptId, pageIds })
-    
+
     // Update order in database
     setIsReordering(true)
     try {
@@ -292,11 +289,8 @@ export function SortablePages({
         })
       })
 
-      console.log('Page reorder response:', response.status, response.ok)
-      
       if (response.ok) {
-        const data = await response.json()
-        console.log('Page reorder successful:', data)
+        await response.json()
         onReorder()
       } else {
         const errorData = await response.text()

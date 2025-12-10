@@ -90,21 +90,12 @@ export function QuizProgressBar({
     ['quiz-submission'],
     (event) => {
       // Only refresh if this event is for our class and page/component
-      const match = {
-        classMatch: event.classId === classId,
-        pageMatch: event.pageId === pageId,
-        questionMatch: event.questionId === componentId,
-      }
-      console.log(`[QuizProgressBar] Event: classId=${event.classId}, pageId=${event.pageId}, questionId=${event.questionId}`)
-      console.log(`[QuizProgressBar] Expected: classId=${classId}, pageId=${pageId}, componentId=${componentId}`)
-      console.log(`[QuizProgressBar] Match result:`, match)
       if (
         event.type === 'quiz-submission' &&
-        match.classMatch &&
-        match.pageMatch &&
-        match.questionMatch
+        event.classId === classId &&
+        event.pageId === pageId &&
+        event.questionId === componentId
       ) {
-        console.log('[QuizProgressBar] ALL MATCH! Fetching responses...')
         fetchResponses()
       }
     },

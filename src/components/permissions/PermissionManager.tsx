@@ -212,7 +212,6 @@ export function PermissionManager({
 
     // Check if this would leave no authors
     if (userPermission.permission === 'author' && authorsWithWrite.length === 1) {
-      console.log('Cannot remove last author')
       return
     }
 

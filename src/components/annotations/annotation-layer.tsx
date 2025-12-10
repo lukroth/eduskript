@@ -417,6 +417,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     // Clear local canvas state to allow new data to load
     // DON'T call canvasRef.current.clear() here - it triggers onUpdate which sets canvasData to '[]'
     // Instead, just reset state and let SimpleCanvas reload via initialData prop change
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset state when targeting changes
     setCanvasData('')
     setHasAnnotations(false)
     setStoredHeadingOffsets({})

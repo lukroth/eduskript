@@ -208,7 +208,6 @@ export const CodeEditor = memo(function CodeEditor({
       if (markdownHasChanged) {
         // Markdown was updated - don't restore old saved content
         // But do restore other settings like fontSize, editorWidth, etc.
-        console.log('Markdown content changed - using new content from page')
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
@@ -569,12 +568,10 @@ export const CodeEditor = memo(function CodeEditor({
       }
 
       const pyodide = await (window as any).__pyodidePromise
-      console.log('[Pyodide] Loaded successfully', pyodide.version)
       setActiveKernel('pyodide')
       setKernelLoading(false)
       return pyodide
     } catch (error) {
-      console.error('[Pyodide] Failed to load:', error)
       setKernelLoading(false)
       addOutput('Failed to load Python runtime', OutputLevel.ERROR)
       throw error
@@ -615,7 +612,6 @@ export const CodeEditor = memo(function CodeEditor({
         script.src = src
         script.onload = () => resolve()
         script.onerror = () => {
-          console.error(`[Skulpt] Failed to load ${src}`)
           delete scriptPromises[src] // Allow retry on error
           reject(new Error(`Failed to load ${src}`))
         }
@@ -630,11 +626,9 @@ export const CodeEditor = memo(function CodeEditor({
     try {
       await loadScript('/js/skulpt.min.js')
       await loadScript('/js/skulpt-stdlib.js')
-      console.log('[Skulpt] Loaded successfully')
       setActiveKernel('skulpt')
       setKernelLoading(false)
     } catch (error) {
-      console.error('[Skulpt] Failed to load:', error)
       setKernelLoading(false)
       addOutput('Failed to load Python runtime', OutputLevel.ERROR)
       throw error
@@ -1311,8 +1305,8 @@ plots
           }
 
         }
-      } catch (plotError) {
-        console.error('[Pyodide] Error capturing plots:', plotError)
+      } catch {
+        // Failed to capture plots - non-critical error
       }
 
       if (result !== undefined && result !== null) {
@@ -1392,8 +1386,6 @@ plots
     }
     // Reset to center position
     resetCanvasView()
-
-    console.log('Reset to original markdown content')
   }
 
   // Canvas pan and zoom handlers
@@ -1442,7 +1434,6 @@ plots
   // Screenshot turtle canvas
   const screenshotCanvas = () => {
     // TODO: Implement canvas screenshot functionality
-    console.log('Screenshot not yet implemented')
   }
 
   // Toggle fullscreen

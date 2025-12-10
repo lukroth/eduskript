@@ -124,10 +124,8 @@ export function PageSettings() {
       })
 
       if (response.ok) {
-        // Simple success feedback - could use a toast library if available
-        console.log('Sidebar preference updated successfully')
+        // Success - preference updated
       } else {
-        console.error('Failed to update preference')
         // Revert on error
         const data = await response.json()
         setSidebarBehavior(data.sidebarBehavior || 'contextual')
@@ -151,13 +149,11 @@ export function PageSettings() {
       })
 
       if (response.ok) {
-        console.log('Typography preference updated successfully')
         // Update session to reflect new preference
         await update()
         // Refresh to apply new fonts
         router.refresh()
       } else {
-        console.error('Failed to update typography preference')
         const data = await response.json()
         setTypographyPreference(data.typographyPreference || 'modern')
       }
@@ -187,10 +183,8 @@ export function PageSettings() {
       if (response.ok) {
         await update() // Update session
         router.refresh() // Refresh page
-        console.log('Page info updated successfully')
       } else {
         const data = await response.json()
-        console.error('Failed to update page info:', data.error || 'Unknown error')
         // If it's a slug collision, update the UI state
         if (data.error?.includes('slug') || data.error?.includes('taken')) {
           setSlugAvailable(false)
