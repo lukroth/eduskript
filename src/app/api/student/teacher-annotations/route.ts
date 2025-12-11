@@ -61,16 +61,22 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Map class annotations with class info
-    const classAnnotationsWithInfo = classAnnotations.map(annotation => {
-      const membership = memberships.find(m => m.classId === annotation.targetId)
-      return {
-        classId: annotation.targetId,
-        className: membership?.class.name ?? 'Unknown Class',
-        data: annotation.data,
-        updatedAt: annotation.updatedAt.getTime(),
-      }
-    })
+    // Map class annotations with class info, filtering out empty/cleared annotations
+    const classAnnotationsWithInfo = classAnnotations
+      .filter(annotation => {
+        // Skip annotations with empty canvasData (cleared by teacher)
+        const data = annotation.data as { canvasData?: string } | null
+        return data?.canvasData && data.canvasData.length > 0
+      })
+      .map(annotation => {
+        const membership = memberships.find(m => m.classId === annotation.targetId)
+        return {
+          classId: annotation.targetId,
+          className: membership?.class.name ?? 'Unknown Class',
+          data: annotation.data,
+          updatedAt: annotation.updatedAt.getTime(),
+        }
+      })
 
     // Fetch individual feedback targeted at this student
     const individualFeedback = await prisma.userData.findFirst({
@@ -86,9 +92,13 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Filter out empty individual feedback (cleared by teacher)
+    const feedbackData = individualFeedback?.data as { canvasData?: string } | null
+    const hasValidFeedback = feedbackData?.canvasData && feedbackData.canvasData.length > 0
+
     return NextResponse.json({
       classAnnotations: classAnnotationsWithInfo,
-      individualFeedback: individualFeedback
+      individualFeedback: individualFeedback && hasValidFeedback
         ? {
             data: individualFeedback.data,
             updatedAt: individualFeedback.updatedAt.getTime(),

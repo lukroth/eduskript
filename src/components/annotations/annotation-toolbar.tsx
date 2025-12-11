@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Camera } from 'lucide-react'
+import { Pen, Eraser, Trash2, Camera, AlertTriangle, Loader2, Check } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 
 // Inline SVG brush icons - use currentColor for automatic light/dark mode support
@@ -34,6 +34,8 @@ function BrushThinIcon({ className }: { className?: string }) {
 
 export type AnnotationMode = 'view' | 'draw' | 'erase' | 'snap'
 
+export type SyncState = 'idle' | 'saving' | 'saved' | 'error'
+
 interface AnnotationToolbarProps {
   mode: AnnotationMode
   onModeChange: (mode: AnnotationMode) => void
@@ -46,6 +48,10 @@ interface AnnotationToolbarProps {
   penSizes: [number, number, number]
   onPenSizeChange: (penIndex: number, size: number) => void
   onResetZoom: () => void
+  // Sync status
+  saveState?: SyncState
+  versionMismatch?: boolean
+  onClearMismatch?: () => void
 }
 
 export function AnnotationToolbar({
@@ -59,7 +65,10 @@ export function AnnotationToolbar({
   onPenColorChange,
   penSizes,
   onPenSizeChange,
-  onResetZoom
+  onResetZoom,
+  saveState = 'idle',
+  versionMismatch = false,
+  onClearMismatch
 }: AnnotationToolbarProps) {
   // Save confirm preference to localStorage
   const handleToggleConfirm = (value: boolean) => {
@@ -113,6 +122,10 @@ export function AnnotationToolbar({
   const snapHideTimerRef = useRef<NodeJS.Timeout | null>(null)
   const snapLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const snapLongPressStartPos = useRef<{ x: number; y: number } | null>(null)
+
+  // Sync status indicator state
+  const [showSyncDetails, setShowSyncDetails] = useState(false)
+  const [savedHovered, setSavedHovered] = useState(false)
 
   // Allow snapping at any zoom level
   const snapDisabled = false
@@ -405,8 +418,97 @@ export function AnnotationToolbar({
     snapLongPressStartPos.current = null
   }
 
+  // Determine if we should show the sync indicator
+  // Only show for errors/warnings, or briefly for save states
+  const showSyncIndicator = versionMismatch || saveState === 'error' || saveState === 'saving' || saveState === 'saved'
+
   const toolbarContent = (
-    <div data-annotation-toolbar className="fixed bottom-6 right-6 z-50 bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex flex-col gap-1 select-none" style={{ isolation: 'isolate', touchAction: 'manipulation' }}>
+    <div data-annotation-toolbar className="fixed bottom-6 right-6 z-50 flex flex-col items-center gap-2 select-none" style={{ isolation: 'isolate', touchAction: 'manipulation' }}>
+      {/* Sync status indicator - subtle circle icon above toolbar, centered */}
+      {showSyncIndicator && (
+        <div className="relative flex justify-center">
+          {versionMismatch ? (
+            // Warning state - slightly more visible, clickable
+            <>
+              <button
+                onClick={() => setShowSyncDetails(!showSyncDetails)}
+                onMouseEnter={() => setShowSyncDetails(true)}
+                onMouseLeave={() => setShowSyncDetails(false)}
+                className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30 transition-colors"
+                title="Content updated - click for options"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Version mismatch details popup */}
+              {showSyncDetails && (
+                <div
+                  className="absolute bottom-full mb-2 right-0 bg-background border border-border rounded-lg shadow-lg p-3 w-56 text-sm"
+                  onMouseEnter={() => setShowSyncDetails(true)}
+                  onMouseLeave={() => setShowSyncDetails(false)}
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-foreground">
+                      Page content has changed. Your annotations may not align correctly.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onClearMismatch?.()
+                      setShowSyncDetails(false)
+                    }}
+                    className="w-full px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-xs transition-colors"
+                  >
+                    Clear annotations
+                  </button>
+                </div>
+              )}
+            </>
+          ) : saveState === 'error' ? (
+            // Error state - visible
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center bg-destructive/20 text-destructive cursor-help"
+              title="Error saving annotations"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+            </div>
+          ) : saveState === 'saving' ? (
+            // Saving state - subtle spinner
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center opacity-40 cursor-default"
+              title="Saving..."
+            >
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : saveState === 'saved' ? (
+            // Saved state - very subtle check that fades out (unless hovered)
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground cursor-default"
+              title="Saved"
+              onMouseEnter={() => setSavedHovered(true)}
+              onMouseLeave={() => setSavedHovered(false)}
+              style={{
+                animation: savedHovered ? 'none' : 'fadeInOut 2s ease-in-out forwards',
+                opacity: savedHovered ? 0.4 : undefined,
+              }}
+            >
+              <Check className="w-4 h-4" />
+              <style>{`
+                @keyframes fadeInOut {
+                  0% { opacity: 0; }
+                  20% { opacity: 0.4; }
+                  60% { opacity: 0.4; }
+                  100% { opacity: 0; }
+                }
+              `}</style>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Main toolbar */}
+      <div className="bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex flex-col gap-1">
       {/* Three Pen Tools */}
       {[0, 1, 2].map((penIndex) => (
         <div key={penIndex} className="relative">
@@ -629,6 +731,7 @@ export function AnnotationToolbar({
         </div>
       )}
 
+      </div>
     </div>
   )
 

@@ -132,8 +132,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   }, [telemetryData, updateTelemetryData])
 
   // Delete function - update with empty/null data
+  // Use immediate: true to ensure clear operation syncs to server right away
+  // (especially important for teacher broadcasts so students see the clear)
   const deleteAnnotationData = useCallback(async () => {
-    await updateAnnotationData({ canvasData: '', headingOffsets: {}, pageVersion: '' })
+    await updateAnnotationData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
   }, [updateAnnotationData])
 
 
@@ -394,13 +396,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   }, [currentPaddingLeft])
 
   // Check for version mismatch
+  // Only check if we have actual annotation data with content AND a stored version
+  // Skip if canvasData is empty (cleared annotations) or pageVersion is empty
   useEffect(() => {
-    if (pageVersion && annotationData) {
+    if (pageVersion && annotationData && annotationData.canvasData && annotationData.pageVersion) {
       const mismatch = annotationData.pageVersion !== pageVersion
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading stored state
       setVersionMismatch(mismatch)
     } else {
-       
       setVersionMismatch(false)
     }
   }, [pageVersion, annotationData])
@@ -1171,30 +1174,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   return (
     <>
-      {/* Version mismatch warning */}
-      {versionMismatch && hasAnnotations && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Content Updated:</strong> This page has been modified. Your annotations may no longer align with the content.
-              </p>
-              <button
-                onClick={handleClearAll}
-                className="mt-2 text-sm text-yellow-800 dark:text-yellow-200 underline hover:no-underline"
-              >
-                Clear annotations and start fresh
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Orphaned strokes warning banner */}
       {orphanedStrokesCount > 0 && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-600 rounded-lg shadow-lg px-4 py-2 max-w-md">
@@ -1361,33 +1340,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         penSizes={penSizes}
         onPenSizeChange={handlePenSizeChange}
         onResetZoom={handleResetZoom}
+        saveState={saveState}
+        versionMismatch={versionMismatch && hasAnnotations}
+        onClearMismatch={handleClearAll}
       />
-
-      {/* Save state indicator - subtle, fixed to viewport, left of toolbar */}
-      {saveState !== 'idle' && (
-        <div
-          className="fixed bottom-6 right-24 z-50 opacity-50 hover:opacity-100 transition-opacity"
-          title={
-            saveState === 'saving' ? 'Saving annotations...' :
-            saveState === 'saved' ? 'Annotations saved' :
-            'Error saving annotations'
-          }
-        >
-          {saveState === 'saving' && (
-            <div className="w-5 h-5 border-2 border-gray-400 dark:border-gray-500 border-t-transparent rounded-full animate-spin" />
-          )}
-          {saveState === 'saved' && (
-            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-          {saveState === 'error' && (
-            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
-        </div>
-      )}
 
       {/* Snap overlay - shown when in snap mode */}
       {mode === 'snap' && (
