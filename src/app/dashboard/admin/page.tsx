@@ -59,6 +59,8 @@ export default function AdminPanelPage() {
     password: '',
     isAdmin: false,
     requirePasswordReset: true,
+    accountType: 'teacher' as 'teacher' | 'student',
+    studentPseudonym: '',
   })
 
   const [resetPasswordData, setResetPasswordData] = useState({
@@ -128,6 +130,8 @@ export default function AdminPanelPage() {
         password: '',
         isAdmin: false,
         requirePasswordReset: true,
+        accountType: 'teacher',
+        studentPseudonym: '',
       })
       fetchUsers()
     } catch (err) {
@@ -312,6 +316,8 @@ export default function AdminPanelPage() {
       password: '',
       isAdmin: user.isAdmin,
       requirePasswordReset: user.requirePasswordReset,
+      accountType: (user.accountType || 'teacher') as 'teacher' | 'student',
+      studentPseudonym: user.studentPseudonym || '',
     })
     setShowEditDialog(true)
   }
@@ -596,14 +602,43 @@ export default function AdminPanelPage() {
         <DialogContent className="max-w-md">
           <h2 className="mb-4 text-xl font-semibold">Create User</h2>
             <form onSubmit={handleCreateUser} className="space-y-4">
+              {/* Account Type Selection */}
               <div>
-                <Label htmlFor="create-email">Email</Label>
+                <Label>Account Type</Label>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="accountType"
+                      value="teacher"
+                      checked={formData.accountType === 'teacher'}
+                      onChange={() => setFormData({ ...formData, accountType: 'teacher', studentPseudonym: '' })}
+                      className="w-4 h-4"
+                    />
+                    <span>Teacher</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="accountType"
+                      value="student"
+                      checked={formData.accountType === 'student'}
+                      onChange={() => setFormData({ ...formData, accountType: 'student', pageSlug: '', title: '', isAdmin: false })}
+                      className="w-4 h-4"
+                    />
+                    <span>Student</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="create-email">Email{formData.accountType === 'student' && ' (optional)'}</Label>
                 <Input
                   id="create-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
+                  required={formData.accountType === 'teacher'}
                 />
               </div>
               <div>
@@ -615,23 +650,46 @@ export default function AdminPanelPage() {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="create-pageSlug">Page Slug</Label>
-                <Input
-                  id="create-pageSlug"
-                  value={formData.pageSlug}
-                  onChange={(e) => setFormData({ ...formData, pageSlug: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="create-title">Title (optional)</Label>
-                <Input
-                  id="create-title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                />
-              </div>
+
+              {/* Teacher-specific fields */}
+              {formData.accountType === 'teacher' && (
+                <>
+                  <div>
+                    <Label htmlFor="create-pageSlug">Page Slug</Label>
+                    <Input
+                      id="create-pageSlug"
+                      value={formData.pageSlug}
+                      onChange={(e) => setFormData({ ...formData, pageSlug: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="create-title">Title (optional)</Label>
+                    <Input
+                      id="create-title"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Student-specific fields */}
+              {formData.accountType === 'student' && (
+                <div>
+                  <Label htmlFor="create-pseudonym">Student Pseudonym (optional)</Label>
+                  <Input
+                    id="create-pseudonym"
+                    value={formData.studentPseudonym}
+                    onChange={(e) => setFormData({ ...formData, studentPseudonym: e.target.value })}
+                    placeholder="Auto-generated if empty"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used for privacy. Leave empty to auto-generate from email.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Label htmlFor="create-password">Password</Label>
                 <Input
@@ -643,16 +701,20 @@ export default function AdminPanelPage() {
                   minLength={8}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="create-isAdmin"
-                  checked={formData.isAdmin}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, isAdmin: checked as boolean })
-                  }
-                />
-                <Label htmlFor="create-isAdmin">Admin user</Label>
-              </div>
+
+              {/* Admin checkbox - only for teachers */}
+              {formData.accountType === 'teacher' && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="create-isAdmin"
+                    checked={formData.isAdmin}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, isAdmin: checked as boolean })
+                    }
+                  />
+                  <Label htmlFor="create-isAdmin">Admin user</Label>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="create-requirePasswordReset"
