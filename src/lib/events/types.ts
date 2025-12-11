@@ -22,6 +22,7 @@ export interface ClassInvitationEvent {
   type: 'class-invitation'
   classId: string
   className: string
+  directAdd?: boolean  // True if user was directly added (existing account), false/undefined for pre-auth invite
 }
 
 /**

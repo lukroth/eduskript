@@ -80,57 +80,114 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Generate pseudonyms for each email
+    // === FEATURE: Direct add existing users with clear emails ===
+    // Check which emails belong to existing users (teachers or students with stored emails)
+    // Use case-insensitive matching to handle legacy non-normalized emails
+    const existingUsers = await prisma.user.findMany({
+      where: {
+        email: { in: normalizedEmails, mode: 'insensitive' }
+      },
+      select: { id: true, email: true, name: true }
+    })
+
+    // Normalize email keys for proper matching (database might have mixed-case emails)
+    const existingEmailMap = new Map(existingUsers.map(u => [u.email!.toLowerCase(), u]))
+
+    // Check which existing users are already members
+    const existingUserIds = existingUsers.map(u => u.id)
+    const alreadyMemberUserIds = existingUserIds.length > 0
+      ? new Set(
+          (await prisma.classMembership.findMany({
+            where: { classId, studentId: { in: existingUserIds } },
+            select: { studentId: true }
+          })).map(m => m.studentId)
+        )
+      : new Set<string>()
+
+    // Split: existing users to direct-add vs emails to pre-authorize
+    const usersToDirectAdd = existingUsers.filter(u => !alreadyMemberUserIds.has(u.id))
+    const emailsToPreAuthorize = normalizedEmails.filter(e => !existingEmailMap.has(e))
+
+    // Direct add existing users to class
+    if (usersToDirectAdd.length > 0) {
+      await prisma.classMembership.createMany({
+        data: usersToDirectAdd.map(u => ({
+          classId,
+          studentId: u.id,
+          identityConsent: true,
+          consentedAt: new Date()
+        }))
+      })
+
+      // Clean up any pre-existing PreAuthorizedStudent records for these emails
+      // (in case they were imported before the user account was created)
+      const directAddEmails = usersToDirectAdd.map(u => u.email!).filter(Boolean)
+      const directAddPseudonyms = directAddEmails.map(email => generatePseudonym(email))
+      if (directAddPseudonyms.length > 0) {
+        await prisma.preAuthorizedStudent.deleteMany({
+          where: {
+            classId,
+            pseudonym: { in: directAddPseudonyms }
+          }
+        })
+      }
+
+      // Notify each directly added user via SSE
+      for (const user of usersToDirectAdd) {
+        await eventBus.publish(`user:${user.id}`, {
+          type: 'class-invitation',
+          classId,
+          className: classRecord.name,
+          directAdd: true
+        })
+      }
+    }
+
+    // === Continue with pseudonym flow for remaining emails ===
+    // Generate pseudonyms for emails that don't have existing accounts
     const emailPseudonymMap: Record<string, string> = {}
     const pseudonyms: string[] = []
 
-    for (const email of normalizedEmails) {
+    for (const email of emailsToPreAuthorize) {
       const pseudonym = generatePseudonym(email)
       emailPseudonymMap[email] = `student_${pseudonym}@eduskript.local`
       pseudonyms.push(pseudonym)
     }
 
-    // Check which students are already members (signed up and joined)
-    const existingMembers = await prisma.classMembership.findMany({
-      where: {
-        classId,
-        student: {
-          studentPseudonym: {
-            in: pseudonyms
+    // Check which students are already members (signed up and joined via pseudonym)
+    const existingMembers = pseudonyms.length > 0
+      ? await prisma.classMembership.findMany({
+          where: {
+            classId,
+            student: {
+              studentPseudonym: { in: pseudonyms }
+            }
+          },
+          include: {
+            student: {
+              select: {
+                id: true,
+                studentPseudonym: true
+              }
+            }
           }
-        }
-      },
-      include: {
-        student: {
-          select: {
-            id: true,
-            studentPseudonym: true
-          }
-        }
-      }
-    })
+        })
+      : []
 
     const existingPseudonyms = new Set(
       existingMembers.map(m => m.student.studentPseudonym)
     )
 
-    // Create a map of pseudonym -> student ID for reveal requests
-    const pseudonymToStudentId = new Map(
-      existingMembers.map(m => [m.student.studentPseudonym, m.student.id])
-    )
-
     // Check which pseudonyms are already pre-authorized
-    const existingPreAuths = await prisma.preAuthorizedStudent.findMany({
-      where: {
-        classId,
-        pseudonym: {
-          in: pseudonyms
-        }
-      },
-      select: {
-        pseudonym: true
-      }
-    })
+    const existingPreAuths = pseudonyms.length > 0
+      ? await prisma.preAuthorizedStudent.findMany({
+          where: {
+            classId,
+            pseudonym: { in: pseudonyms }
+          },
+          select: { pseudonym: true }
+        })
+      : []
 
     const preAuthPseudonyms = new Set(existingPreAuths.map(p => p.pseudonym))
 
@@ -159,17 +216,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // NO LONGER CREATING IDENTITY REVEAL REQUESTS
-    // Email is hashed and discarded - never stored on server
-    // Students who match the pseudonym will see join requests in their dashboard
+    // Build summary message
+    const messageParts: string[] = []
+    if (usersToDirectAdd.length > 0) {
+      messageParts.push(`${usersToDirectAdd.length} existing user${usersToDirectAdd.length !== 1 ? 's' : ''} added to class`)
+    }
+    if (pseudonymsToAdd.length > 0) {
+      messageParts.push(`${pseudonymsToAdd.length} student${pseudonymsToAdd.length !== 1 ? 's' : ''} will see invitation when they sign in`)
+    }
+    const message = messageParts.join(', ') || 'No new members to add'
 
     // Return statistics
     return NextResponse.json({
+      directlyAdded: usersToDirectAdd.length,
       imported: pseudonymsToAdd.length,
-      alreadyMembers: existingPseudonyms.size,
+      alreadyMembers: alreadyMemberUserIds.size + existingPseudonyms.size,
       alreadyPreAuthorized: preAuthPseudonyms.size,
       total: normalizedEmails.length,
-      message: `${pseudonymsToAdd.length} student${pseudonymsToAdd.length !== 1 ? 's' : ''} will see a class invitation when they sign in`
+      message
     })
   } catch (error) {
     console.error('[API] Error bulk importing students:', error)
