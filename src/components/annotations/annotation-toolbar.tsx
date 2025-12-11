@@ -4,9 +4,33 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Pen, Eraser, Trash2, Camera } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
-import Image from 'next/image'
-import brushThickIcon from './brush_thick.png'
-import brushThinIcon from './brush_thin.png'
+
+// Inline SVG brush icons - use currentColor for automatic light/dark mode support
+function BrushThickIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 95.1 55.3"
+      className={className}
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="m 3.85,34.79 c 0.78,-2.2 0.63,-9.42 5.89,-13.31 1.27,-0.94 2.93,-1.78 4.86,-2.43 4.27,-1.44 9.31,-1.83 14.44,-1.13 4.39,0.6 8.33,1.92 11.87,3.43 3.75,1.59 6.93,3.3 9.61,4.52 0.39,0.18 0.76,0.34 1.12,0.49 2.75,1.17 5.16,2.22 7.65,3.1 3.03,1.08 6.02,1.86 9.16,2.08 1.45,0.1 2.94,0.09 4.45,-0.06 1.95,-0.19 4.09,-0.62 6.4,-1.37 5.39,-1.73 10,-4.6 13.02,-6.64 -2.67,2.38 -7,5.87 -12.16,8.64 -2.26,1.21 -4.39,2.14 -6.43,2.88 -1.58,0.57 -3.18,1.06 -4.8,1.46 -3.56,0.87 -7.14,1.29 -10.94,1.31 -3.06,0.02 -6.09,-0.22 -9.19,-0.6 -0.41,-0.05 -0.84,-0.1 -1.27,-0.14 -2.99,-0.3 -6.5,-0.48 -9.85,-0.39 -3.27,0.09 -6.08,0.41 -8.93,0.91 -3.2,0.57 -6.1,1.33 -8.82,1.74 -1.26,0.19 -2.5,0.3 -3.63,0.23 -4.55,-0.26 -10.06,-4.27 -12.45,-4.75 z" />
+    </svg>
+  )
+}
+
+function BrushThinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 95.1 55.3"
+      className={className}
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="m 2.28,32.96 c -0.09,-0.72 -1.63,-2.21 -0.48,-4.31 1.27,-2.32 5.92,-6.36 11.84,-8.99 4.28,-1.9 8.82,-2.93 13.48,-2.93 4.28,0 8.18,0.85 11.73,2.03 3.84,1.28 7.55,3.07 10.18,4.3 0.31,0.15 0.62,0.29 0.92,0.43 2.96,1.36 5.77,2.8 8.73,4.17 3.38,1.56 6.61,2.84 9.98,3.61 1.54,0.35 3.1,0.6 4.69,0.71 2.06,0.15 4.29,0.09 6.68,-0.25 5.57,-0.8 10.24,-2.9 13.3,-4.47 -2.96,1.73 -7.58,4.04 -13.16,5.27 -2.42,0.53 -4.69,0.8 -6.85,0.9 -1.66,0.08 -3.31,0.06 -4.98,-0.04 -3.66,-0.22 -7.27,-0.86 -11.06,-1.85 -3.15,-0.82 -6.15,-1.82 -9.4,-2.93 -0.3,-0.1 -0.62,-0.21 -0.94,-0.31 -2.81,-0.92 -6.32,-1.91 -9.85,-2.43 -3.19,-0.47 -6.29,-0.55 -9.45,-0.11 -3.41,0.47 -6.64,1.52 -9.95,3.01 -4.61,2.07 -9.02,4.98 -11.38,5.56 -2.15,0.53 -3.36,-1.16 -4.05,-1.37 z" />
+    </svg>
+  )
+}
 
 export type AnnotationMode = 'view' | 'draw' | 'erase' | 'snap'
 
@@ -430,13 +454,7 @@ export function AnnotationToolbar({
               {/* Size slider */}
               <div className="bg-background border border-border rounded-full shadow-lg p-3 flex flex-col items-center gap-3 h-full min-h-[200px]">
                 {/* Thick brush icon (top) */}
-                <Image
-                  src={brushThickIcon}
-                  alt="Thick brush"
-                  width={16}
-                  height={16}
-                  className="flex-shrink-0 opacity-60"
-                />
+                <BrushThickIcon className="w-8 h-8 flex-shrink-0 opacity-60" />
 
                 {/* Vertical slider */}
                 <input
@@ -450,13 +468,7 @@ export function AnnotationToolbar({
                 />
 
                 {/* Thin brush icon (bottom) */}
-                <Image
-                  src={brushThinIcon}
-                  alt="Thin brush"
-                  width={16}
-                  height={16}
-                  className="flex-shrink-0 opacity-60"
-                />
+                <BrushThinIcon className="w-8 h-8 flex-shrink-0 opacity-60" />
               </div>
 
               {/* Color picker */}

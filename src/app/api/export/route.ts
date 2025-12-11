@@ -220,7 +220,7 @@ export async function GET(request: Request) {
     // Return zip file
     const filename = `eduskript-export-${new Date().toISOString().split('T')[0]}.zip`
 
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
