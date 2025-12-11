@@ -20,12 +20,13 @@ import { cn } from '@/lib/utils'
 export function SyncStatusButton({ className }: { className?: string }) {
   const [isOpen, setIsOpen] = useState(false)
   const status = useSyncStatus()
-  const { isAuthenticated } = useUserDataContext()
+  const { isAuthenticated, annotationVersionMismatch } = useUserDataContext()
 
   const hasError = !!status.error
   const isSyncing = status.syncing
   const hasPending = status.pending > 0
   const isOffline = !status.online
+  const hasVersionMismatch = annotationVersionMismatch
 
   return (
     <>
@@ -33,12 +34,14 @@ export function SyncStatusButton({ className }: { className?: string }) {
         onClick={() => setIsOpen(true)}
         className={cn(
           'w-8 h-8 flex items-center justify-center rounded-md transition-colors',
-          hasError
-            ? 'text-destructive hover:bg-destructive/10'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          hasVersionMismatch
+            ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
+            : hasError
+              ? 'text-destructive hover:bg-destructive/10'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           className
         )}
-        title={getStatusTitle(status, isAuthenticated)}
+        title={hasVersionMismatch ? 'Annotations may not align - page content changed' : getStatusTitle(status, isAuthenticated)}
       >
         <SyncIcon
           syncing={isSyncing}
@@ -46,6 +49,7 @@ export function SyncStatusButton({ className }: { className?: string }) {
           pending={hasPending}
           offline={isOffline}
           authenticated={isAuthenticated}
+          versionMismatch={hasVersionMismatch}
         />
       </button>
 
@@ -62,13 +66,20 @@ function SyncIcon({
   pending,
   offline,
   authenticated,
+  versionMismatch,
 }: {
   syncing: boolean
   error: boolean
   pending: boolean
   offline: boolean
   authenticated: boolean
+  versionMismatch?: boolean
 }) {
+  // Version mismatch takes priority - show warning
+  if (versionMismatch) {
+    return <AlertCircle className="w-4 h-4" />
+  }
+
   // Not authenticated - show cloud off (no sync available)
   if (!authenticated) {
     return <CloudOff className="w-4 h-4 opacity-50" />
@@ -103,7 +114,7 @@ function getStatusTitle(status: ReturnType<typeof useSyncStatus>, isAuthenticate
  */
 function SyncStatusModal({ onClose }: { onClose: () => void }) {
   const status = useSyncStatus()
-  const { forceSync, isAuthenticated } = useUserDataContext()
+  const { forceSync, isAuthenticated, annotationVersionMismatch, onClearAnnotations, setAnnotationVersionMismatch } = useUserDataContext()
 
   const handleForceSync = async () => {
     await forceSync()
@@ -111,6 +122,13 @@ function SyncStatusModal({ onClose }: { onClose: () => void }) {
 
   const handleClearHistory = () => {
     syncEngine.clearOperations()
+  }
+
+  const handleClearAnnotations = () => {
+    if (onClearAnnotations) {
+      onClearAnnotations()
+      setAnnotationVersionMismatch(false)
+    }
   }
 
   return (
@@ -133,6 +151,28 @@ function SyncStatusModal({ onClose }: { onClose: () => void }) {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Version Mismatch Warning */}
+        {annotationVersionMismatch && (
+          <div className="px-4 py-3 border-b border-border bg-amber-500/10">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Page content has changed. Your annotations may not align correctly.
+                </p>
+                {onClearAnnotations && (
+                  <button
+                    onClick={handleClearAnnotations}
+                    className="mt-2 px-3 py-1.5 text-xs rounded-md bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+                  >
+                    Clear annotations
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status Summary */}
         <div className="px-4 py-3 border-b border-border space-y-2">

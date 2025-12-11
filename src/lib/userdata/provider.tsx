@@ -21,6 +21,14 @@ interface UserDataContextValue {
   isAuthenticated: boolean
   /** User ID if authenticated */
   userId: string | null
+  /** Annotation version mismatch state */
+  annotationVersionMismatch: boolean
+  /** Set annotation version mismatch */
+  setAnnotationVersionMismatch: (mismatch: boolean) => void
+  /** Callback to clear annotations on version mismatch */
+  onClearAnnotations: (() => void) | null
+  /** Set the clear annotations callback */
+  setOnClearAnnotations: (callback: (() => void) | null) => void
 }
 
 const UserDataContext = createContext<UserDataContextValue | null>(null)
@@ -35,6 +43,8 @@ interface UserDataProviderProps {
 export function UserDataProvider({ children }: UserDataProviderProps) {
   const { data: session, status } = useSession()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncEngine.getStatus())
+  const [annotationVersionMismatch, setAnnotationVersionMismatch] = useState(false)
+  const [onClearAnnotations, setOnClearAnnotationsState] = useState<(() => void) | null>(null)
 
   const userId = session?.user?.id ?? null
   const isAuthenticated = status === 'authenticated' && userId !== null
@@ -53,11 +63,20 @@ export function UserDataProvider({ children }: UserDataProviderProps) {
     await syncEngine.sync()
   }, [])
 
+  // Wrapper to handle the callback setter properly
+  const setOnClearAnnotations = useCallback((callback: (() => void) | null) => {
+    setOnClearAnnotationsState(() => callback)
+  }, [])
+
   const value: UserDataContextValue = {
     syncStatus,
     forceSync,
     isAuthenticated,
     userId,
+    annotationVersionMismatch,
+    setAnnotationVersionMismatch,
+    onClearAnnotations,
+    setOnClearAnnotations,
   }
 
   return (

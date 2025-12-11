@@ -1,9 +1,28 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Camera, AlertTriangle, Loader2, Check } from 'lucide-react'
+import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, ChevronDown } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
+import { cn } from '@/lib/utils'
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+// Types for broadcast controls
+export interface ClassOption {
+  id: string
+  name: string
+}
+
+export interface StudentOption {
+  id: string
+  displayName: string
+  pseudonym?: string
+}
+
+export type BroadcastMode = 'personal' | 'class' | 'student'
 
 // Inline SVG brush icons - use currentColor for automatic light/dark mode support
 function BrushThickIcon({ className }: { className?: string }) {
@@ -32,9 +51,33 @@ function BrushThinIcon({ className }: { className?: string }) {
   )
 }
 
+// =============================================================================
+// TOOLBAR SECTION WRAPPER - provides consistent styling for each section
+// =============================================================================
+
+function ToolbarSection({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn('flex items-center gap-1', className)}>
+      {children}
+    </div>
+  )
+}
+
+function ToolbarDivider() {
+  return <div className="w-px h-6 bg-border mx-1" />
+}
+
 export type AnnotationMode = 'view' | 'draw' | 'erase' | 'snap'
 
-export type SyncState = 'idle' | 'saving' | 'saved' | 'error'
+export interface AnnotationLayer {
+  id: string
+  label: string
+  color: string // border color class like 'border-gray-500'
+  visible: boolean
+  hasContent: boolean
+  isActive: boolean // true for the layer being edited
+  canDelete: boolean // true if this layer can be cleared
+}
 
 interface AnnotationToolbarProps {
   mode: AnnotationMode
@@ -48,10 +91,31 @@ interface AnnotationToolbarProps {
   penSizes: [number, number, number]
   onPenSizeChange: (penIndex: number, size: number) => void
   onResetZoom: () => void
-  // Sync status
-  saveState?: SyncState
-  versionMismatch?: boolean
-  onClearMismatch?: () => void
+  // Layers (for students - broadcasted teacher annotations)
+  layers?: AnnotationLayer[]
+  onLayerToggle?: (layerId: string) => void
+  onLayerDelete?: (layerId: string) => void
+  // My annotations controls
+  myAnnotationsVisible?: boolean
+  onMyAnnotationsToggle?: () => void
+  onMyAnnotationsDelete?: () => void
+  // Broadcast controls (teachers only)
+  isTeacher?: boolean
+  // For teachers: visibility/delete of broadcast layers
+  classBroadcastVisible?: boolean
+  onClassBroadcastToggle?: () => void
+  onClassBroadcastDelete?: () => void
+  hasClassBroadcastAnnotations?: boolean
+  studentFeedbackVisible?: boolean
+  onStudentFeedbackToggle?: () => void
+  onStudentFeedbackDelete?: () => void
+  hasStudentFeedbackAnnotations?: boolean
+  classes?: ClassOption[]
+  selectedClass?: ClassOption | null
+  onClassSelect?: (classData: ClassOption | null) => void
+  students?: StudentOption[]
+  selectedStudent?: StudentOption | null
+  onStudentSelect?: (student: StudentOption | null) => void
 }
 
 export function AnnotationToolbar({
@@ -66,10 +130,42 @@ export function AnnotationToolbar({
   penSizes,
   onPenSizeChange,
   onResetZoom,
-  saveState = 'idle',
-  versionMismatch = false,
-  onClearMismatch
+  layers = [],
+  onLayerToggle,
+  onLayerDelete,
+  // My annotations
+  myAnnotationsVisible = true,
+  onMyAnnotationsToggle,
+  onMyAnnotationsDelete,
+  // Broadcast controls
+  isTeacher = false,
+  classBroadcastVisible = true,
+  onClassBroadcastToggle,
+  onClassBroadcastDelete,
+  hasClassBroadcastAnnotations = false,
+  studentFeedbackVisible = true,
+  onStudentFeedbackToggle,
+  onStudentFeedbackDelete,
+  hasStudentFeedbackAnnotations = false,
+  classes = [],
+  selectedClass = null,
+  onClassSelect,
+  students = [],
+  selectedStudent = null,
+  onStudentSelect,
 }: AnnotationToolbarProps) {
+  // Broadcast dropdown state
+  const [showClassDropdown, setShowClassDropdown] = useState(false)
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false)
+  const classDropdownRef = useRef<HTMLDivElement>(null)
+  const studentDropdownRef = useRef<HTMLDivElement>(null)
+
+  // My annotations button state (for delete popup)
+  const [showMyAnnotationsPopup, setShowMyAnnotationsPopup] = useState(false)
+  const myAnnotationsRef = useRef<HTMLDivElement>(null)
+  const myAnnotationsHoverTimer = useRef<NodeJS.Timeout | null>(null)
+  const myAnnotationsHideTimer = useRef<NodeJS.Timeout | null>(null)
+  const myAnnotationsLongPressTimer = useRef<NodeJS.Timeout | null>(null)
   // Save confirm preference to localStorage
   const handleToggleConfirm = (value: boolean) => {
     setConfirmBeforeDelete(value)
@@ -122,10 +218,6 @@ export function AnnotationToolbar({
   const snapHideTimerRef = useRef<NodeJS.Timeout | null>(null)
   const snapLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const snapLongPressStartPos = useRef<{ x: number; y: number } | null>(null)
-
-  // Sync status indicator state
-  const [showSyncDetails, setShowSyncDetails] = useState(false)
-  const [savedHovered, setSavedHovered] = useState(false)
 
   // Allow snapping at any zoom level
   const snapDisabled = false
@@ -418,319 +510,584 @@ export function AnnotationToolbar({
     snapLongPressStartPos.current = null
   }
 
-  // Determine if we should show the sync indicator
-  // Only show for errors/warnings, or briefly for save states
-  const showSyncIndicator = versionMismatch || saveState === 'error' || saveState === 'saving' || saveState === 'saved'
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (classDropdownRef.current && !classDropdownRef.current.contains(e.target as Node)) {
+        setShowClassDropdown(false)
+      }
+      if (studentDropdownRef.current && !studentDropdownRef.current.contains(e.target as Node)) {
+        setShowStudentDropdown(false)
+      }
+      if (myAnnotationsRef.current && !myAnnotationsRef.current.contains(e.target as Node)) {
+        setShowMyAnnotationsPopup(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // My annotations button hover/long-press handlers
+  const handleMyAnnotationsMouseEnter = () => {
+    if (myAnnotationsHideTimer.current) {
+      clearTimeout(myAnnotationsHideTimer.current)
+      myAnnotationsHideTimer.current = null
+    }
+    myAnnotationsHoverTimer.current = setTimeout(() => {
+      setShowMyAnnotationsPopup(true)
+    }, 400)
+  }
+
+  const handleMyAnnotationsMouseLeave = () => {
+    if (myAnnotationsHoverTimer.current) {
+      clearTimeout(myAnnotationsHoverTimer.current)
+      myAnnotationsHoverTimer.current = null
+    }
+    if (showMyAnnotationsPopup) {
+      myAnnotationsHideTimer.current = setTimeout(() => {
+        setShowMyAnnotationsPopup(false)
+      }, 200)
+    }
+  }
+
+  const handleMyAnnotationsPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return
+    e.preventDefault()
+    myAnnotationsLongPressTimer.current = setTimeout(() => {
+      setShowMyAnnotationsPopup(true)
+      myAnnotationsLongPressTimer.current = null
+    }, 500)
+  }
+
+  const handleMyAnnotationsPointerUp = () => {
+    if (myAnnotationsLongPressTimer.current) {
+      clearTimeout(myAnnotationsLongPressTimer.current)
+      myAnnotationsLongPressTimer.current = null
+    }
+  }
 
   const toolbarContent = (
-    <div data-annotation-toolbar className="fixed bottom-6 right-6 z-50 flex flex-col items-center gap-2 select-none" style={{ isolation: 'isolate', touchAction: 'manipulation' }}>
-      {/* Sync status indicator - subtle circle icon above toolbar, centered */}
-      {showSyncIndicator && (
-        <div className="relative flex justify-center">
-          {versionMismatch ? (
-            // Warning state - slightly more visible, clickable
-            <>
-              <button
-                onClick={() => setShowSyncDetails(!showSyncDetails)}
-                onMouseEnter={() => setShowSyncDetails(true)}
-                onMouseLeave={() => setShowSyncDetails(false)}
-                className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30 transition-colors"
-                title="Content updated - click for options"
+    <div data-annotation-toolbar className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 select-none" style={{ isolation: 'isolate', touchAction: 'manipulation' }}>
+      {/* Single horizontal toolbar */}
+      <div className="bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
+
+        {/* ============ SECTION 1: Broadcast Controls (Teachers Only) ============ */}
+        {isTeacher && (
+          <>
+            <ToolbarSection>
+              {/* Class selector dropdown */}
+              <div className="relative" ref={classDropdownRef}>
+                <button
+                  onClick={() => {
+                    setShowClassDropdown(!showClassDropdown)
+                    setShowStudentDropdown(false)
+                  }}
+                  className={cn(
+                    'p-2 rounded-md transition-colors flex items-center gap-1',
+                    selectedClass && !selectedStudent
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  )}
+                  title="Broadcast to class"
+                >
+                  <Radio className="w-5 h-5" />
+                  <span className="text-xs max-w-[80px] truncate">
+                    {selectedClass ? selectedClass.name : 'Class'}
+                  </span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+
+                {showClassDropdown && classes.length > 0 && (
+                  <div className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+                    {/* Show non-selected classes only */}
+                    {classes.filter(cls => cls.id !== selectedClass?.id).map(cls => (
+                      <button
+                        key={cls.id}
+                        onClick={() => {
+                          onClassSelect?.(cls)
+                          onStudentSelect?.(null)
+                          setShowClassDropdown(false)
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm truncate hover:bg-accent transition-colors"
+                      >
+                        {cls.name}
+                      </button>
+                    ))}
+                    {/* Divider before quick access section */}
+                    <div className="h-px bg-border my-1" />
+                    {/* Selected class with eye/trash (always shown when a class is selected) */}
+                    {selectedClass && (
+                      <div className={cn(
+                        'flex items-center gap-1 px-2 py-1',
+                        !selectedStudent && 'bg-accent'
+                      )}>
+                        <button
+                          onClick={() => {
+                            // Clear student selection to switch to "whole class" mode
+                            onStudentSelect?.(null)
+                            setShowClassDropdown(false)
+                          }}
+                          className={cn(
+                            'flex-1 text-left text-sm truncate hover:text-foreground transition-colors',
+                            !selectedStudent ? 'font-medium' : 'text-muted-foreground'
+                          )}
+                          title="Broadcast to entire class"
+                        >
+                          {selectedClass.name}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onClassBroadcastToggle?.()
+                          }}
+                          className={cn(
+                            'p-1 rounded transition-colors',
+                            classBroadcastVisible
+                              ? 'text-foreground hover:bg-background/50'
+                              : 'text-muted-foreground/50 hover:bg-background/50'
+                          )}
+                          title={classBroadcastVisible ? 'Hide class broadcast' : 'Show class broadcast'}
+                        >
+                          {classBroadcastVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onClassBroadcastDelete?.()
+                          }}
+                          className={cn(
+                            'p-1 rounded transition-colors',
+                            hasClassBroadcastAnnotations
+                              ? 'text-muted-foreground hover:text-destructive hover:bg-background/50'
+                              : 'text-muted-foreground/30 cursor-not-allowed'
+                          )}
+                          title="Clear class broadcast"
+                          disabled={!hasClassBroadcastAnnotations}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    {/* "Off" option with eye and trash for personal annotations */}
+                    {!selectedClass && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-accent">
+                        <span className="flex-1 text-left text-sm">
+                          Off
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onMyAnnotationsToggle?.()
+                          }}
+                          className={cn(
+                            'p-1 rounded transition-colors',
+                            myAnnotationsVisible
+                              ? 'text-foreground hover:bg-background/50'
+                              : 'text-muted-foreground/50 hover:bg-background/50'
+                          )}
+                          title={myAnnotationsVisible ? 'Hide' : 'Show'}
+                        >
+                          {myAnnotationsVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onMyAnnotationsDelete?.()
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-background/50 transition-colors"
+                          title="Clear"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    {/* Off option to switch to personal mode (when a class is selected) */}
+                    {selectedClass && (
+                      <button
+                        onClick={() => {
+                          onClassSelect?.(null)
+                          onStudentSelect?.(null)
+                          setShowClassDropdown(false)
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                      >
+                        Off
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Student selector dropdown (only when class is selected) */}
+              {selectedClass && students.length > 0 && (
+                <div className="relative" ref={studentDropdownRef}>
+                  <button
+                    onClick={() => {
+                      setShowStudentDropdown(!showStudentDropdown)
+                      setShowClassDropdown(false)
+                    }}
+                    className={cn(
+                      'p-2 rounded-md transition-colors flex items-center gap-1',
+                      selectedStudent
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    )}
+                    title="Individual student feedback"
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="text-xs max-w-[80px] truncate">
+                      {selectedStudent ? selectedStudent.displayName : 'Student'}
+                    </span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+
+                  {showStudentDropdown && (
+                    <div className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+                      {/* Show non-selected students only */}
+                      {students.filter(s => s.id !== selectedStudent?.id).map(student => (
+                        <button
+                          key={student.id}
+                          onClick={() => {
+                            onStudentSelect?.(student)
+                            setShowStudentDropdown(false)
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm truncate hover:bg-accent transition-colors"
+                        >
+                          {student.displayName}
+                        </button>
+                      ))}
+                      {/* Divider before quick access section */}
+                      <div className="h-px bg-border my-1" />
+                      {/* Selected student with eye/trash (or "Entire class" if none selected) */}
+                      {selectedStudent ? (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-accent">
+                          <span className="flex-1 text-left text-sm truncate font-medium">
+                            {selectedStudent.displayName}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onStudentFeedbackToggle?.()
+                            }}
+                            className={cn(
+                              'p-1 rounded transition-colors',
+                              studentFeedbackVisible
+                                ? 'text-foreground hover:bg-background/50'
+                                : 'text-muted-foreground/50 hover:bg-background/50'
+                            )}
+                            title={studentFeedbackVisible ? 'Hide' : 'Show'}
+                          >
+                            {studentFeedbackVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onStudentFeedbackDelete?.()
+                            }}
+                            className={cn(
+                              'p-1 rounded transition-colors',
+                              hasStudentFeedbackAnnotations
+                                ? 'text-muted-foreground hover:text-destructive hover:bg-background/50'
+                                : 'text-muted-foreground/30 cursor-not-allowed'
+                            )}
+                            title="Clear student feedback"
+                            disabled={!hasStudentFeedbackAnnotations}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-accent">
+                          <span className="flex-1 text-left text-sm font-medium">
+                            Entire class
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onClassBroadcastToggle?.()
+                            }}
+                            className={cn(
+                              'p-1 rounded transition-colors',
+                              classBroadcastVisible
+                                ? 'text-foreground hover:bg-background/50'
+                                : 'text-muted-foreground/50 hover:bg-background/50'
+                            )}
+                            title={classBroadcastVisible ? 'Hide' : 'Show'}
+                          >
+                            {classBroadcastVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onClassBroadcastDelete?.()
+                            }}
+                            className={cn(
+                              'p-1 rounded transition-colors',
+                              hasClassBroadcastAnnotations
+                                ? 'text-muted-foreground hover:text-destructive hover:bg-background/50'
+                                : 'text-muted-foreground/30 cursor-not-allowed'
+                            )}
+                            title="Clear class broadcast"
+                            disabled={!hasClassBroadcastAnnotations}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      {/* "Entire class" option to deselect student (when a student is selected) */}
+                      {selectedStudent && (
+                        <button
+                          onClick={() => {
+                            onStudentSelect?.(null)
+                            setShowStudentDropdown(false)
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                        >
+                          Entire class
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </ToolbarSection>
+            <ToolbarDivider />
+          </>
+        )}
+
+        {/* ============ SECTION 2: Layer Controls (Students - broadcasted teacher layers) ============ */}
+        {!isTeacher && layers.length > 0 && (
+          <>
+            <ToolbarSection>
+              {layers.filter(l => !l.isActive).map(layer => (
+                <div
+                  key={layer.id}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md text-xs"
+                >
+                  {/* Eye toggle */}
+                  <button
+                    onClick={() => onLayerToggle?.(layer.id)}
+                    className={cn(
+                      'p-1 rounded transition-colors',
+                      layer.visible
+                        ? 'text-foreground hover:bg-accent'
+                        : 'text-muted-foreground/50 hover:bg-accent'
+                    )}
+                    title={layer.visible ? `Hide ${layer.label}` : `Show ${layer.label}`}
+                  >
+                    {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  </button>
+                  <span className={cn('whitespace-nowrap', !layer.visible && 'text-muted-foreground/50')}>
+                    {layer.label}
+                  </span>
+                </div>
+              ))}
+            </ToolbarSection>
+            <ToolbarDivider />
+          </>
+        )}
+
+        {/* ============ SECTION 3: My Annotations Button (Everyone) ============ */}
+        <ToolbarSection>
+          <div className="relative" ref={myAnnotationsRef}>
+            <button
+              onClick={onMyAnnotationsToggle}
+              onMouseEnter={handleMyAnnotationsMouseEnter}
+              onMouseLeave={handleMyAnnotationsMouseLeave}
+              onPointerDown={handleMyAnnotationsPointerDown}
+              onPointerUp={handleMyAnnotationsPointerUp}
+              onPointerCancel={handleMyAnnotationsPointerUp}
+              className={cn(
+                'p-2 rounded-md transition-colors flex items-center gap-1',
+                myAnnotationsVisible
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              )}
+              title={myAnnotationsVisible ? 'Hide my annotations' : 'Show my annotations'}
+            >
+              <User className="w-4 h-4" />
+            </button>
+
+            {/* Delete popup on hover/long-press */}
+            {showMyAnnotationsPopup && hasAnnotations && (
+              <div
+                className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg p-2"
+                onMouseEnter={() => {
+                  if (myAnnotationsHideTimer.current) {
+                    clearTimeout(myAnnotationsHideTimer.current)
+                    myAnnotationsHideTimer.current = null
+                  }
+                }}
+                onMouseLeave={() => setShowMyAnnotationsPopup(false)}
               >
-                <AlertTriangle className="w-3.5 h-3.5" />
+                <button
+                  onClick={() => {
+                    onMyAnnotationsDelete?.()
+                    setShowMyAnnotationsPopup(false)
+                  }}
+                  className="p-2 text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  title="Clear"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </ToolbarSection>
+        <ToolbarDivider />
+
+        {/* ============ SECTION 4: Drawing Tools ============ */}
+        <ToolbarSection>
+          {/* Three Pen Tools */}
+          {[0, 1, 2].map((penIndex) => (
+            <div key={penIndex} className="relative">
+              <button
+                data-pen-button
+                onClick={() => handlePenClick(penIndex)}
+                onMouseEnter={() => handlePenMouseEnter(penIndex)}
+                onMouseLeave={handlePenMouseLeave}
+                onPointerDown={(e) => handlePenPointerDown(e, penIndex)}
+                onPointerMove={handlePenPointerMove}
+                onPointerUp={handlePenPointerUp}
+                onPointerCancel={handlePenPointerUp}
+                className={cn(
+                  'p-2 rounded-md transition-colors relative',
+                  mode === 'draw' && activePen === penIndex
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                )}
+                title={`Pen ${penIndex + 1}`}
+                aria-label={`Select pen ${penIndex + 1}`}
+              >
+                <Pen className="w-4 h-4" />
+                {/* Color indicator */}
+                <div
+                  className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white dark:border-gray-800"
+                  style={{ backgroundColor: penColors[penIndex] }}
+                />
               </button>
 
-              {/* Version mismatch details popup */}
-              {showSyncDetails && (
+              {/* Pen controls popover (size slider + color picker) */}
+              {showPenControls === penIndex && (
                 <div
-                  className="absolute bottom-full mb-2 right-0 bg-background border border-border rounded-lg shadow-lg p-3 w-56 text-sm"
-                  onMouseEnter={() => setShowSyncDetails(true)}
-                  onMouseLeave={() => setShowSyncDetails(false)}
+                  ref={penPopoverRef}
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex gap-2"
+                  onMouseEnter={() => {
+                    if (hoverTimerRef.current) {
+                      clearTimeout(hoverTimerRef.current)
+                    }
+                    if (hideTimerRef.current) {
+                      clearTimeout(hideTimerRef.current)
+                      hideTimerRef.current = null
+                    }
+                  }}
+                  onMouseLeave={() => setShowPenControls(null)}
                 >
-                  <div className="flex items-start gap-2 mb-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-foreground">
-                      Page content has changed. Your annotations may not align correctly.
-                    </p>
+                  {/* Size slider */}
+                  <div className="bg-background border border-border rounded-lg shadow-lg p-3 flex flex-col items-center gap-3 min-h-[200px]">
+                    <BrushThickIcon className="w-6 h-6 flex-shrink-0 opacity-60" />
+                    <input
+                      type="range"
+                      min="2"
+                      max="30"
+                      step="1"
+                      value={penSizes[penIndex]}
+                      onChange={(e) => handleSizeChange(penIndex, parseFloat(e.target.value))}
+                      className="flex-grow cursor-pointer [writing-mode:vertical-lr] [direction:rtl] slider-vertical"
+                    />
+                    <BrushThinIcon className="w-6 h-6 flex-shrink-0 opacity-60" />
+                  </div>
+
+                  {/* Color picker */}
+                  <div className="bg-background border border-border rounded-lg shadow-lg p-3 annotation-color-picker">
+                    <Circle
+                      colors={['#000000', '#808080', '#DD5555', '#EE8844', '#44AA66', '#5577DD', '#9966DD']}
+                      color={penColors[penIndex]}
+                      onChange={(color) => handleColorChange(penIndex, color.hex)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Eraser Tool */}
+          <button
+            onClick={handleEraserClick}
+            className={cn(
+              'p-2 rounded-md transition-colors',
+              mode === 'erase'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+            )}
+            title="Erase"
+            aria-label="Toggle eraser mode"
+          >
+            <Eraser className="w-4 h-4" />
+          </button>
+
+          {/* Snap Tool */}
+          <div
+            className="relative"
+            onMouseEnter={handleSnapMouseEnter}
+            onMouseLeave={handleSnapMouseLeave}
+          >
+            <button
+              data-snap-button
+              onClick={handleSnapClick}
+              onPointerDown={handleSnapPointerDown}
+              onPointerMove={handleSnapPointerMove}
+              onPointerUp={handleSnapPointerUp}
+              onPointerCancel={handleSnapPointerUp}
+              disabled={snapDisabled}
+              className={cn(
+                'p-2 rounded-md transition-colors relative',
+                snapDisabled
+                  ? 'opacity-50 cursor-not-allowed text-muted-foreground'
+                  : mode === 'snap'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              )}
+              title={snapDisabled ? "Zoom must be at 1.0 to capture snaps" : "Capture screenshot"}
+              aria-label="Toggle snap mode"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+
+            {/* Snap controls popup */}
+            {showSnapControls && snapDisabled && (
+              <div
+                ref={snapPopoverRef}
+                className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2"
+                onMouseEnter={() => {
+                  if (snapHoverTimerRef.current) {
+                    clearTimeout(snapHoverTimerRef.current)
+                  }
+                  if (snapHideTimerRef.current) {
+                    clearTimeout(snapHideTimerRef.current)
+                    snapHideTimerRef.current = null
+                  }
+                }}
+                onMouseLeave={() => setShowSnapControls(false)}
+              >
+                <div className="bg-background border border-border rounded-lg shadow-lg p-3 whitespace-nowrap">
+                  <div className="text-xs text-foreground mb-2">
+                    Snapping only works without zoom
                   </div>
                   <button
                     onClick={() => {
-                      onClearMismatch?.()
-                      setShowSyncDetails(false)
+                      onResetZoom()
+                      setShowSnapControls(false)
                     }}
-                    className="w-full px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-xs transition-colors"
+                    className="w-full px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-xs transition-colors"
                   >
-                    Clear annotations
+                    Reset zoom
                   </button>
                 </div>
-              )}
-            </>
-          ) : saveState === 'error' ? (
-            // Error state - visible
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center bg-destructive/20 text-destructive cursor-help"
-              title="Error saving annotations"
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-            </div>
-          ) : saveState === 'saving' ? (
-            // Saving state - subtle spinner
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center opacity-40 cursor-default"
-              title="Saving..."
-            >
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : saveState === 'saved' ? (
-            // Saved state - very subtle check that fades out (unless hovered)
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground cursor-default"
-              title="Saved"
-              onMouseEnter={() => setSavedHovered(true)}
-              onMouseLeave={() => setSavedHovered(false)}
-              style={{
-                animation: savedHovered ? 'none' : 'fadeInOut 2s ease-in-out forwards',
-                opacity: savedHovered ? 0.4 : undefined,
-              }}
-            >
-              <Check className="w-4 h-4" />
-              <style>{`
-                @keyframes fadeInOut {
-                  0% { opacity: 0; }
-                  20% { opacity: 0.4; }
-                  60% { opacity: 0.4; }
-                  100% { opacity: 0; }
-                }
-              `}</style>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* Main toolbar */}
-      <div className="bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex flex-col gap-1">
-      {/* Three Pen Tools */}
-      {[0, 1, 2].map((penIndex) => (
-        <div key={penIndex} className="relative">
-          <button
-            data-pen-button
-            onClick={() => handlePenClick(penIndex)}
-            onMouseEnter={() => handlePenMouseEnter(penIndex)}
-            onMouseLeave={handlePenMouseLeave}
-            onPointerDown={(e) => handlePenPointerDown(e, penIndex)}
-            onPointerMove={handlePenPointerMove}
-            onPointerUp={handlePenPointerUp}
-            onPointerCancel={handlePenPointerUp}
-            className={`p-3 rounded-md transition-colors relative ${
-              mode === 'draw' && activePen === penIndex
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-            }`}
-            title={`Pen ${penIndex + 1}`}
-            aria-label={`Select pen ${penIndex + 1}`}
-          >
-            <Pen className="w-5 h-5" />
-            {/* Color indicator */}
-            <div
-              className="annotation-color-indicator absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-white"
-              style={{ backgroundColor: penColors[penIndex] }}
-            />
-          </button>
-
-          {/* Pen controls popover (size slider + color picker) */}
-          {showPenControls === penIndex && (
-            <div
-              ref={penPopoverRef}
-              className="absolute right-full mr-2 bottom-0 flex gap-2"
-              onMouseEnter={() => {
-                if (hoverTimerRef.current) {
-                  clearTimeout(hoverTimerRef.current)
-                }
-                if (hideTimerRef.current) {
-                  clearTimeout(hideTimerRef.current)
-                  hideTimerRef.current = null
-                }
-              }}
-              onMouseLeave={() => setShowPenControls(null)}
-            >
-              {/* Size slider */}
-              <div className="bg-background border border-border rounded-full shadow-lg p-3 flex flex-col items-center gap-3 h-full min-h-[200px]">
-                {/* Thick brush icon (top) */}
-                <BrushThickIcon className="w-8 h-8 flex-shrink-0 opacity-60" />
-
-                {/* Vertical slider */}
-                <input
-                  type="range"
-                  min="2"
-                  max="30"
-                  step="1"
-                  value={penSizes[penIndex]}
-                  onChange={(e) => handleSizeChange(penIndex, parseFloat(e.target.value))}
-                  className="flex-grow cursor-pointer [writing-mode:vertical-lr] [direction:rtl] slider-vertical"
-                />
-
-                {/* Thin brush icon (bottom) */}
-                <BrushThinIcon className="w-8 h-8 flex-shrink-0 opacity-60" />
               </div>
-
-              {/* Color picker */}
-              <div className="bg-background border border-border rounded-full shadow-lg p-3 annotation-color-picker">
-                <Circle
-                  colors={['#000000', '#808080', '#DD5555', '#EE8844', '#44AA66', '#5577DD', '#9966DD']}
-                  color={penColors[penIndex]}
-                  onChange={(color) => handleColorChange(penIndex, color.hex)}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Eraser Tool */}
-      <button
-        onClick={handleEraserClick}
-        className={`p-3 rounded-md transition-colors ${
-          mode === 'erase'
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-        }`}
-        title="Erase"
-        aria-label="Toggle eraser mode"
-      >
-        <Eraser className="w-5 h-5" />
-      </button>
-
-      {/* Snap Tool */}
-      <div
-        className="relative"
-        onMouseEnter={handleSnapMouseEnter}
-        onMouseLeave={handleSnapMouseLeave}
-      >
-        <button
-          data-snap-button
-          onClick={handleSnapClick}
-          onPointerDown={handleSnapPointerDown}
-          onPointerMove={handleSnapPointerMove}
-          onPointerUp={handleSnapPointerUp}
-          onPointerCancel={handleSnapPointerUp}
-          disabled={snapDisabled}
-          className={`p-3 rounded-md transition-colors relative ${
-            snapDisabled
-              ? 'opacity-50 cursor-not-allowed text-muted-foreground'
-              : mode === 'snap'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-          }`}
-          title={snapDisabled ? "Zoom must be at 1.0 to capture snaps" : "Capture screenshot"}
-          aria-label="Toggle snap mode"
-        >
-          <Camera className="w-5 h-5" />
-          {snapDisabled && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <svg className="w-6 h-6 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <line x1="18" y1="6" x2="6" y2="18" />
-              </svg>
-            </div>
-          )}
-        </button>
-
-        {/* Snap controls popup */}
-        {showSnapControls && snapDisabled && (
-          <div
-            ref={snapPopoverRef}
-            className="absolute right-full mr-2 bottom-0"
-            onMouseEnter={() => {
-              if (snapHoverTimerRef.current) {
-                clearTimeout(snapHoverTimerRef.current)
-              }
-              if (snapHideTimerRef.current) {
-                clearTimeout(snapHideTimerRef.current)
-                snapHideTimerRef.current = null
-              }
-            }}
-            onMouseLeave={() => setShowSnapControls(false)}
-          >
-            <div className="bg-background border border-border rounded-lg shadow-lg p-3 whitespace-nowrap">
-              <div className="text-xs text-foreground mb-2">
-                Snapping only works without zoom
-              </div>
-              <button
-                onClick={() => {
-                  onResetZoom()
-                  setShowSnapControls(false)
-                }}
-                className="w-full px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-xs transition-colors"
-              >
-                Reset zoom
-              </button>
-            </div>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Divider */}
-      {hasAnnotations && <div className="h-px bg-border my-1" />}
-
-      {/* Clear All */}
-      {hasAnnotations && (
-        <div className="relative">
-          <button
-            data-delete-button
-            onClick={handleDeleteClick}
-            onMouseEnter={handleDeleteMouseEnter}
-            onMouseLeave={handleDeleteMouseLeave}
-            onPointerDown={handleDeletePointerDown}
-            onPointerMove={handleDeletePointerMove}
-            onPointerUp={handleDeletePointerUp}
-            onPointerCancel={handleDeletePointerUp}
-            className="p-3 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            title="Clear all annotations"
-            aria-label="Clear all annotations"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-
-          {/* Delete confirmation toggle popup */}
-          {showDeleteControls && (
-            <div
-              ref={deletePopoverRef}
-              className="absolute right-full mr-2 bottom-0"
-              onMouseEnter={() => {
-                if (deleteHoverTimerRef.current) {
-                  clearTimeout(deleteHoverTimerRef.current)
-                }
-                if (deleteHideTimerRef.current) {
-                  clearTimeout(deleteHideTimerRef.current)
-                  deleteHideTimerRef.current = null
-                }
-              }}
-              onMouseLeave={() => setShowDeleteControls(false)}
-            >
-              <div className="bg-background border border-border rounded-lg shadow-lg p-3 whitespace-nowrap">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <span className="text-xs text-foreground">Confirm deletion</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={confirmBeforeDelete}
-                    onClick={() => handleToggleConfirm(!confirmBeforeDelete)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      confirmBeforeDelete ? 'bg-primary' : 'bg-muted'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        confirmBeforeDelete ? 'translate-x-4' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </button>
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
+        </ToolbarSection>
       </div>
     </div>
   )

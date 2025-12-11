@@ -13,7 +13,6 @@ import { FontSizeControls } from './font-size-controls'
 import { SyncStatusButton } from '@/components/ui/sync-status'
 import { useLayout } from '@/contexts/layout-context'
 import { TeacherClassProvider } from '@/contexts/teacher-class-context'
-import { ClassSelectorFAB } from '@/components/teacher/class-selector-fab'
 
 interface Teacher {
   name: string | null
@@ -597,9 +596,6 @@ export function PublicSiteLayout({
             {children}
           </main>
         </div>
-
-        {/* Teacher class selector FAB - only visible for teachers */}
-        <ClassSelectorFAB />
       </div>
     </TeacherClassProvider>
   )
