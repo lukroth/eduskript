@@ -85,11 +85,11 @@ class PostgresEventBus implements EventBus {
 
         try {
           const event = JSON.parse(msg.payload || '{}') as AppEvent
-          const originalChannel = msg.channel.slice(CHANNEL_PREFIX.length).replace(/_/g, ':')
 
           // Find handlers for this channel (need to match sanitized version)
           for (const [subscribedChannel, handlers] of this.subscribers) {
-            if (sanitizeChannel(subscribedChannel) === msg.channel) {
+            const sanitized = sanitizeChannel(subscribedChannel)
+            if (sanitized === msg.channel) {
               handlers.forEach(handler => {
                 try {
                   handler(event)
@@ -152,16 +152,14 @@ class PostgresEventBus implements EventBus {
 
     // Start LISTEN on the channel if we have a connection
     if (this.listenerClient) {
-      this.listenerClient.query(`LISTEN ${pgChannel}`).catch(() => {
-        // Silently handle LISTEN failures
-      })
+      this.listenerClient.query(`LISTEN ${pgChannel}`)
+        .catch((err) => console.error(`[PostgresEventBus] LISTEN ${pgChannel} failed:`, err))
     } else {
       // Ensure connection is being established
       this.ensureListenerConnection().then(() => {
         if (this.listenerClient) {
-          this.listenerClient.query(`LISTEN ${pgChannel}`).catch(() => {
-            // Silently handle LISTEN failures
-          })
+          this.listenerClient.query(`LISTEN ${pgChannel}`)
+            .catch((err) => console.error(`[PostgresEventBus] LISTEN ${pgChannel} failed:`, err))
         }
       })
     }

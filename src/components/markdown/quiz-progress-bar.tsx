@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, Check, X, Minus, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRealtimeEvents } from '@/hooks/use-realtime-events'
@@ -53,37 +53,69 @@ export function QuizProgressBar({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Stable string for correctIndices to avoid recreating fetchResponses on each render
+  const correctIndicesKey = JSON.stringify(correctIndices)
+
+  // Track fetch request IDs and mounted state
+  const fetchIdRef = useRef(0)
+  const mountedRef = useRef(true)
+
   // Fetch quiz responses
   const fetchResponses = useCallback(async () => {
+    const fetchId = ++fetchIdRef.current
+
+    if (!mountedRef.current) {
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     try {
       const params = new URLSearchParams({
         pageId,
         componentId,
-        correctIndices: JSON.stringify(correctIndices)
+        correctIndices: correctIndicesKey
       })
-      const res = await fetch(`/api/classes/${classId}/quiz-responses?${params}`, {
+      const url = `/api/classes/${classId}/quiz-responses?${params}`
+      const res = await fetch(url, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache',
         }
       })
 
+      if (!mountedRef.current) {
+        return
+      }
+
       if (!res.ok) {
         throw new Error('Failed to fetch responses')
       }
 
       const data = await res.json()
+
+      // Check if this fetch is still the latest
+      if (fetchId !== fetchIdRef.current) {
+        return
+      }
+
+      if (!mountedRef.current) {
+        return
+      }
+
       setStats(data.stats)
       setResponses(data.responses)
     } catch (e) {
-      console.error('Failed to fetch quiz responses:', e)
-      setError('Failed to load class responses')
+      console.error('[QuizProgressBar] Fetch failed:', e)
+      if (mountedRef.current) {
+        setError('Failed to load class responses')
+      }
     } finally {
-      setIsLoading(false)
+      if (mountedRef.current) {
+        setIsLoading(false)
+      }
     }
-  }, [classId, pageId, componentId, correctIndices])
+  }, [classId, pageId, componentId, correctIndicesKey])
 
   // Subscribe to real-time quiz submission events via SSE
   useRealtimeEvents(
@@ -101,6 +133,14 @@ export function QuizProgressBar({
     },
     { enabled: true }
   )
+
+  // Track mount/unmount
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   // Initial fetch when component mounts
   useEffect(() => {
@@ -123,7 +163,9 @@ export function QuizProgressBar({
     )
   }
 
-  if (!stats) return null
+  if (!stats) {
+    return null
+  }
 
   const answered = stats.total - stats.notAnswered
   const progressPercent = stats.total > 0 ? (answered / stats.total) * 100 : 0

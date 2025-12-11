@@ -84,14 +84,22 @@ export async function GET(request: NextRequest) {
   const writer = stream.writable.getWriter()
   const encoder = new TextEncoder()
 
+  // Track if connection is still active
+  let isActive = true
+
   // Subscribe to all relevant channels
   const unsubscribes = channels.map(channel =>
     eventBus.subscribe(channel, async (event) => {
+      if (!isActive) {
+        return
+      }
       try {
         const data = `data: ${JSON.stringify(event)}\n\n`
         await writer.write(encoder.encode(data))
       } catch {
-        // Connection closed, ignore write errors
+        isActive = false
+        // Connection closed, unsubscribe
+        unsubscribes.forEach(unsub => unsub())
       }
     })
   )
@@ -112,6 +120,7 @@ export async function GET(request: NextRequest) {
 
   // Cleanup on client disconnect
   request.signal.addEventListener('abort', () => {
+    isActive = false
     clearInterval(pingInterval)
     unsubscribes.forEach(unsub => unsub())
     writer.close().catch(() => { /* ignore */ })
