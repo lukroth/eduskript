@@ -6,6 +6,9 @@ import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, Users, UserPen, 
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/contexts/layout-context'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('annotations:toolbar')
 
 // =============================================================================
 // TYPES
@@ -562,7 +565,7 @@ export function AnnotationToolbar({
       myAnnotationsHideTimer.current = null
     }
     myAnnotationsHoverTimer.current = setTimeout(() => {
-      console.log('[AnnotationToolbar] Showing my annotations popup, hasAnnotations:', hasAnnotations)
+      log('Showing my annotations popup', { hasAnnotations })
       setShowMyAnnotationsPopup(true)
     }, 400)
   }
@@ -731,6 +734,7 @@ export function AnnotationToolbar({
                         )}>
                           <button
                             onClick={() => {
+                              log('Student clicked', { displayName: quickAccessStudent.displayName, id: quickAccessStudent.id })
                               onStudentSelect?.(quickAccessStudent)
                               setShowStudentDropdown(false)
                             }}
@@ -747,6 +751,7 @@ export function AnnotationToolbar({
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              log('Student feedback eye clicked, toggling visibility')
                               onStudentFeedbackToggle?.()
                             }}
                             className={cn(
@@ -764,6 +769,7 @@ export function AnnotationToolbar({
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              log('Student feedback trash clicked, deleting')
                               onStudentFeedbackDelete?.()
                               onClearLastSelectedStudent?.()
                               setShowStudentDropdown(false)
@@ -791,6 +797,7 @@ export function AnnotationToolbar({
                       )}>
                         <button
                           onClick={() => {
+                            log('Entire class clicked, setting selectedStudent to null')
                             onStudentSelect?.(null)
                             setShowStudentDropdown(false)
                           }}
@@ -805,6 +812,7 @@ export function AnnotationToolbar({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            log('Class broadcast eye clicked, toggling visibility')
                             onClassBroadcastToggle?.()
                           }}
                           className={cn(
@@ -822,6 +830,7 @@ export function AnnotationToolbar({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            log('Class broadcast trash clicked, deleting')
                             onClassBroadcastDelete?.()
                           }}
                           className={cn(
@@ -928,7 +937,7 @@ export function AnnotationToolbar({
               >
                 <button
                   onClick={() => {
-                    console.log('[AnnotationToolbar] Delete button clicked, calling onMyAnnotationsDelete')
+                    log('Delete button clicked, calling onMyAnnotationsDelete')
                     onMyAnnotationsDelete?.()
                     setShowMyAnnotationsPopup(false)
                   }}

@@ -17,6 +17,9 @@ import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
 import { useSession } from 'next-auth/react'
 import { SnapOverlay, type Snap } from './snap-overlay'
 import { SnapsDisplay } from './snaps-display'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('annotations:layer')
 
 /**
  * Reposition teacher annotations to align with student's heading positions.
@@ -76,6 +79,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Track last selected student for quick-access and data loading when in class-broadcast mode
   const [lastSelectedStudent, setLastSelectedStudent] = useState<{ id: string; displayName: string; pseudonym?: string } | null>(null)
+  // Store student feedback canvas data when switching from student-view to class-broadcast
+  // This is used as a fallback until the studentFeedbackData hook catches up
+  const studentFeedbackCanvasRef = useRef<string>('')
+  // Store class broadcast canvas data when switching from class-broadcast to student-view
+  // This provides a fallback when the classBroadcastData hook hasn't loaded yet
+  const classBroadcastCanvasRef = useRef<string>('')
 
   // Update lastSelectedStudent when a student is selected
   useEffect(() => {
@@ -143,11 +152,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (!isTeacher) return {}
 
     if (viewMode === 'class-broadcast' && selectedClass) {
-      return { targetType: 'class', targetId: selectedClass.id }
+      const opts = { targetType: 'class' as const, targetId: selectedClass.id }
+      log('syncOptions computed for class-broadcast:', opts)
+      return opts
     }
     if (viewMode === 'student-view' && selectedStudent) {
-      return { targetType: 'student', targetId: selectedStudent.id }
+      const opts = { targetType: 'student' as const, targetId: selectedStudent.id }
+      log('syncOptions computed for student-view:', opts)
+      return opts
     }
+    log('syncOptions computed for my-view: {}')
     return {} // my-view: personal annotations
   }, [isTeacher, viewMode, selectedClass, selectedStudent])
 
@@ -161,6 +175,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     null,
     syncOptions
   )
+
+  // Debug: log when annotationData (active layer) changes
+  useEffect(() => {
+    log('annotationData (active layer) changed:', {
+      hasData: !!annotationData?.canvasData,
+      dataLength: annotationData?.canvasData?.length ?? 0,
+      syncOptions,
+      viewMode
+    })
+  }, [annotationData, syncOptions, viewMode])
 
   // Use synced user data service for snaps
   // IMPORTANT: initialData must be a stable reference, not an inline object literal
@@ -231,6 +255,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
     // Auto-hide student feedback when switching from student-view to class-broadcast
     if (isTeacher && prevViewModeRef.current === 'student-view' && viewMode === 'class-broadcast') {
+      // Save current canvas data before it gets cleared (for reference layer fallback)
+      studentFeedbackCanvasRef.current = canvasDataRef.current
+
       // Teacher just switched from individual student to entire class
       // Auto-hide student feedback layer (unless manually toggled before)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync layer visibility when broadcast target changes
@@ -241,6 +268,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         }
         return next
       })
+    }
+    // Save class broadcast canvas data when switching from class-broadcast to student-view
+    // This provides a fallback for the reference layer until classBroadcastData hook loads
+    if (isTeacher && prevViewModeRef.current === 'class-broadcast' && viewMode === 'student-view') {
+      classBroadcastCanvasRef.current = canvasDataRef.current
+      log('Stored class broadcast canvas for reference:', canvasDataRef.current?.length ?? 0, 'chars')
     }
     prevViewModeRef.current = viewMode
   }, [isTeacher, viewMode])
@@ -318,14 +351,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Class broadcast visibility (for teachers)
   const classBroadcastVisible = isLayerVisible('class-broadcast')
   const toggleClassBroadcastVisibility = useCallback(() => {
+    log('toggleClassBroadcastVisibility called, current:', classBroadcastVisible)
     toggleLayerVisibility('class-broadcast')
-  }, [toggleLayerVisibility])
+  }, [toggleLayerVisibility, classBroadcastVisible])
 
   // Student feedback visibility (for teachers)
   const studentFeedbackVisible = isLayerVisible('student-feedback')
   const toggleStudentFeedbackVisibility = useCallback(() => {
+    log('toggleStudentFeedbackVisibility called, current:', studentFeedbackVisible)
     toggleLayerVisibility('student-feedback')
-  }, [toggleLayerVisibility])
+  }, [toggleLayerVisibility, studentFeedbackVisible])
 
   // Check which layers have content
   const hasPersonalContent = shouldLoadPersonalAsReference &&
@@ -412,12 +447,30 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     classBroadcastSyncOptions
   )
 
+  // Debug: log when classBroadcastData changes
+  useEffect(() => {
+    log('classBroadcastData changed:', {
+      hasData: !!classBroadcastData?.canvasData,
+      dataLength: classBroadcastData?.canvasData?.length ?? 0,
+      syncOptions: classBroadcastSyncOptions
+    })
+  }, [classBroadcastData, classBroadcastSyncOptions])
+
   const { data: studentFeedbackData, updateData: updateStudentFeedbackData } = useSyncedUserData<AnnotationData>(
     shouldLoadStudentFeedback ? pageId : '__skip__', // Use placeholder to skip loading
     'annotations',
     null,
     studentFeedbackSyncOptions
   )
+
+  // Debug: log when studentFeedbackData changes
+  useEffect(() => {
+    log('studentFeedbackData changed:', {
+      hasData: !!studentFeedbackData?.canvasData,
+      dataLength: studentFeedbackData?.canvasData?.length ?? 0,
+      syncOptions: studentFeedbackSyncOptions
+    })
+  }, [studentFeedbackData, studentFeedbackSyncOptions])
 
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
@@ -432,10 +485,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (viewMode === 'class-broadcast') {
       return hasAnnotations
     }
-    // Otherwise use the hook data
-    return !!(classBroadcastData?.canvasData &&
-      classBroadcastData.canvasData.length > 0 &&
-      classBroadcastData.canvasData !== '[]')
+    // Otherwise use the hook data or fallback ref
+    const broadcastData = classBroadcastData?.canvasData || classBroadcastCanvasRef.current
+    return !!(broadcastData && broadcastData.length > 0 && broadcastData !== '[]')
   }, [classBroadcastData, viewMode, hasAnnotations])
 
   const hasStudentFeedbackAnnotations = useMemo(() => {
@@ -443,18 +495,35 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (viewMode === 'student-view') {
       return hasAnnotations
     }
-    // Otherwise use the hook data
+    // When in class-broadcast, check classStudents state (updated immediately when drawing)
+    if (studentForFeedback) {
+      const student = classStudents.find(s => s.id === studentForFeedback.id)
+      if (student?.hasAnnotationsOnPage) return true
+    }
+    // Check fallback ref (data saved when switching modes)
+    if (studentFeedbackCanvasRef.current && studentFeedbackCanvasRef.current !== '[]') {
+      return true
+    }
+    // Fall back to hook data
     return !!(studentFeedbackData?.canvasData &&
       studentFeedbackData.canvasData.length > 0 &&
       studentFeedbackData.canvasData !== '[]')
-  }, [studentFeedbackData, viewMode, hasAnnotations])
+  }, [studentFeedbackData, viewMode, hasAnnotations, studentForFeedback, classStudents])
 
   // Canvas ref needed by delete callbacks
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)
 
   // Delete class broadcast annotations specifically
   const deleteClassBroadcastData = useCallback(async () => {
+    log('deleteClassBroadcastData called', {
+      isTeacher,
+      selectedClassId: selectedClass?.id,
+      viewMode
+    })
     if (isTeacher && selectedClass && updateClassBroadcastData) {
+      // Clear the fallback ref
+      classBroadcastCanvasRef.current = ''
+
       await updateClassBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
       // If currently viewing class broadcast, also clear local state
       if (viewMode === 'class-broadcast') {
@@ -474,22 +543,33 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Delete student feedback annotations specifically
   // Works for both selected student and last selected student (in class-broadcast mode)
   const deleteStudentFeedbackData = useCallback(async () => {
-    if (isTeacher && studentForFeedback && updateStudentFeedbackData) {
+    log('deleteStudentFeedbackData called', {
+      isTeacher,
+      studentForFeedbackId: studentForFeedback?.id,
+      viewMode
+    })
+    if (!isTeacher || !studentForFeedback) return
+
+    // Clear the fallback ref
+    studentFeedbackCanvasRef.current = ''
+
+    // Clear the data via the hook
+    if (updateStudentFeedbackData) {
       await updateStudentFeedbackData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
-      // If currently viewing student feedback, also clear local state
-      if (viewMode === 'student-view') {
-        setCanvasData('')
-        setHasAnnotations(false)
-        if (canvasRef.current) {
-          canvasRef.current.clear()
-        }
-      }
-      // Update the brush icon indicator in the student dropdown
-      setClassStudents(prev => prev.map(s =>
-        s.id === studentForFeedback.id ? { ...s, hasAnnotationsOnPage: false } : s
-      ))
     }
-  }, [isTeacher, selectedStudent, studentForFeedback, updateStudentFeedbackData, viewMode, studentFeedbackData?.canvasData?.length])
+
+    // If currently drawing on this student, also clear local canvas
+    if (viewMode === 'student-view') {
+      setCanvasData('')
+      setHasAnnotations(false)
+      canvasRef.current?.clear()
+    }
+
+    // Update the indicator in the student list
+    setClassStudents(prev => prev.map(s =>
+      s.id === studentForFeedback.id ? { ...s, hasAnnotationsOnPage: false } : s
+    ))
+  }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode])
 
   // Build list of available layers for the toolbar UI
   // This includes reference layers AND the currently active/editable layer
@@ -649,6 +729,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const mainRef = useRef<HTMLElement | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isClearingRef = useRef(false)
+  const performSaveRef = useRef<(() => Promise<void>) | null>(null)
   const [pageHeight, setPageHeight] = useState(0)
   const [orphanedStrokesCount, setOrphanedStrokesCount] = useState(0)
   const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
@@ -845,8 +926,18 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [pageVersion, annotationData, hasAnnotations, setAnnotationVersionMismatch])
 
-  // Track previous targeting key to detect class/student switches
+  // Track previous targeting key AND syncOptions to detect class/student switches
   const prevTargetingKeyRef = useRef(targetingKey)
+  const prevSyncOptionsRef = useRef(syncOptions)
+
+  // Keep prevSyncOptionsRef in sync - but ONLY when targetingKey hasn't changed
+  // This allows us to capture the "old" syncOptions before a switch
+  useEffect(() => {
+    // Only update if we're not in the middle of a switch
+    if (prevTargetingKeyRef.current === targetingKey) {
+      prevSyncOptionsRef.current = syncOptions
+    }
+  }, [syncOptions, targetingKey])
 
   // Reset canvas state when targeting changes (e.g., teacher switches class)
   // This MUST run before the data loading effect below
@@ -854,18 +945,35 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     // Skip on initial mount (no previous value to compare)
     if (prevTargetingKeyRef.current === targetingKey) return
 
+    // Capture the OLD syncOptions before they get overwritten
+    const oldSyncOptions = prevSyncOptionsRef.current
+    log('Target switching from', prevTargetingKeyRef.current, 'to', targetingKey)
+    log('Saving with OLD syncOptions:', oldSyncOptions)
+
+    // IMPORTANT: Save any pending changes BEFORE resetting state
+    // This ensures data written to the old target is persisted before we switch
+    // (e.g., student feedback saved before switching to class-broadcast)
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
+
+    // Perform immediate save with the OLD sync options
+    // We call performSaveWithOptions directly instead of performSaveRef
+    // to ensure we save to the correct target
+    performSaveWithOptionsRef.current?.(oldSyncOptions)
+
+    // Update the refs AFTER saving
+    prevTargetingKeyRef.current = targetingKey
+    prevSyncOptionsRef.current = syncOptions
+
     // Clear local canvas state to allow new data to load
-    // DON'T call canvasRef.current.clear() here - it triggers onUpdate which sets canvasData to '[]'
-    // Instead, just reset state and let SimpleCanvas reload via initialData prop change
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset state when targeting changes
     setCanvasData('')
     setHasAnnotations(false)
     setStoredHeadingOffsets({})
     setStoredPaddingLeft(undefined)
-
-    // Update the ref for next comparison
-    prevTargetingKeyRef.current = targetingKey
-  }, [targetingKey])
+  }, [targetingKey, syncOptions])
 
   // Load annotations from user data service
   // Runs when annotationData changes OR when canvas was cleared (canvasData becomes empty)
@@ -1069,9 +1177,21 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [children, recalculateHeadingPositions])
 
-  // Function to perform the actual save
+  // Ref for the save function that accepts options (used when switching targets)
+  const performSaveWithOptionsRef = useRef<((options?: SyncedUserDataOptions) => Promise<void>) | null>(null)
+
+  // Function to perform the actual save with optional targeting override
   // IMPORTANT: Uses refs instead of state to avoid stale closure issues when called from setTimeout
-  const performSave = useCallback(async () => {
+  const performSaveWithOptions = useCallback(async (overrideOptions?: SyncedUserDataOptions) => {
+    const effectiveOptions = overrideOptions ?? syncOptions
+    log('performSaveWithOptions called', {
+      viewMode,
+      syncOptions,
+      overrideOptions,
+      effectiveOptions,
+      targetingKey
+    })
+
     // Read from refs to get current values (avoids stale closure from setTimeout)
     const currentCanvasData = canvasDataRef.current
     const currentPageVersion = pageVersionRef.current
@@ -1146,7 +1266,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       setSaveState('saving')
 
       // Use immediate: true since we're already debouncing at component level
-      await updateAnnotationData(data, { immediate: true })
+      // Pass targeting overrides if provided (used when saving before switching targets)
+      await updateAnnotationData(data, {
+        immediate: true,
+        targetTypeOverride: overrideOptions?.targetType,
+        targetIdOverride: overrideOptions?.targetId,
+      })
 
       setSaveState('saved')
 
@@ -1158,7 +1283,18 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       // Reset to idle after showing error briefly
       setTimeout(() => setSaveState('idle'), 3000)
     }
-  }, [updateAnnotationData])
+  }, [updateAnnotationData, viewMode, syncOptions, targetingKey])
+
+  // Keep ref in sync for use in effects that can't depend on the function directly
+  performSaveWithOptionsRef.current = performSaveWithOptions
+
+  // performSave is just a wrapper that calls performSaveWithOptions without overrides
+  const performSave = useCallback(async () => {
+    await performSaveWithOptions()
+  }, [performSaveWithOptions])
+
+  // Keep ref in sync for use in effects that can't depend on performSave directly
+  performSaveRef.current = performSave
 
   // Save on unmount (navigation away)
   useEffect(() => {
@@ -1189,6 +1325,13 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Handle canvas annotation update with debounced save
   const handleCanvasUpdate = useCallback((data: string) => {
+    log('handleCanvasUpdate called', {
+      viewMode,
+      selectedClassId: selectedClass?.id,
+      selectedStudentId: selectedStudent?.id,
+      dataLength: data.length
+    })
+
     // Update local state immediately
     setCanvasData(data)
 
@@ -1830,7 +1973,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           })()}
 
           {/* Teacher's class broadcast as reference (when giving individual student feedback) */}
-          {isTeacher && viewMode === 'student-view' && classBroadcastData?.canvasData && isLayerVisible('class-broadcast') && (() => {
+          {isTeacher && viewMode === 'student-view' && isLayerVisible('class-broadcast') && (() => {
+            // Use classBroadcastData if available, otherwise fall back to stored canvas data
+            const broadcastCanvasData = classBroadcastData?.canvasData || classBroadcastCanvasRef.current
+            if (!broadcastCanvasData || broadcastCanvasData === '[]') return null
             return createPortal(
               <div
                 style={{
@@ -1849,7 +1995,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                   width={paperWidth}
                   height={pageHeight}
                   mode="view"
-                  initialData={classBroadcastData.canvasData}
+                  initialData={broadcastCanvasData}
                   headingPositions={headingPositions}
                   zoom={zoom}
                   readOnly
@@ -1860,7 +2006,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           })()}
 
           {/* Student feedback as reference (when broadcasting to entire class but want to see last student's feedback) */}
-          {isTeacher && viewMode === 'class-broadcast' && studentFeedbackData?.canvasData && isLayerVisible('student-feedback') && (() => {
+          {isTeacher && viewMode === 'class-broadcast' && isLayerVisible('student-feedback') && (() => {
+            // Use hook data if available, otherwise use the fallback ref
+            const feedbackCanvasData = studentFeedbackData?.canvasData || studentFeedbackCanvasRef.current
+            if (!feedbackCanvasData || feedbackCanvasData === '[]') return null
+
             return createPortal(
               <div
                 style={{
@@ -1879,7 +2029,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                   width={paperWidth}
                   height={pageHeight}
                   mode="view"
-                  initialData={studentFeedbackData.canvasData}
+                  initialData={feedbackCanvasData}
                   headingPositions={headingPositions}
                   zoom={zoom}
                   readOnly

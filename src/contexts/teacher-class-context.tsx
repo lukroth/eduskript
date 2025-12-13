@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('teacher:context')
 
 const STORAGE_KEY = 'eduskript-teacher-class'
 const STUDENT_STORAGE_KEY = 'eduskript-teacher-selected-student'
@@ -74,6 +77,7 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setSelectedClass = useCallback((classData: SelectedClass | null) => {
+    log('setSelectedClass called', { id: classData?.id, name: classData?.name })
     setSelectedClassState(classData)
     // Clear student selection when class changes
     setSelectedStudentState(null)
@@ -90,6 +94,7 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setSelectedStudent = useCallback((student: SelectedStudent | null) => {
+    log('setSelectedStudent called', { id: student?.id, displayName: student?.displayName })
     setSelectedStudentState(student)
 
     if (typeof window === 'undefined') return
@@ -103,9 +108,11 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
 
   // Derive view mode from selections
   const viewMode: ViewMode = useMemo(() => {
-    if (selectedStudent) return 'student-view'
-    if (selectedClass) return 'class-broadcast'
-    return 'my-view'
+    let mode: ViewMode = 'my-view'
+    if (selectedStudent) mode = 'student-view'
+    else if (selectedClass) mode = 'class-broadcast'
+    log('viewMode computed', { mode, selectedClassId: selectedClass?.id, selectedStudentId: selectedStudent?.id })
+    return mode
   }, [selectedClass, selectedStudent])
 
   // Clear selection if user is not a teacher

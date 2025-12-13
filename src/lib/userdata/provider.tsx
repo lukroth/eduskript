@@ -15,6 +15,9 @@ import { useSession } from 'next-auth/react'
 import { syncEngine, type SyncStatus } from './sync-engine'
 import { userDataService } from './userDataService'
 import { db } from './schema'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('userdata:provider')
 
 const LAST_USER_KEY = 'eduskript-last-user-id'
 // Increment this to force a one-time IndexedDB clear for all users
@@ -84,7 +87,7 @@ export function UserDataProvider({ children }: UserDataProviderProps) {
         const versionOutdated = storedVersion < CACHE_VERSION
 
         if (userChanged || versionOutdated) {
-          console.log('[UserDataProvider] Clearing IndexedDB cache', {
+          log('Clearing IndexedDB cache', {
             reason: versionOutdated ? 'version upgrade' : 'user change',
             from: lastUserId ? lastUserId.substring(0, 8) + '...' : 'none',
             to: currentUserId === 'anonymous' ? 'anonymous' : currentUserId.substring(0, 8) + '...',
@@ -97,7 +100,7 @@ export function UserDataProvider({ children }: UserDataProviderProps) {
           await db.userData_history.clear()
           await db.versionBlobs.clear()
 
-          console.log('[UserDataProvider] IndexedDB cleared successfully')
+          log('IndexedDB cleared successfully')
         }
 
         // Update last user and version
@@ -108,7 +111,7 @@ export function UserDataProvider({ children }: UserDataProviderProps) {
         }
         localStorage.setItem(CACHE_VERSION_KEY, String(CACHE_VERSION))
       } catch (error) {
-        console.error('[UserDataProvider] Failed to handle user change:', error)
+        log.error('Failed to handle user change:', error)
       } finally {
         setIsDbReady(true)
         userChangeHandledRef.current = false
@@ -197,6 +200,13 @@ export interface SyncedUserDataOptions {
  * @param initialData - Default data if nothing saved
  * @param options - Optional targeting for teacher broadcasts
  */
+export interface UpdateDataOptions {
+  immediate?: boolean
+  // Optional targeting overrides - used when saving before switching targets
+  targetTypeOverride?: 'class' | 'student' | null
+  targetIdOverride?: string | null
+}
+
 export function useSyncedUserData<T>(
   pageId: string,
   componentId: string,
@@ -204,7 +214,7 @@ export function useSyncedUserData<T>(
   options: SyncedUserDataOptions = {}
 ): {
   data: T | null
-  updateData: (data: T, updateOptions?: { immediate?: boolean }) => Promise<void>
+  updateData: (data: T, updateOptions?: UpdateDataOptions) => Promise<void>
   isLoading: boolean
   isSynced: boolean
 } {
@@ -278,7 +288,7 @@ export function useSyncedUserData<T>(
           }
         }
       } catch (error) {
-        console.error('Failed to load user data:', error)
+        log.error('Failed to load user data:', error)
         if (mounted) {
           setData(initialDataRef.current)
         }
@@ -297,35 +307,50 @@ export function useSyncedUserData<T>(
   }, [pageId, componentId, targetType, targetId, isBroadcastMode, isDbReady]) // Re-run when targeting changes or DB becomes ready
 
   const updateData = useCallback(
-    async (newData: T, updateOptions: { immediate?: boolean } = {}) => {
+    async (newData: T, updateOptions: UpdateDataOptions = {}) => {
+      // Use overrides if provided, otherwise use hook's targeting
+      const effectiveTargetType = updateOptions.targetTypeOverride !== undefined
+        ? updateOptions.targetTypeOverride
+        : targetType
+      const effectiveTargetId = updateOptions.targetIdOverride !== undefined
+        ? updateOptions.targetIdOverride
+        : targetId
+      const effectiveIsBroadcastMode = Boolean(effectiveTargetType && effectiveTargetId)
+
       // Debug: log targeting info
-      console.log('[useSyncedUserData.updateData]', {
+      log('updateData', {
         pageId,
         componentId,
-        targetType,
-        targetId,
-        isBroadcastMode,
+        targetType: effectiveTargetType,
+        targetId: effectiveTargetId,
+        isBroadcastMode: effectiveIsBroadcastMode,
+        hasOverride: updateOptions.targetTypeOverride !== undefined,
         dataPreview: JSON.stringify(newData).slice(0, 100)
       })
 
       try {
-        // Optimistic local update
-        setData(newData)
-        setIsSynced(false)
+        // Optimistic local update (only if not using overrides - overrides are for saving old data)
+        if (updateOptions.targetTypeOverride === undefined) {
+          setData(newData)
+          setIsSynced(false)
+        }
 
         // In broadcast mode, always sync immediately (teachers want real-time updates)
-        const shouldSyncImmediately = isBroadcastMode || updateOptions.immediate
+        const shouldSyncImmediately = effectiveIsBroadcastMode || updateOptions.immediate
 
         // Save to IndexedDB (with targeting in key)
         await userDataService.save(pageId, componentId, newData, {
           immediate: shouldSyncImmediately,
-          targetType: targetType ?? null,
-          targetId: targetId ?? null,
+          targetType: effectiveTargetType ?? null,
+          targetId: effectiveTargetId ?? null,
         })
 
         // Queue for cloud sync if authenticated
         if (isAuthenticated) {
-          const record = await userDataService.get(pageId, componentId, { targetType, targetId })
+          const record = await userDataService.get(pageId, componentId, {
+            targetType: effectiveTargetType,
+            targetId: effectiveTargetId
+          })
           if (record) {
             syncEngine.queueSync(
               componentId, // adapter
@@ -334,16 +359,18 @@ export function useSyncedUserData<T>(
               record.version,
               {
                 immediate: shouldSyncImmediately, // Immediate in broadcast mode
-                targetType: targetType ?? null,
-                targetId: targetId ?? null,
+                targetType: effectiveTargetType ?? null,
+                targetId: effectiveTargetId ?? null,
               }
             )
           }
         }
 
-        setIsSynced(true)
+        if (updateOptions.targetTypeOverride === undefined) {
+          setIsSynced(true)
+        }
       } catch (error) {
-        console.error('Failed to update user data:', error)
+        log.error('Failed to update user data:', error)
         throw error
       }
     },
