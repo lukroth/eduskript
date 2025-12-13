@@ -666,6 +666,12 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         }
       }
 
+      // Always hide eraser cursor on pointer leave/up, even if not actively drawing
+      if (currentModeRef.current === 'erase') {
+        hideEraserCursor()
+        updateEraserCursor(false)
+      }
+
       if (!isDrawingRef.current) return
 
       isDrawingRef.current = false
