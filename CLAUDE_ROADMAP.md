@@ -9,14 +9,13 @@
 
 ## 🎯 Priority List
 
-- **Organization Support** - Groundwork for schools/organizations: org admins can manage users (delete, reset PW), administer org pages, pay per organization. See `docs/ORGANIZATION_GROUNDWORK_PLAN.md` for detailed plan.
+- fade in of annotations without flickering
+- updating broadcast annotations without flickering
+
 **LMS Features:**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component.
 - **Randomized questions** maybe through special skripts?
-- **Teacher/author ability to publish/distribute snaps globally or per class**
-- **Teacher/author ability to publish/distribute annotations globally or per class**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
-
 
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration

@@ -28,7 +28,8 @@ interface FrontPageVersion {
 interface FrontPageEditorProps {
   // For user frontpage: pass userId and no skript
   // For skript frontpage: pass skript details
-  type: 'user' | 'skript'
+  // For organization frontpage: pass organization details
+  type: 'user' | 'skript' | 'organization'
   frontPage?: {
     id: string
     content: string
@@ -40,6 +41,11 @@ interface FrontPageEditorProps {
     title: string
     collectionSlug?: string
   }
+  organization?: {
+    id: string
+    slug: string
+    name: string
+  }
   backUrl: string
   previewUrl?: string
 }
@@ -48,6 +54,7 @@ export function FrontPageEditor({
   type,
   frontPage,
   skript,
+  organization,
   backUrl,
   previewUrl
 }: FrontPageEditorProps) {
@@ -77,10 +84,12 @@ export function FrontPageEditor({
   const getApiEndpoint = useCallback(() => {
     if (type === 'user') {
       return '/api/frontpage/user'
+    } else if (type === 'organization') {
+      return `/api/frontpage/organization/${organization?.id}`
     } else {
       return `/api/frontpage/skript/${skript?.id}`
     }
-  }, [type, skript?.id])
+  }, [type, skript?.id, organization?.id])
 
   // Load version history
   const loadVersions = useCallback(async () => {
@@ -231,10 +240,14 @@ export function FrontPageEditor({
 
   const title = type === 'user'
     ? 'Your Front Page'
+    : type === 'organization'
+    ? `Front Page: ${organization?.name || 'Organization'}`
     : `Front Page: ${skript?.title || 'Skript'}`
 
   const description = type === 'user'
     ? 'Customize your public landing page. This is what visitors see when they visit your profile.'
+    : type === 'organization'
+    ? 'Customize your organization\'s public landing page. This is what visitors see when they visit your organization.'
     : 'Customize the introduction page for this skript. Visitors will see this before the list of pages.'
 
   return (

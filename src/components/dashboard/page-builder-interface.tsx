@@ -42,7 +42,21 @@ interface DragData {
   }
 }
 
-export function PageBuilderInterface() {
+export interface PageBuilderContext {
+  type: 'user' | 'organization'
+  organizationId?: string
+}
+
+interface PageBuilderInterfaceProps {
+  context?: PageBuilderContext
+}
+
+export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilderInterfaceProps) {
+  // Determine API endpoints based on context
+  const pageLayoutEndpoint =
+    context.type === 'organization' && context.organizationId
+      ? `/api/organizations/${context.organizationId}/page-layout`
+      : '/api/page-layout'
   const { data: session } = useSession()
   const [pageItems, setPageItems] = useState<PageItem[]>([])
   const [activeItem, setActiveItem] = useState<DragData | null>(null)
@@ -56,7 +70,7 @@ export function PageBuilderInterface() {
   useEffect(() => {
     const loadPageLayout = async () => {
       try {
-        const response = await fetch('/api/page-layout')
+        const response = await fetch(pageLayoutEndpoint)
         if (response.ok) {
           const data = await response.json()
           if (data.data?.items) {
@@ -190,7 +204,7 @@ export function PageBuilderInterface() {
     }
 
     loadPageLayout()
-  }, [])
+  }, [pageLayoutEndpoint])
 
   const handleItemsChange = async (items: PageItem[], changedCollectionIds?: Set<string>) => {
     // Update UI state immediately
@@ -206,7 +220,7 @@ export function PageBuilderInterface() {
           order: index
         }))
       
-      await fetch('/api/page-layout', {
+      await fetch(pageLayoutEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: pageLayoutItems }),
@@ -670,6 +684,7 @@ export function PageBuilderInterface() {
             <ContentLibrary
               onDataLoad={setLibraryData}
               refreshTrigger={refreshTrigger}
+              context={context}
             />
           </div>
         </div>
@@ -710,6 +725,7 @@ export function PageBuilderInterface() {
           <ContentLibrary
             onDataLoad={setLibraryData}
             refreshTrigger={refreshTrigger}
+            context={context}
           />
         </div>
       </div>

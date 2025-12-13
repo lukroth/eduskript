@@ -10,6 +10,7 @@ import { Search, BookOpen, FileText } from 'lucide-react'
 import { CollectionAuthor, SkriptAuthor, User, Collection, Skript } from '@prisma/client'
 import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
 import { api, handleJsonResponse } from '@/lib/api-error-handler'
+import type { PageBuilderContext } from './page-builder-interface'
 
 interface CollectionWithAuthors extends Collection {
   authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
@@ -32,9 +33,10 @@ interface SkriptWithAuthors extends Skript {
 interface ContentLibraryProps {
   onDataLoad?: (data: { collections: any[], skripts: any[] }) => void
   refreshTrigger?: number
+  context?: PageBuilderContext
 }
 
-export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryProps = {}) {
+export function ContentLibrary({ onDataLoad, refreshTrigger, context = { type: 'user' } }: ContentLibraryProps = {}) {
   const { data: session } = useSession()
   const [collections, setCollections] = useState<CollectionWithAuthors[]>([])
   const [skripts, setSkripts] = useState<SkriptWithAuthors[]>([])
@@ -45,16 +47,29 @@ export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryPro
     if (!session?.user?.id) return
 
     try {
-      // Fetch collections with author information
-      const collectionsResponse = await api.get('/api/collections?includeShared=true')
-      const collectionsJson = await handleJsonResponse(collectionsResponse)
-      const collectionsData = collectionsJson.data || []
-      setCollections(collectionsData)
+      let collectionsData: CollectionWithAuthors[] = []
+      let skriptsData: SkriptWithAuthors[] = []
 
-      // Fetch skripts with author information
-      const skriptsResponse = await api.get('/api/skripts?includeShared=true')
-      const skriptsJson = await handleJsonResponse(skriptsResponse)
-      const skriptsData = skriptsJson.data || []
+      if (context.type === 'organization' && context.organizationId) {
+        // For organizations: fetch content available to org admins
+        const response = await api.get(
+          `/api/organizations/${context.organizationId}/available-content`
+        )
+        const json = await handleJsonResponse(response)
+        collectionsData = json.data?.collections || []
+        skriptsData = json.data?.skripts || []
+      } else {
+        // For users: fetch personal content
+        const collectionsResponse = await api.get('/api/collections?includeShared=true')
+        const collectionsJson = await handleJsonResponse(collectionsResponse)
+        collectionsData = collectionsJson.data || []
+
+        const skriptsResponse = await api.get('/api/skripts?includeShared=true')
+        const skriptsJson = await handleJsonResponse(skriptsResponse)
+        skriptsData = skriptsJson.data || []
+      }
+
+      setCollections(collectionsData)
       setSkripts(skriptsData)
 
       // Share data with parent component
@@ -66,7 +81,7 @@ export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryPro
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, onDataLoad])
+  }, [session?.user?.id, onDataLoad, context.type, context.organizationId])
 
   useEffect(() => {
     fetchContent()
