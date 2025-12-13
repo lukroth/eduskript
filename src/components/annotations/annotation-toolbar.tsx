@@ -622,7 +622,7 @@ export function AnnotationToolbar({
                   )}
                   title="Select class"
                 >
-                  <Radio className="w-5 h-5" />
+                  <Radio className={cn('w-5 h-5', selectedClass && 'text-red-500')} />
                   <span className="text-xs max-w-[80px] truncate">
                     {selectedClass ? selectedClass.name : 'Class'}
                   </span>
@@ -976,9 +976,9 @@ export function AnnotationToolbar({
                 aria-label={`Select pen ${penIndex + 1}`}
               >
                 <Pen className="w-4 h-4" />
-                {/* Color indicator */}
+                {/* Color indicator - uses annotation-color-indicator for dark mode filter */}
                 <div
-                  className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white dark:border-gray-800"
+                  className="annotation-color-indicator absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white dark:border-gray-800"
                   style={{ backgroundColor: penColors[penIndex] }}
                 />
               </button>
