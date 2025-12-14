@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation Standards
+
+**When writing code comments, be truthful and honest.**
+
+- Document what the code actually does, not what it ideally should do
+- Note known limitations, performance issues, and technical debt
+- If something is a workaround or suboptimal solution, say so
+- Explain trade-offs that were made and why
+- Don't oversell or hide problems - future contributors need the truth
+- Include complexity notes (O(n), O(n²)) where relevant
+- Reference related files and systems to help navigation
+
+Good example:
+```typescript
+// WORKAROUND: Using refetch trigger instead of React Query.
+// This works but requires manually calling refetch after mutations.
+
+// Note: O(n²) deduplication - acceptable for <10 items but
+// consider using a Set for larger lists.
+```
+
 ## Development Commands
 
 We use pnpm.
