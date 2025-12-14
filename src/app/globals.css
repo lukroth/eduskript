@@ -245,6 +245,16 @@ body {
     --icon-muted: 0 0% 45%;
     --turtle-color: hsl(221.2 83.2% 53.3%);
 
+    /* Highlight colors */
+    --highlight-red: #ef4444;
+    --highlight-yellow: #eab308;
+    --highlight-green: #22c55e;
+    --highlight-blue: #3b82f6;
+    --highlight-red-bg: rgba(239, 68, 68, 0.2);
+    --highlight-yellow-bg: rgba(234, 179, 8, 0.2);
+    --highlight-green-bg: rgba(34, 197, 94, 0.2);
+    --highlight-blue-bg: rgba(59, 130, 246, 0.2);
+
     /* Prose-specific colors */
     --prose-text: 0 0% 15%; /* #262626 */
     --prose-headings: 0 0% 15%; /* #262626 */
@@ -294,6 +304,7 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
 
 /*
  * Responsive paper container
@@ -1107,8 +1118,9 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 .prose-theme h1.color-title::before {
   content: attr(data-heading-text);
   position: absolute;
-  left: 2px;
+  right: 4px;
   top: 2px;
+  filter: blur(2px);
   width: 100%;
   text-align: center;
   z-index: -1;

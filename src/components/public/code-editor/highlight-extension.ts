@@ -6,6 +6,26 @@
  * - StateEffects to add/remove/set/clear highlights
  * - Automatic position updates when document changes
  * - Theme with highlight color styles
+ *
+ * ARCHITECTURE:
+ * CodeMirror decorations (marks) can't store custom metadata like IDs.
+ * We work around this by:
+ * 1. Storing IDs in data-* attributes on the decoration
+ * 2. Using a module-level Map to track metadata
+ *
+ * KNOWN LIMITATION (highlightMetaMap):
+ * The metadata map is global to the module, not per-editor instance.
+ * This is fine for single-editor pages but could cause issues if:
+ * - Multiple editors share the same highlight IDs (unlikely with nanoid)
+ * - An editor is created/destroyed rapidly (map not cleaned up)
+ * TODO: Consider using StateField's facet system for per-editor storage.
+ *
+ * POSITION TRACKING:
+ * When text is edited, highlights adjust automatically via decorations.map().
+ * - Insertion BEFORE highlight: highlight shifts right
+ * - Insertion INSIDE highlight: highlight expands
+ * - Deletion: highlight shrinks or is removed if fully deleted
+ * The mapPos() calls use assoc=1/-1 to control edge behavior.
  */
 
 import { StateField, StateEffect, RangeSet, Prec } from '@codemirror/state'
@@ -24,6 +44,8 @@ export const removeHighlight = StateEffect.define<string>()  // by id
 export const removeHighlightsInRange = StateEffect.define<{ from: number; to: number }>()
 export const setHighlights = StateEffect.define<Array<{ from: number; to: number; color: HighlightColor; id: string; isTeacher?: boolean }>>()
 export const clearHighlights = StateEffect.define<void>()
+// Replace all teacher highlights wholesale (removes old, adds new) - doesn't touch student highlights
+export const replaceTeacherHighlights = StateEffect.define<Array<{ from: number; to: number; color: HighlightColor; id: string }>>()
 
 // Color -> CSS class mapping
 const colorClasses: Record<HighlightColor, string> = {
@@ -39,7 +61,14 @@ interface HighlightMeta {
   color: HighlightColor
 }
 
-// Create decoration mark for a highlight
+/**
+ * Create a decoration mark for a highlight
+ *
+ * @param isTeacher - When true, adds cm-highlight-teacher class for visual distinction.
+ *                    Teacher highlights render with dashed outline (see highlightTheme).
+ *                    This is a display-only distinction - the highlight data structure
+ *                    doesn't differentiate, only the rendering does.
+ */
 function createHighlightMark(color: HighlightColor, id: string, isTeacher: boolean = false) {
   const classes = [colorClasses[color]]
   if (isTeacher) {
@@ -58,7 +87,17 @@ function createHighlightMark(color: HighlightColor, id: string, isTeacher: boole
 // This is needed because decorations don't store custom data
 const highlightMetaMap = new Map<string, HighlightMeta & { from: number; to: number }>()
 
-// StateField to track highlights
+/**
+ * StateField to track highlight decorations
+ *
+ * COMPLEXITY NOTE: This update function runs on EVERY transaction, even trivial ones.
+ * For large documents with many highlights, the O(n) iteration over highlightMetaMap
+ * could become noticeable. Current optimization: only iterate when changes exist.
+ *
+ * The field handles two concerns:
+ * 1. Mapping decorations through document changes (automatic via decorations.map)
+ * 2. Processing StateEffects to add/remove/set highlights
+ */
 export const highlightField = StateField.define<DecorationSet>({
   create() {
     return Decoration.none
@@ -69,12 +108,25 @@ export const highlightField = StateField.define<DecorationSet>({
     // This automatically handles position updates on edits
     decorations = decorations.map(tr.changes)
 
+    // Check if this transaction includes setHighlights (which replaces everything)
+    // If so, skip metadata mapping since it will be cleared anyway
+    const hasSetHighlights = tr.effects.some(e => e.is(setHighlights))
+
     // Also update the metadata map positions
-    if (tr.changes.length > 0) {
+    // SYNC ISSUE: If decorations and metaMap ever get out of sync (bug),
+    // extractHighlights() reads from decorations (source of truth for rendering),
+    // while metaMap is only used internally. This asymmetry is intentional.
+    if (tr.changes.length > 0 && !hasSetHighlights) {
       const updatedMeta = new Map<string, HighlightMeta & { from: number; to: number }>()
       highlightMetaMap.forEach((meta, id) => {
-        const newFrom = tr.changes.mapPos(meta.from, 1)  // 1 = prefer after
-        const newTo = tr.changes.mapPos(meta.to, -1)     // -1 = prefer before
+        // Validate positions before mapping to avoid RangeError
+        const docLen = tr.changes.length
+        if (meta.from >= docLen || meta.to > docLen) {
+          // Position out of range, skip this highlight
+          return
+        }
+        const newFrom = tr.changes.mapPos(meta.from, 1)  // 1 = prefer after (sticky start)
+        const newTo = tr.changes.mapPos(meta.to, -1)     // -1 = prefer before (sticky end)
         if (newTo > newFrom) {  // Only keep if still valid range
           updatedMeta.set(id, { ...meta, from: newFrom, to: newTo })
         }
@@ -147,6 +199,37 @@ export const highlightField = StateField.define<DecorationSet>({
         highlightMetaMap.clear()
         decorations = Decoration.none
       }
+
+      if (effect.is(replaceTeacherHighlights)) {
+        // Keep only non-teacher highlights, then add new teacher highlights
+        const studentRanges: { from: number; to: number; value: Decoration }[] = []
+        decorations.between(0, tr.state.doc.length, (from, to, deco) => {
+          // Check if this is a teacher highlight by looking for the class
+          const classes = deco.spec.class || ''
+          if (!classes.includes('cm-highlight-teacher')) {
+            studentRanges.push({ from, to, value: deco })
+          } else {
+            // Remove from metadata map
+            const id = deco.spec.attributes?.['data-highlight-id']
+            if (id) highlightMetaMap.delete(id)
+          }
+        })
+
+        // Add new teacher highlights
+        const teacherMarks = effect.value
+          .filter(h => h.from < tr.state.doc.length && h.to <= tr.state.doc.length && h.to > h.from)
+          .map(h => {
+            highlightMetaMap.set(h.id, { id: h.id, color: h.color, from: h.from, to: h.to })
+            return createHighlightMark(h.color, h.id, true).range(h.from, h.to)
+          })
+
+        // Combine student highlights + new teacher highlights
+        const allRanges = [
+          ...studentRanges.map(r => r.value.range(r.from, r.to)),
+          ...teacherMarks
+        ]
+        decorations = Decoration.set(allRanges, true)
+      }
     }
 
     return decorations
@@ -160,7 +243,16 @@ const highlightDecorations = EditorView.decorations.compute([highlightField], st
 
 /**
  * Extract current highlights from the editor state
- * Used for persistence
+ * Used for persistence to IndexedDB/server
+ *
+ * NOTE: This reads from decorations (the source of truth for what's rendered),
+ * NOT from highlightMetaMap. The caller must merge with existing metadata
+ * (authorId, comments) since those aren't stored in decorations.
+ *
+ * LIMITATION: createdAt is set to Date.now() on every extraction.
+ * For new highlights this is correct, but for existing ones this overwrites
+ * the original timestamp. The caller should preserve the original timestamp
+ * when merging (see index.tsx handleApplyHighlight).
  */
 export function extractHighlights(view: EditorView, fileIndex: number): CodeHighlight[] {
   const highlights: CodeHighlight[] = []
@@ -223,6 +315,14 @@ export function getHighlightsInRange(view: EditorView, from: number, to: number)
 /**
  * Theme extension with highlight color styles
  * Using & to scope to the editor, then target highlight spans
+ *
+ * COLOR CHOICES: Using Tailwind palette colors at 40% opacity.
+ * This works reasonably in both light and dark mode without separate dark variants.
+ * If readability becomes an issue in dark mode, add :host-context(.dark) selectors.
+ *
+ * TEACHER DISTINCTION: Dashed outline uses currentColor (inherits text color)
+ * to adapt to both themes automatically. The offset=-1px keeps the outline
+ * inside the highlight bounds to avoid layout shift.
  */
 export const highlightTheme = EditorView.theme({
   // & refers to the .cm-editor element, descendant selectors target marks
@@ -242,7 +342,7 @@ export const highlightTheme = EditorView.theme({
     backgroundColor: 'rgba(59, 130, 246, 0.4)',
     borderRadius: '2px',
   },
-  // Teacher highlights have dashed outline
+  // Teacher highlights have dashed outline to distinguish from student's own
   '& .cm-highlight-teacher': {
     outline: '1px dashed currentColor',
     outlineOffset: '-1px',

@@ -7,6 +7,23 @@
  * - Individual feedback (targeted at this student)
  *
  * Returns annotations, snaps, and code highlights for each broadcast type.
+ *
+ * QUERY PATTERN:
+ * We run 6 separate queries (could be optimized to fewer with UNION or subqueries):
+ * 1. classMembership - get student's enrolled classes
+ * 2-4. class broadcasts: annotations, snaps, code-highlights-*
+ * 5-6. individual: annotations, snaps
+ * 7. individual code-highlights-*
+ *
+ * CODE HIGHLIGHTS ADAPTER PATTERN:
+ * Unlike annotations/snaps which use fixed adapter names, code highlights use
+ * `code-highlights-{editorId}` pattern. We query with `startsWith: 'code-highlights-'`
+ * and extract the editorId from the adapter name. This allows multiple code editors
+ * per page to have independent highlights.
+ *
+ * PERFORMANCE: For a student in many classes viewing a page with many broadcasts,
+ * this could return significant data. Consider pagination or lazy loading per-editor
+ * if this becomes a bottleneck.
  */
 
 import { NextRequest, NextResponse } from 'next/server'

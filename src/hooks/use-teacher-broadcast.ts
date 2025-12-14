@@ -5,6 +5,22 @@
  *
  * Fetches teacher annotations (class broadcasts and individual feedback)
  * and subscribes to real-time updates via SSE.
+ *
+ * USAGE: Called by student-facing components (annotation-layer, code-editor)
+ * to receive teacher content. The hook is intentionally "dumb" - it fetches
+ * everything for the page and lets consumers filter by their needs.
+ *
+ * DATA FLOW:
+ * 1. Initial fetch from /api/student/teacher-annotations
+ * 2. SSE subscription for real-time updates
+ * 3. On SSE event, refetch entire dataset (not incremental)
+ *
+ * TRADE-OFF: Refetching all data on any update is simple but wasteful.
+ * For pages with many broadcasts, consider adding event payload with
+ * changed data to enable incremental updates.
+ *
+ * SWR-LIKE PATTERN: Shows stale data while fetching to prevent UI flicker.
+ * isLoading is only true on initial load, not on refetch.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -25,11 +41,16 @@ export interface TeacherClassSnaps {
   updatedAt: number
 }
 
+/**
+ * Code highlights broadcast for a class
+ * editorId identifies which code editor on the page this belongs to
+ * (extracted from adapter name: code-highlights-{editorId})
+ */
 export interface TeacherClassCodeHighlights {
   classId: string
   className: string
   editorId: string
-  data: unknown
+  data: unknown  // Actually BroadcastHighlightsData but typed as unknown for flexibility
   updatedAt: number
 }
 
@@ -38,9 +59,13 @@ export interface TeacherIndividualFeedback {
   updatedAt: number
 }
 
+/**
+ * Code highlights targeted at a specific student
+ * Structure mirrors TeacherClassCodeHighlights but without class info
+ */
 export interface TeacherIndividualCodeHighlights {
   editorId: string
-  data: unknown
+  data: unknown  // Actually BroadcastHighlightsData but typed as unknown for flexibility
   updatedAt: number
 }
 

@@ -9,11 +9,6 @@
 
 ## 🎯 Priority List
 
-**code editor**
-- highlight functionality for editor, so i can highlight a certain codeblock.
-- share code highlights using our feedback system
-- share code comments using our feedback system
-
 **LMS Features:**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component with live answers.
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions. <Question> component would probably have to save question to db to quickly query questions.

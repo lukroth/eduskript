@@ -33,6 +33,7 @@ import {
   addHighlight,
   removeHighlight,
   setHighlights as setHighlightsEffect,
+  replaceTeacherHighlights,
   extractHighlights,
   highlightField,
 } from './highlight-extension'
@@ -87,7 +88,13 @@ export const CodeEditor = memo(function CodeEditor({
     null
   )
 
-  // Compute targeting options for broadcast highlights (same pattern as annotation-layer)
+  // Compute targeting options for broadcast highlights
+  // ARCHITECTURE: Mirrors annotation-layer.tsx pattern for consistency.
+  // When teacher switches modes, they edit different database records:
+  // - my-view: personal highlights (no targeting)
+  // - class-broadcast: highlights visible to all class members
+  // - student-view: individual feedback for one student
+  // See: src/components/annotations/annotation-layer.tsx:343
   const syncOptions: SyncedUserDataOptions = useMemo(() => {
     if (!isTeacher) return {}
 
@@ -103,9 +110,13 @@ export const CodeEditor = memo(function CodeEditor({
   // Whether we're in broadcast mode (targeting is set)
   const isBroadcastMode = Boolean(syncOptions.targetType && syncOptions.targetId)
 
-  // Broadcast highlights hook - only used when teacher is broadcasting
-  // This stores ONLY highlights (not code/settings) for the targeted audience
-  const { data: broadcastHighlightsData, updateData: updateBroadcastHighlights } = useSyncedUserData<BroadcastHighlightsData>(
+  // Broadcast highlights hook - stores ONLY highlights for targeted audience
+  // DESIGN DECISION: Highlights are stored separately from CodeEditorData because:
+  // - Code/settings should stay personal (students write their own code)
+  // - Only highlights should be broadcastable
+  // LIMITATION: This means two separate IndexedDB records per editor when broadcasting.
+  // See: highlightsComponentId = `code-highlights-${id}` vs componentId = `code-editor-${id}`
+  const { data: broadcastHighlightsData, updateData: updateBroadcastHighlights, isLoading: broadcastIsLoading } = useSyncedUserData<BroadcastHighlightsData>(
     isBroadcastMode && pageId ? pageId : '',
     highlightsComponentId,
     null,
@@ -113,27 +124,37 @@ export const CodeEditor = memo(function CodeEditor({
   )
 
   // Current user's author ID for highlights/comments ownership
+  // Used to determine if user can delete a highlight or edit a comment
   const currentAuthorId: string | undefined = session?.user?.id
 
   // For students: receive teacher broadcasts (code highlights)
+  // LIMITATION: This fetches ALL teacher broadcasts for the page, even if the page
+  // has multiple code editors. We filter by editorId below which is O(n) per editor.
   const isStudent = session?.user?.accountType === 'student'
+
+  const broadcastPageId = isStudent && pageId ? pageId : ''
+
   const {
     classCodeHighlights: teacherClassHighlights,
     individualCodeHighlights: teacherIndividualHighlights,
-  } = useTeacherBroadcast(isStudent && pageId ? pageId : '')
+  } = useTeacherBroadcast(broadcastPageId)
 
-  // Get teacher highlights for THIS specific code editor (by editorId)
+  // Extract teacher highlights for THIS specific code editor
+  // PERFORMANCE: O(n) where n = total teacher highlights across all editors on page.
+  // Acceptable since pages typically have <5 editors and <50 highlights total.
+  // If this becomes a bottleneck, consider pre-grouping by editorId in the API response.
   const teacherHighlightsForEditor = useMemo(() => {
     if (!isStudent) return []
 
     const highlights: CodeHighlight[] = []
 
     // Class broadcasts (from enrolled classes)
+    // NOTE: A student could be in multiple classes that broadcast to the same page.
+    // Currently we show all of them - no deduplication by highlight ID.
     for (const classHighlight of teacherClassHighlights) {
       if (classHighlight.editorId === id) {
         const data = classHighlight.data as BroadcastHighlightsData | null
         if (data?.highlights) {
-          // Mark as teacher highlights for visual distinction
           highlights.push(...data.highlights.map(h => ({
             ...h,
             isTeacherHighlight: true,
@@ -249,11 +270,32 @@ export const CodeEditor = memo(function CodeEditor({
   // Highlighter state
   const [highlighterMode, setHighlighterMode] = useState(false)
   const [highlightColor, setHighlightColor] = useState<HighlightColor>('yellow')
+
+  // Generate cursor SVG data URI based on highlight color
+  const highlightColorHex: Record<HighlightColor, string> = {
+    red: '%23ef4444', yellow: '%23eab308', green: '%2322c55e', blue: '%233b82f6'
+  }
+  const highlighterCursor = useMemo(() => {
+    const color = highlightColorHex[highlightColor]
+    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 11-6 6v3h9l3-3'/%3E%3Cpath d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/%3E%3C/svg%3E") 3 21, crosshair`
+  }, [highlightColor])
   const [showColorPicker, setShowColorPicker] = useState(false)
+  // `highlights` contains ONLY the user's own highlights (for persistence)
+  // For teachers: either personal or broadcast highlights depending on mode
+  // For students: only their personal highlights (teacher highlights come from teacherHighlightsForEditor)
   const [highlights, setHighlights] = useState<CodeHighlight[]>([])
 
-  // Combine student highlights with teacher highlights for display
-  // Teacher highlights are read-only and shown with visual distinction
+  // Merge user's highlights with teacher highlights for rendering
+  // IMPORTANT: This is for DISPLAY only - don't use for persistence!
+  // - `highlights` state is persisted (user's own)
+  // - `teacherHighlightsForEditor` is read-only from API
+  // The isTeacher flag controls visual styling (dashed border) and interaction (no delete/comment buttons)
+  // See: highlight-extension.ts createHighlightMark() and cm-highlight-teacher CSS class
+  //
+  // LIMITATION: Students cannot comment on teacher highlights.
+  // Teacher highlights are stored in broadcast records that students can only read.
+  // To enable student comments on teacher highlights, we'd need a separate storage
+  // mechanism (e.g., student comments referencing teacher highlight IDs by foreign key).
   const displayHighlights = useMemo(() => {
     const studentHighlights = highlights.map(h => ({ ...h, isTeacher: false }))
     const teacherHighlights = teacherHighlightsForEditor.map(h => ({
@@ -275,6 +317,7 @@ export const CodeEditor = memo(function CodeEditor({
 
   // Comment indicator positions (for highlights with comments, shown even when not hovering)
   const [commentIndicators, setCommentIndicators] = useState<Array<{ id: string; x: number; y: number }>>([])
+  const updateCommentIndicatorsRef = useRef<() => void>(() => {})
 
   // Calculate visibility based on width and detect graphics modules (turtle or matplotlib) or SQL schema
   const currentCode = files[activeFileIndex]?.content || initialCode
@@ -310,7 +353,6 @@ export const CodeEditor = memo(function CodeEditor({
   // This is the source of truth from the markdown and should never change
   const originalInitialCode = useRef(initialCode)
   const hasLoadedData = useRef(false)
-  const hasAppliedInitialHighlights = useRef(false)
 
   // Update original code when initialCode prop changes (markdown was edited)
   useEffect(() => {
@@ -351,31 +393,32 @@ export const CodeEditor = memo(function CodeEditor({
   }, [isLoading, savedData, componentId, pageId, initialCode, isBroadcastMode])
 
   // Track previous broadcast mode to detect mode switches
-  const prevBroadcastModeRef = useRef(isBroadcastMode)
-  const prevTargetingKeyRef = useRef(`${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`)
+  // MODE SWITCHING BEHAVIOR:
+  // When teacher toggles between my-view/class-broadcast/student-view,
+  // we swap the entire highlights array rather than merging.
+  // This keeps the editing experience simple but means:
+  // - Unsaved changes in one mode are lost when switching
+  // - Teacher can't see their personal + broadcast highlights at once
+  // TRADE-OFF: Simplicity over feature richness. Could add "compare" mode later.
+  // Load highlights from appropriate source when data finishes loading
+  // Track which source we've loaded to avoid re-loading on every render,
+  // but reset when page/target changes
+  const loadedForKeyRef = useRef('')
+  const currentKey = `${pageId}-${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`
 
-  // Load highlights from appropriate source when mode changes
   useEffect(() => {
-    const currentTargetingKey = `${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`
-    const modeChanged = prevBroadcastModeRef.current !== isBroadcastMode
-    const targetChanged = prevTargetingKeyRef.current !== currentTargetingKey
+    if (loadedForKeyRef.current === currentKey) return
 
-    if (modeChanged || targetChanged) {
-      prevBroadcastModeRef.current = isBroadcastMode
-      prevTargetingKeyRef.current = currentTargetingKey
+    // Wait for the appropriate hook to finish loading
+    const stillLoading = isBroadcastMode ? broadcastIsLoading : isLoading
+    if (stillLoading) return
 
-      if (isBroadcastMode) {
-        // Switching TO broadcast mode - load broadcast highlights
-        setHighlights(broadcastHighlightsData?.highlights || [])
-      } else {
-        // Switching TO personal mode - load personal highlights
-        setHighlights(savedData?.highlights || [])
-      }
-
-      // Clear highlight refs for new data
-      hasAppliedInitialHighlights.current = false
-    }
-  }, [isBroadcastMode, syncOptions.targetType, syncOptions.targetId, broadcastHighlightsData, savedData])
+    loadedForKeyRef.current = currentKey
+    const sourceHighlights = isBroadcastMode
+      ? (broadcastHighlightsData?.highlights || [])
+      : (savedData?.highlights || [])
+    setHighlights(sourceHighlights)
+  }, [currentKey, isBroadcastMode, isLoading, broadcastIsLoading, broadcastHighlightsData, savedData])
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
 
@@ -407,6 +450,15 @@ export const CodeEditor = memo(function CodeEditor({
 
   // Save data to IndexedDB when anything changes
   // Files changes are debounced via the update listener, settings changes are immediate
+  //
+  // DUAL-WRITE PATTERN (broadcast mode):
+  // When broadcasting, we write to TWO records simultaneously:
+  // 1. code-highlights-{id} (targetType=class|student) - contains only highlights
+  // 2. code-editor-{id} (no targeting) - contains code, settings, AND personal highlights
+  //
+  // This is intentional: personal code/settings shouldn't be overwritten when broadcasting.
+  // COMPLEXITY NOTE: This means savedData?.highlights must be preserved during broadcast saves.
+  // If this gets confusing, consider using a separate state variable for personal highlights.
   useEffect(() => {
     // Only save if pageId is provided (not in fallback mode)
     if (!pageId) return
@@ -497,28 +549,22 @@ export const CodeEditor = memo(function CodeEditor({
 
     const colorToUse = color || highlightColor
 
-    // Add highlight and clear selection in one transaction
+    // Generate ID upfront, add to both CodeMirror and state
+    const id = nanoid()
     view.dispatch({
-      effects: addHighlight.of({ from, to, color: colorToUse }),
+      effects: addHighlight.of({ from, to, color: colorToUse, id }),
       selection: { anchor: to }
     })
 
-    // Extract highlights from CodeMirror and merge with existing metadata
-    const extracted = extractHighlights(view, activeFileIndex)
-    setHighlights(prev => {
-      // Create map of existing highlights for quick lookup
-      const existingMap = new Map(prev.map(h => [h.id, h]))
-      // Merge extracted with existing (preserve authorId, comments)
-      return extracted.map(h => {
-        const existing = existingMap.get(h.id)
-        if (existing) {
-          // Update position but keep metadata
-          return { ...existing, from: h.from, to: h.to }
-        }
-        // New highlight - set authorId
-        return { ...h, authorId: currentAuthorId }
-      })
-    })
+    setHighlights(prev => [...prev, {
+      id,
+      fileIndex: activeFileIndex,
+      from,
+      to,
+      color: colorToUse,
+      createdAt: Date.now(),
+      authorId: currentAuthorId
+    }])
   }, [activeFileIndex, highlightColor, currentAuthorId])
 
   // Handle highlight button click
@@ -614,24 +660,22 @@ export const CodeEditor = memo(function CodeEditor({
       const { from, to } = view.state.selection.main
       if (from === to) return // No selection
 
-      // Apply highlight with current color
+      // Generate ID upfront, add to both CodeMirror and state
+      const id = nanoid()
       view.dispatch({
-        effects: addHighlight.of({ from, to, color: highlightColorRef.current }),
+        effects: addHighlight.of({ from, to, color: highlightColorRef.current, id }),
         selection: { anchor: to }
       })
 
-      // Extract highlights from CodeMirror and merge with existing metadata
-      const extracted = extractHighlights(view, activeFileIndex)
-      setHighlights(prev => {
-        const existingMap = new Map(prev.map(h => [h.id, h]))
-        return extracted.map(h => {
-          const existing = existingMap.get(h.id)
-          if (existing) {
-            return { ...existing, from: h.from, to: h.to }
-          }
-          return { ...h, authorId: currentAuthorId }
-        })
-      })
+      setHighlights(prev => [...prev, {
+        id,
+        fileIndex: activeFileIndex,
+        from,
+        to,
+        color: highlightColorRef.current,
+        createdAt: Date.now(),
+        authorId: currentAuthorId
+      }])
     }
 
     editor.addEventListener('mouseup', handleMouseUp)
@@ -821,13 +865,24 @@ export const CodeEditor = memo(function CodeEditor({
   }, [hoveredHighlightId])
 
   // Update comment indicator positions for highlights with comments
+  // Uses displayHighlights to include both student and teacher highlights
+  // TIMING: Runs after CodeMirror sync effect via requestAnimationFrame to ensure
+  // decorations are rendered in DOM before querying for highlight spans
+  // POSITIONING: Calculates positions relative to the editor container (not viewport)
+  // so indicators can be rendered inline and captured in snaps
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
 
     const updateIndicatorPositions = () => {
-      const highlightsWithComments = highlights.filter(h => h.comments && h.comments.length > 0)
+      // Include both student and teacher highlights with comments
+      const highlightsWithComments = displayHighlights.filter(h => h.comments && h.comments.length > 0)
       const indicators: Array<{ id: string; x: number; y: number }> = []
+
+      // Get wrapper position - indicators are rendered inside wrapperRef, not editorRef
+      const wrapper = wrapperRef.current
+      if (!wrapper) return
+      const wrapperRect = wrapper.getBoundingClientRect()
 
       for (const highlight of highlightsWithComments) {
         // Find all spans for this highlight
@@ -838,10 +893,12 @@ export const CodeEditor = memo(function CodeEditor({
           const firstLineRects = rects.filter(r => Math.abs(r.top - minTop) < 5)
           const maxRight = Math.max(...firstLineRects.map(r => r.right))
 
+          // Position relative to wrapper (where indicators are rendered)
+          // Visual offset handled via CSS transform on the element
           indicators.push({
             id: highlight.id,
-            x: maxRight - 4,
-            y: minTop - 4
+            x: maxRight - wrapperRect.left,
+            y: minTop - wrapperRect.top
           })
         }
       }
@@ -849,8 +906,17 @@ export const CodeEditor = memo(function CodeEditor({
       setCommentIndicators(indicators)
     }
 
-    // Update initially and on scroll
-    updateIndicatorPositions()
+    // Store update function in ref so it can be called from document change listener
+    updateCommentIndicatorsRef.current = updateIndicatorPositions
+
+    // Delay update to allow CodeMirror to render decorations first
+    // Double RAF ensures layout is complete after font size changes
+    let innerRafId: number
+    const rafId = requestAnimationFrame(() => {
+      innerRafId = requestAnimationFrame(() => {
+        updateIndicatorPositions()
+      })
+    })
 
     const scrollContainer = editor.querySelector('.cm-scroller')
     scrollContainer?.addEventListener('scroll', updateIndicatorPositions)
@@ -859,37 +925,52 @@ export const CodeEditor = memo(function CodeEditor({
     window.addEventListener('resize', updateIndicatorPositions)
 
     return () => {
+      cancelAnimationFrame(rafId)
+      cancelAnimationFrame(innerRafId)
       scrollContainer?.removeEventListener('scroll', updateIndicatorPositions)
       window.removeEventListener('resize', updateIndicatorPositions)
     }
-  }, [highlights])
+  }, [displayHighlights, fontSize])
 
-  // Sync highlights from state to CodeMirror when switching files or after initial load
+  // Sync teacher highlights to CodeMirror - wholesale replacement when teacher broadcasts
+  // This is the authoritative source - just replace all teacher highlights with fresh data
   useEffect(() => {
     const view = editorViewRef.current
-    if (!view || highlights.length === 0) return
-
-    // Apply highlights on initial load or when switching files
-    const shouldApply = !hasAppliedInitialHighlights.current || activeFileIndex !== undefined
-    if (!shouldApply) return
+    if (!view) return
 
     const docLength = view.state.doc.length
-
-    // Filter highlights for current file and validate bounds
-    // Use displayHighlights to include both student and teacher highlights
-    const fileHighlights = displayHighlights
+    const teacherFileHighlights = teacherHighlightsForEditor
       .filter(h => h.fileIndex === activeFileIndex)
       .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
-      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id, isTeacher: h.isTeacher }))
+      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
 
-    if (fileHighlights.length > 0) {
-      view.dispatch({
-        effects: setHighlightsEffect.of(fileHighlights)
-      })
-      hasAppliedInitialHighlights.current = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-apply when file changes or highlights are first loaded
-  }, [activeFileIndex, displayHighlights.length])
+    view.dispatch({
+      effects: replaceTeacherHighlights.of(teacherFileHighlights)
+    })
+  }, [activeFileIndex, teacherHighlightsForEditor])
+
+  // Sync student highlights on initial load or file switch
+  // Track what we've synced to avoid redundant dispatches when positions update
+  const studentHighlightsSyncedRef = useRef<string>('')
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (!view) return
+
+    const docLength = view.state.doc.length
+    const studentFileHighlights = highlights
+      .filter(h => h.fileIndex === activeFileIndex)
+      .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
+      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id, isTeacher: false }))
+
+    // Only sync if IDs changed (not just positions) - positions are handled by CodeMirror
+    const syncKey = `${activeFileIndex}:${studentFileHighlights.map(h => h.id).sort().join(',')}`
+    if (studentHighlightsSyncedRef.current === syncKey) return
+    studentHighlightsSyncedRef.current = syncKey
+
+    view.dispatch({
+      effects: setHighlightsEffect.of(studentFileHighlights)
+    })
+  }, [activeFileIndex, highlights])
 
   // Handle splitter dragging (vertical splitter between editor and graphics)
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -1273,28 +1354,37 @@ export const CodeEditor = memo(function CodeEditor({
     extensions.push(...codeHighlighting())
 
     // Sync highlight positions back to React state when document changes
+    // IMPORTANT: Only update positions for STUDENT highlights, not teacher highlights.
+    // Teacher highlights are in CodeMirror but managed separately via teacherHighlightsForEditor.
     extensions.push(
       EditorView.updateListener.of((update) => {
         if (update.docChanged && update.state.field(highlightField).size > 0) {
           // Extract current positions from CodeMirror decorations
           const extracted = extractHighlights(update.view, activeFileIndex)
-          // Merge with existing metadata (authorId, comments)
+          // Only update positions for highlights that already exist in student state
+          // Don't add new ones - those are teacher highlights that should stay separate
           setHighlights(prev => {
-            const existingMap = new Map(prev.map(h => [h.id, h]))
-            // Update positions for existing highlights, preserve metadata
-            const updated = extracted.map(h => {
-              const existing = existingMap.get(h.id)
-              if (existing) {
-                return { ...existing, from: h.from, to: h.to }
+            const extractedMap = new Map(extracted.map(h => [h.id, h]))
+            // Update positions for existing student highlights only
+            const updated = prev.map(h => {
+              const extracted = extractedMap.get(h.id)
+              if (extracted) {
+                return { ...h, from: extracted.from, to: extracted.to }
               }
-              return { ...h, authorId: currentAuthorId }
-            })
+              // Highlight was deleted in CodeMirror, keep in state (will be filtered out)
+              return h
+            }).filter(h => extractedMap.has(h.id)) // Remove deleted highlights
+
             // Check if anything actually changed to avoid unnecessary re-renders
-            const hasChanges = updated.some((h, i) => {
-              const old = prev.find(p => p.id === h.id)
-              return !old || old.from !== h.from || old.to !== h.to
+            const hasChanges = updated.length !== prev.length || updated.some((h, i) => {
+              return prev[i]?.from !== h.from || prev[i]?.to !== h.to
             })
             return hasChanges ? updated : prev
+          })
+
+          // Update comment indicator positions after DOM updates
+          requestAnimationFrame(() => {
+            updateCommentIndicatorsRef.current()
           })
         }
       })
@@ -2000,7 +2090,7 @@ plots
     // The kernel will auto-select based on imports on next run
   }
 
-  // Reset code to original markdown content
+  // Reset code to original markdown content and clear personal highlights
   const resetCode = () => {
     // Reset to the original markdown content
     const originalContent = originalInitialCode.current
@@ -2017,6 +2107,26 @@ plots
           to: editorViewRef.current.state.doc.length,
           insert: originalContent,
         },
+      })
+    }
+
+    // Clear personal highlights and restore teacher highlights
+    setHighlights([])
+    studentHighlightsSyncedRef.current = '' // Reset sync tracker
+
+    // Clear all highlights from CodeMirror and re-apply teacher highlights
+    if (editorViewRef.current) {
+      const docLength = editorViewRef.current.state.doc.length
+      const teacherFileHighlights = teacherHighlightsForEditor
+        .filter(h => h.fileIndex === 0) // Reset always goes to file 0
+        .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
+        .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
+
+      editorViewRef.current.dispatch({
+        effects: [
+          setHighlightsEffect.of([]), // Clear all
+          replaceTeacherHighlights.of(teacherFileHighlights) // Re-add teacher highlights
+        ]
       })
     }
 
@@ -2116,9 +2226,12 @@ plots
                   onMouseDown={handleHighlightButtonMouseDown}
                   onMouseUp={handleHighlightButtonMouseUp}
                   onMouseLeave={handleHighlightButtonMouseLeave}
-                  className={`h-6 w-6 p-0 ${highlighterMode ? 'bg-blue-500/20 text-blue-500' : ''}`}
+                  className="h-6 w-6 p-0"
                   title={highlighterMode ? 'Highlighter mode active (click to deactivate)' : 'Highlight selection (long press for colors)'}
-                  style={{ color: highlighterMode ? undefined : `var(--highlight-${highlightColor})` }}
+                  style={{
+                    color: `var(--highlight-${highlightColor})`,
+                    backgroundColor: highlighterMode ? `var(--highlight-${highlightColor}-bg)` : undefined
+                  }}
                 >
                   <Highlighter className="w-3 h-3" />
                 </Button>
@@ -2328,7 +2441,7 @@ plots
             )}
 
             {/* CodeMirror Editor */}
-            <div ref={editorRef} className={`flex-1 overflow-auto w-full h-full relative ${highlighterMode ? 'cursor-crosshair' : ''}`}>
+            <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative" style={{ cursor: highlighterMode ? highlighterCursor : undefined }}>
               {/* Floating Control Buttons - Bottom Left */}
               <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
                 {runState === RunState.STOPPED ? (
@@ -2764,26 +2877,23 @@ plots
         </div>
       )}
 
-      {/* Persistent Comment Indicators - shown for highlights with comments */}
-      {commentIndicators.length > 0 && typeof document !== 'undefined' && createPortal(
-        <>
-          {commentIndicators
-            .filter(ind => ind.id !== hoveredHighlightId) // Don't show if already showing hover actions
-            .map(indicator => (
-              <div
-                key={indicator.id}
-                className="fixed w-3 h-3 bg-primary rounded-full flex items-center justify-center z-[9998] pointer-events-none"
-                style={{
-                  left: `${indicator.x}px`,
-                  top: `${indicator.y}px`,
-                }}
-              >
-                <MessageSquare className="w-2 h-2 text-primary-foreground" />
-              </div>
-            ))}
-        </>,
-        document.body
-      )}
+      {/* Persistent Comment Indicators - shown for highlights with comments
+          Rendered inline (not portaled) so they get captured in snaps.
+          z-index 10 keeps them above code but below snaps (z-50) and other overlays */}
+      {commentIndicators.length > 0 && commentIndicators
+        .filter(ind => ind.id !== hoveredHighlightId) // Don't show if already showing hover actions
+        .map(indicator => (
+          <div
+            key={indicator.id}
+            className="absolute w-3 h-3 bg-primary rounded-full flex items-center justify-center z-10 -translate-x-1 -translate-y-2 pointer-events-none"
+            style={{
+              left: `${indicator.x}px`,
+              top: `${indicator.y}px`,
+            }}
+          >
+            <MessageSquare className="w-2 h-2 text-primary-foreground" />
+          </div>
+        ))}
 
       {/* Highlight Action Buttons - Portal */}
       {hoveredHighlightId && deleteButtonPosition && !commentingHighlightId && typeof document !== 'undefined' && createPortal(
@@ -2805,7 +2915,7 @@ plots
             }, 50)
           }}
         >
-          {/* Only show action buttons for student's own highlights (not teacher highlights) */}
+          {/* Student's own highlights - show action buttons */}
           {highlights.find(h => h.id === hoveredHighlightId) && (
             <>
               {/* Comment button */}
@@ -2842,6 +2952,21 @@ plots
               )}
             </>
           )}
+          {/* Teacher highlights - show comments read-only (no action buttons) */}
+          {!highlights.find(h => h.id === hoveredHighlightId) && (() => {
+            const teacherHighlight = teacherHighlightsForEditor.find(h => h.id === hoveredHighlightId)
+            if (!teacherHighlight?.comments?.length) return null
+            return (
+              <div className="w-48 p-2 bg-background border border-border rounded shadow-lg text-xs max-h-32 overflow-y-auto space-y-2">
+                <div className="text-muted-foreground/70 text-[10px] uppercase tracking-wide mb-1">Teacher comment</div>
+                {teacherHighlight.comments.map(comment => (
+                  <div key={comment.id} className="text-muted-foreground whitespace-pre-wrap">
+                    {comment.text}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>,
         document.body
       )}

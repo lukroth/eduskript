@@ -105,6 +105,18 @@ export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue'
 
 /**
  * Comment on a code highlight
+ *
+ * MULTI-USER COMMENTS:
+ * Each user can add one comment per highlight. authorId identifies the commenter.
+ * In local-only mode, authorId may be undefined (all comments "belong" to local user).
+ *
+ * LIMITATION: Students cannot comment on teacher highlights.
+ * Comments are stored WITH the highlight record. Teacher highlights live in broadcast
+ * records that students can only read. To enable student comments on teacher highlights,
+ * we'd need a separate storage mechanism (student comments referencing highlight IDs).
+ *
+ * NOTE: If a highlight is deleted, all its comments are lost.
+ * This is intentional - comments are highlight-specific context.
  */
 export interface HighlightComment {
   id: string                // Unique identifier (nanoid)
@@ -115,6 +127,22 @@ export interface HighlightComment {
 
 /**
  * Individual code highlight
+ *
+ * POSITION TRACKING:
+ * `from` and `to` are character offsets in the file content. These are updated
+ * automatically by CodeMirror when the document is edited (see highlight-extension.ts).
+ *
+ * OWNERSHIP MODEL:
+ * - authorId identifies who created the highlight
+ * - In local mode (no server sync), authorId may be undefined
+ * - In broadcast mode, authorId is the teacher's user ID
+ * - Students can only delete their own highlights (authorId === currentUserId)
+ *
+ * BROADCAST vs LOCAL:
+ * Same structure is used for both. The difference is WHERE it's stored:
+ * - Personal: adapter="code-editor-{id}", no targeting
+ * - Broadcast: adapter="code-highlights-{id}", targetType/targetId set
+ * See code-editor/index.tsx for the dual-write pattern.
  */
 export interface CodeHighlight {
   id: string                // Unique identifier (nanoid)
@@ -125,6 +153,7 @@ export interface CodeHighlight {
   createdAt: number         // Timestamp for ordering
   authorId?: string         // User ID who created this (empty in local mode)
   comments?: HighlightComment[]  // Multiple comments from different users
+  isTeacher?: boolean       // Runtime flag set when merging displays (not persisted)
 }
 
 /**
