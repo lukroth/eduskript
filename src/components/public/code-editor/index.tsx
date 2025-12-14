@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, memo } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
@@ -15,9 +15,16 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter } from 'lucide-react'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
-import type { CodeEditorData } from '@/lib/userdata/types'
+import type { CodeEditorData, CodeHighlight, HighlightColor } from '@/lib/userdata/types'
+import {
+  codeHighlighting,
+  addHighlight,
+  removeHighlight,
+  setHighlights as setHighlightsEffect,
+  extractHighlights,
+} from './highlight-extension'
 import {
   RunState,
   OutputLevel,
@@ -154,6 +161,14 @@ export const CodeEditor = memo(function CodeEditor({
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
+  // Highlighter state
+  const [highlighterMode, setHighlighterMode] = useState(false)
+  const [highlightColor, setHighlightColor] = useState<HighlightColor>('yellow')
+  const [showColorPicker, setShowColorPicker] = useState(false)
+  const [highlights, setHighlights] = useState<CodeHighlight[]>([])
+  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null)
+  const [deleteButtonPosition, setDeleteButtonPosition] = useState<{ x: number; y: number } | null>(null)
+
   // Calculate visibility based on width and detect graphics modules (turtle or matplotlib) or SQL schema
   const currentCode = files[activeFileIndex]?.content || initialCode
   const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(currentCode)
@@ -188,6 +203,7 @@ export const CodeEditor = memo(function CodeEditor({
   // This is the source of truth from the markdown and should never change
   const originalInitialCode = useRef(initialCode)
   const hasLoadedData = useRef(false)
+  const hasAppliedInitialHighlights = useRef(false)
 
   // Update original code when initialCode prop changes (markdown was edited)
   useEffect(() => {
@@ -211,6 +227,7 @@ export const CodeEditor = memo(function CodeEditor({
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+        // Don't restore highlights when markdown changed - they'd be at wrong positions
       } else {
         // Markdown unchanged - safe to restore everything
         if (savedData.files) setFiles(savedData.files)
@@ -218,6 +235,7 @@ export const CodeEditor = memo(function CodeEditor({
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+        if (savedData.highlights) setHighlights(savedData.highlights)
       }
     }
   }, [isLoading, savedData, componentId, pageId, initialCode])
@@ -227,6 +245,7 @@ export const CodeEditor = memo(function CodeEditor({
   // Refs
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
+  const createVersionSnapshotRef = useRef<(isManualSave?: boolean) => Promise<void>>(() => Promise.resolve())
   const canvasRef = useRef<HTMLDivElement>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -266,11 +285,12 @@ export const CodeEditor = memo(function CodeEditor({
       fontSize,
       editorWidth,
       canvasTransform,
+      highlights,
     }
 
     // Save immediately (debouncing already happened at the update listener level for content)
     savePersistentData(dataToSave, { immediate: true })
-  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading])
+  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights])
 
   // Helper function to create a version snapshot
   const createVersionSnapshot = useCallback(async (isManualSave = false) => {
@@ -282,6 +302,7 @@ export const CodeEditor = memo(function CodeEditor({
       fontSize,
       editorWidth,
       canvasTransform,
+      highlights,
     }
 
     // Don't create version if content matches initial/default code
@@ -305,7 +326,245 @@ export const CodeEditor = memo(function CodeEditor({
       // Clear highlight after 2 seconds
       setTimeout(() => setHighlightedVersion(null), 2000)
     }
-  }, [pageId, files, activeFileIndex, fontSize, editorWidth, canvasTransform, createVersion, refreshVersions, initialCode])
+  }, [pageId, files, activeFileIndex, fontSize, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
+
+  // Keep ref in sync with callback (avoids dependency in CodeMirror effect)
+  useEffect(() => {
+    createVersionSnapshotRef.current = createVersionSnapshot
+  }, [createVersionSnapshot])
+
+  // Highlight handlers
+  const handleApplyHighlight = useCallback((color?: HighlightColor) => {
+    const view = editorViewRef.current
+    if (!view) return
+
+    const { from, to } = view.state.selection.main
+    if (from === to) return // No selection
+
+    const colorToUse = color || highlightColor
+
+    // Add highlight and clear selection in one transaction
+    view.dispatch({
+      effects: addHighlight.of({ from, to, color: colorToUse }),
+      selection: { anchor: to }
+    })
+
+    // Extract all highlights from CodeMirror and save to state
+    const allHighlights = extractHighlights(view, activeFileIndex)
+    setHighlights(allHighlights)
+  }, [activeFileIndex, highlightColor])
+
+  // Handle highlight button click
+  const handleHighlightButtonClick = useCallback(() => {
+    const view = editorViewRef.current
+    if (!view) return
+
+    const { from, to } = view.state.selection.main
+    if (from !== to) {
+      // Text is selected - highlight it immediately
+      handleApplyHighlight()
+    } else {
+      // No selection - toggle highlighter mode
+      setHighlighterMode(prev => !prev)
+    }
+  }, [handleApplyHighlight])
+
+  // Refs for highlighter mode and highlights (so event handlers can access current state)
+  const highlighterModeRef = useRef(highlighterMode)
+  const highlightColorRef = useRef(highlightColor)
+  const highlightsRef = useRef(highlights)
+
+  // Keep refs in sync
+  useEffect(() => {
+    highlighterModeRef.current = highlighterMode
+  }, [highlighterMode])
+
+  useEffect(() => {
+    highlightColorRef.current = highlightColor
+  }, [highlightColor])
+
+  // Use layoutEffect to sync ref BEFORE other effects run
+  // This prevents race condition where editor effect reads stale ref
+  useLayoutEffect(() => {
+    highlightsRef.current = highlights
+  }, [highlights])
+
+  // Long press state for color picker
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const colorPickerRef = useRef<HTMLDivElement>(null)
+
+  const handleHighlightButtonMouseDown = useCallback(() => {
+    longPressTimerRef.current = setTimeout(() => {
+      setShowColorPicker(true)
+    }, 500) // 500ms for long press
+  }, [])
+
+  const handleHighlightButtonMouseUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleHighlightButtonMouseLeave = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    if (!showColorPicker) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showColorPicker])
+
+  // Auto-highlight on mouseup when in highlighter mode
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const handleMouseUp = () => {
+      if (!highlighterModeRef.current) return
+
+      const view = editorViewRef.current
+      if (!view) return
+
+      const { from, to } = view.state.selection.main
+      if (from === to) return // No selection
+
+      // Apply highlight with current color
+      view.dispatch({
+        effects: addHighlight.of({ from, to, color: highlightColorRef.current }),
+        selection: { anchor: to }
+      })
+
+      // Extract and save highlights
+      const allHighlights = extractHighlights(view, activeFileIndex)
+      setHighlights(allHighlights)
+    }
+
+    editor.addEventListener('mouseup', handleMouseUp)
+    return () => editor.removeEventListener('mouseup', handleMouseUp)
+  }, [activeFileIndex])
+
+  // Handle delete highlight
+  const handleDeleteHighlight = useCallback((highlightId: string) => {
+    const view = editorViewRef.current
+    if (!view) return
+
+    view.dispatch({
+      effects: removeHighlight.of(highlightId)
+    })
+
+    // Update state
+    setHighlights(prev => prev.filter(h => h.id !== highlightId))
+    setHoveredHighlightId(null)
+    setDeleteButtonPosition(null)
+  }, [])
+
+  // Track hover over highlight spans for delete button
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+
+      // Check if we're over a highlight span
+      const highlightSpan = target.closest('[data-highlight-id]') as HTMLElement | null
+
+      if (highlightSpan) {
+        const highlightId = highlightSpan.getAttribute('data-highlight-id')
+        if (highlightId && highlightId !== hoveredHighlightId) {
+          setHoveredHighlightId(highlightId)
+
+          // Find all spans with the same highlight ID
+          // Note: CodeMirror can fragment spans when other decorations (like bracket matching) are applied
+          const allSpans = editor.querySelectorAll(`[data-highlight-id="${highlightId}"]`)
+          if (allSpans.length > 0) {
+            // Get bounding rects of all spans
+            const rects = Array.from(allSpans).map(span => span.getBoundingClientRect())
+
+            // Find the minimum top (first line)
+            const minTop = Math.min(...rects.map(r => r.top))
+
+            // Find spans on the first line (within 5px tolerance for line height variations)
+            const firstLineRects = rects.filter(r => Math.abs(r.top - minTop) < 5)
+
+            // Get the rightmost point on the first line
+            const maxRight = Math.max(...firstLineRects.map(r => r.right))
+
+            // Position the delete button at top-right corner of the first line
+            setDeleteButtonPosition({
+              x: maxRight - 8, // Offset to center on corner
+              y: minTop - 8
+            })
+          }
+        }
+      } else if (hoveredHighlightId) {
+        // Check if we're over the delete button (don't hide it if hovering the button)
+        const deleteBtn = (e.target as HTMLElement).closest('.highlight-delete-btn')
+        if (!deleteBtn) {
+          setHoveredHighlightId(null)
+          setDeleteButtonPosition(null)
+        }
+      }
+    }
+
+    const handleMouseLeave = () => {
+      // Small delay to allow moving to delete button
+      setTimeout(() => {
+        const deleteBtn = document.querySelector('.highlight-delete-btn:hover')
+        if (!deleteBtn) {
+          setHoveredHighlightId(null)
+          setDeleteButtonPosition(null)
+        }
+      }, 50)
+    }
+
+    editor.addEventListener('mousemove', handleMouseMove)
+    editor.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      editor.removeEventListener('mousemove', handleMouseMove)
+      editor.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [hoveredHighlightId])
+
+  // Sync highlights from state to CodeMirror when switching files or after initial load
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (!view || highlights.length === 0) return
+
+    // Apply highlights on initial load or when switching files
+    const shouldApply = !hasAppliedInitialHighlights.current || activeFileIndex !== undefined
+    if (!shouldApply) return
+
+    const docLength = view.state.doc.length
+
+    // Filter highlights for current file and validate bounds
+    const fileHighlights = highlights
+      .filter(h => h.fileIndex === activeFileIndex)
+      .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
+      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
+
+    if (fileHighlights.length > 0) {
+      view.dispatch({
+        effects: setHighlightsEffect.of(fileHighlights)
+      })
+      hasAppliedInitialHighlights.current = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-apply when file changes or highlights are first loaded
+  }, [activeFileIndex, highlights.length])
 
   // Handle splitter dragging (vertical splitter between editor and graphics)
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -685,6 +944,9 @@ export const CodeEditor = memo(function CodeEditor({
     // Add VSCode theme (light or dark)
     extensions.push(isDark ? vsCodeDark : vsCodeLight)
 
+    // Add code highlighting extension
+    extensions.push(...codeHighlighting())
+
     // Add update listener for auto-save
     extensions.push(
       EditorView.updateListener.of((update) => {
@@ -699,7 +961,7 @@ export const CodeEditor = memo(function CodeEditor({
 
             // Create version every 5 keystrokes
             if (keystrokeCountRef.current >= 5) {
-              createVersionSnapshot()
+              createVersionSnapshotRef.current()
             }
 
             // Clear existing timeout
@@ -713,6 +975,7 @@ export const CodeEditor = memo(function CodeEditor({
             }, 2000)
           }
         }
+
       })
     )
 
@@ -733,6 +996,29 @@ export const CodeEditor = memo(function CodeEditor({
 
     editorViewRef.current = view
 
+    // Re-apply highlights after editor creation
+    const currentHighlights = highlightsRef.current
+    if (currentHighlights.length > 0) {
+      const docLength = view.state.doc.length
+
+      // Filter highlights for current file and validate bounds
+      const fileHighlights = currentHighlights
+        .filter(h => h.fileIndex === activeFileIndex)
+        .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
+        .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
+
+      if (fileHighlights.length > 0) {
+        // Defer dispatch to ensure view is fully initialized
+        requestAnimationFrame(() => {
+          if (editorViewRef.current === view) {
+            view.dispatch({
+              effects: setHighlightsEffect.of(fileHighlights)
+            })
+          }
+        })
+      }
+    }
+
     return () => {
       if (editorViewRef.current) {
         editorViewRef.current.destroy()
@@ -743,7 +1029,8 @@ export const CodeEditor = memo(function CodeEditor({
         clearTimeout(contentSaveTimeoutRef.current)
       }
     }
-  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent, activeFileIndex, createVersionSnapshot, files])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- createVersionSnapshot excluded to prevent editor recreation on highlight changes
+  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent, activeFileIndex, files])
 
   // Attach non-passive wheel event listener to prevent page scroll
   useEffect(() => {
@@ -1464,8 +1751,55 @@ plots
               display: showEditor ? 'flex' : 'none'
             }}
           >
-            {/* Floating Toolbar - Top Right (zoom controls + kernel indicator) */}
+            {/* Floating Toolbar - Top Right (highlighter + zoom controls + kernel indicator) */}
             <div ref={kernelMenuRef} className="absolute top-1 right-1 z-30 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm rounded px-1 py-0.5">
+              {/* Highlighter Button */}
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleHighlightButtonClick}
+                  onMouseDown={handleHighlightButtonMouseDown}
+                  onMouseUp={handleHighlightButtonMouseUp}
+                  onMouseLeave={handleHighlightButtonMouseLeave}
+                  className={`h-6 w-6 p-0 ${highlighterMode ? 'bg-blue-500/20 text-blue-500' : ''}`}
+                  title={highlighterMode ? 'Highlighter mode active (click to deactivate)' : 'Highlight selection (long press for colors)'}
+                  style={{ color: highlighterMode ? undefined : `var(--highlight-${highlightColor})` }}
+                >
+                  <Highlighter className="w-3 h-3" />
+                </Button>
+
+                {/* Color Picker Dropdown */}
+                {showColorPicker && (
+                  <div
+                    ref={colorPickerRef}
+                    className="absolute top-full left-0 mt-1 p-1 bg-popover border border-border rounded-lg shadow-lg flex gap-1 z-50"
+                  >
+                    {(['red', 'yellow', 'green', 'blue'] as const).map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => {
+                          setHighlightColor(color)
+                          setShowColorPicker(false)
+                        }}
+                        className={`w-6 h-6 rounded transition-all hover:scale-110 ${
+                          highlightColor === color ? 'ring-2 ring-primary ring-offset-1' : ''
+                        }`}
+                        style={{
+                          backgroundColor: color === 'red' ? 'rgba(239, 68, 68, 0.7)'
+                            : color === 'yellow' ? 'rgba(234, 179, 8, 0.7)'
+                            : color === 'green' ? 'rgba(34, 197, 94, 0.7)'
+                            : 'rgba(59, 130, 246, 0.7)'
+                        }}
+                        title={`${color.charAt(0).toUpperCase() + color.slice(1)} highlight`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
               {/* Zoom Controls */}
               <Button
                 size="sm"
@@ -1640,7 +1974,7 @@ plots
             )}
 
             {/* CodeMirror Editor */}
-            <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative">
+            <div ref={editorRef} className={`flex-1 overflow-auto w-full h-full relative ${highlighterMode ? 'cursor-crosshair' : ''}`}>
               {/* Floating Control Buttons - Bottom Left */}
               <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
                 {runState === RunState.STOPPED ? (
@@ -2074,6 +2408,32 @@ plots
             <path d="M9 1v8H1" stroke="currentColor" strokeWidth="1.5" fill="none" />
           </svg>
         </div>
+      )}
+
+      {/* Highlight Delete Button - Portal */}
+      {hoveredHighlightId && deleteButtonPosition && typeof document !== 'undefined' && createPortal(
+        <button
+          className="highlight-delete-btn fixed w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors z-[9999] cursor-pointer"
+          style={{
+            left: `${deleteButtonPosition.x}px`,
+            top: `${deleteButtonPosition.y}px`,
+          }}
+          onClick={() => handleDeleteHighlight(hoveredHighlightId)}
+          onMouseLeave={() => {
+            // Check if we're back over a highlight, otherwise hide
+            setTimeout(() => {
+              const highlightEl = document.querySelector('[data-highlight-id]:hover')
+              if (!highlightEl) {
+                setHoveredHighlightId(null)
+                setDeleteButtonPosition(null)
+              }
+            }, 50)
+          }}
+          title="Remove highlight"
+        >
+          <X className="w-3 h-3" />
+        </button>,
+        document.body
       )}
     </div>
   )

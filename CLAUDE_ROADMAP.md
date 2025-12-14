@@ -9,12 +9,17 @@
 
 ## 🎯 Priority List
 
-- fade in of annotations without flickering
+**code editor**
+- highlight functionality for editor, so i can highlight a certain codeblock.
+- share code highlights using our feedback system
+- share code comments using our feedback system
 
 **LMS Features:**
-- **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component.
-- **Randomized questions** maybe through special skripts?
-- **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
+- **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component with live answers.
+- **Student Progress Tracking** - Gradebook interface, view progress, grade submissions. <Question> component would probably have to save question to db to quickly query questions.
+- **Randomized question / exercise pages** maybe through special skripts that serve their pages randomized per day / week?
+- **pages that are exams** and can be unlocked for a certain class
+- **grading with points**. teachers can use annotation feedback system, give points per question.
 
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration

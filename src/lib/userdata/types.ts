@@ -55,6 +55,7 @@ export interface CodeEditorData {
     y: number
     scale: number
   }
+  highlights?: CodeHighlight[]  // Code highlights (per-file)
 }
 
 /**
@@ -95,6 +96,23 @@ export interface TelemetryData {
 export interface PythonFile {
   name: string
   content: string
+}
+
+/**
+ * Code highlight color options
+ */
+export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue'
+
+/**
+ * Individual code highlight
+ */
+export interface CodeHighlight {
+  id: string                // Unique identifier (nanoid)
+  fileIndex: number         // Which file in multi-file editor
+  from: number              // Start character offset
+  to: number                // End character offset
+  color: HighlightColor     // Highlight color
+  createdAt: number         // Timestamp for ordering
 }
 
 /**
