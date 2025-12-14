@@ -22,7 +22,7 @@ export const addHighlight = StateEffect.define<{
 }>()
 export const removeHighlight = StateEffect.define<string>()  // by id
 export const removeHighlightsInRange = StateEffect.define<{ from: number; to: number }>()
-export const setHighlights = StateEffect.define<Array<{ from: number; to: number; color: HighlightColor; id: string }>>()
+export const setHighlights = StateEffect.define<Array<{ from: number; to: number; color: HighlightColor; id: string; isTeacher?: boolean }>>()
 export const clearHighlights = StateEffect.define<void>()
 
 // Color -> CSS class mapping
@@ -91,7 +91,7 @@ export const highlightField = StateField.define<DecorationSet>({
           .filter(h => h.from < tr.state.doc.length && h.to <= tr.state.doc.length && h.to > h.from)
           .map(h => {
             highlightMetaMap.set(h.id, { id: h.id, color: h.color, from: h.from, to: h.to })
-            return createHighlightMark(h.color, h.id).range(h.from, h.to)
+            return createHighlightMark(h.color, h.id, h.isTeacher).range(h.from, h.to)
           })
         decorations = Decoration.set(marks, true)
       }

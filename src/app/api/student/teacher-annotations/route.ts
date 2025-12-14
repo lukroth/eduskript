@@ -6,7 +6,7 @@
  * - Class broadcasts (where student is enrolled)
  * - Individual feedback (targeted at this student)
  *
- * Returns both annotations and snaps for each broadcast type.
+ * Returns annotations, snaps, and code highlights for each broadcast type.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -78,6 +78,22 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch class code highlights broadcasts (adapter pattern: code-highlights-{id})
+    const classCodeHighlights = await prisma.userData.findMany({
+      where: {
+        targetType: 'class',
+        targetId: { in: classIds },
+        adapter: { startsWith: 'code-highlights-' },
+        itemId: pageId,
+      },
+      select: {
+        targetId: true,
+        adapter: true,
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Map class annotations with class info, filtering out empty/cleared annotations
     const classAnnotationsWithInfo = classAnnotations
       .filter(annotation => {
@@ -112,6 +128,25 @@ export async function GET(request: NextRequest) {
         }
       })
 
+    // Map class code highlights with class info, filtering out empty highlight arrays
+    const classCodeHighlightsWithInfo = classCodeHighlights
+      .filter(record => {
+        const data = record.data as { highlights?: unknown[] } | null
+        return data?.highlights && data.highlights.length > 0
+      })
+      .map(record => {
+        const membership = memberships.find(m => m.classId === record.targetId)
+        // Extract editor ID from adapter name (e.g., "code-highlights-code-editor" -> "code-editor")
+        const editorId = record.adapter.replace('code-highlights-', '')
+        return {
+          classId: record.targetId,
+          className: membership?.class.name ?? 'Unknown Class',
+          editorId,
+          data: record.data,
+          updatedAt: record.updatedAt.getTime(),
+        }
+      })
+
     // Fetch individual feedback targeted at this student
     const individualFeedback = await prisma.userData.findFirst({
       where: {
@@ -140,6 +175,21 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch individual code highlight feedback targeted at this student
+    const individualCodeHighlights = await prisma.userData.findMany({
+      where: {
+        targetType: 'student',
+        targetId: userId,
+        adapter: { startsWith: 'code-highlights-' },
+        itemId: pageId,
+      },
+      select: {
+        adapter: true,
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Filter out empty individual feedback (cleared by teacher)
     // Check for both empty string AND empty JSON array
     const feedbackData = individualFeedback?.data as { canvasData?: string } | null
@@ -148,6 +198,21 @@ export async function GET(request: NextRequest) {
     // Filter out empty individual snap feedback
     const snapFeedbackData = individualSnapFeedback?.data as { snaps?: unknown[] } | null
     const hasValidSnapFeedback = snapFeedbackData?.snaps && snapFeedbackData.snaps.length > 0
+
+    // Filter and map individual code highlights feedback
+    const individualCodeHighlightsWithInfo = individualCodeHighlights
+      .filter(record => {
+        const data = record.data as { highlights?: unknown[] } | null
+        return data?.highlights && data.highlights.length > 0
+      })
+      .map(record => {
+        const editorId = record.adapter.replace('code-highlights-', '')
+        return {
+          editorId,
+          data: record.data,
+          updatedAt: record.updatedAt.getTime(),
+        }
+      })
 
     // Debug: log raw data from database before filtering
     console.log('[student/teacher-annotations] Raw class data from DB:', classAnnotations.map(a => ({
@@ -159,8 +224,10 @@ export async function GET(request: NextRequest) {
     console.log('[student/teacher-annotations] Returning:', {
       classAnnotationsCount: classAnnotationsWithInfo.length,
       classSnapsCount: classSnapsWithInfo.length,
+      classCodeHighlightsCount: classCodeHighlightsWithInfo.length,
       hasIndividualFeedback: !!(individualFeedback && hasValidFeedback),
       hasIndividualSnapFeedback: hasValidSnapFeedback,
+      individualCodeHighlightsCount: individualCodeHighlightsWithInfo.length,
       pageId
     })
 
@@ -169,6 +236,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       classAnnotations: classAnnotationsWithInfo,
       classSnaps: classSnapsWithInfo,
+      classCodeHighlights: classCodeHighlightsWithInfo,
       individualFeedback: individualFeedback && hasValidFeedback
         ? {
             data: individualFeedback.data,
@@ -181,6 +249,7 @@ export async function GET(request: NextRequest) {
             updatedAt: individualSnapFeedback.updatedAt.getTime(),
           }
         : null,
+      individualCodeHighlights: individualCodeHighlightsWithInfo,
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

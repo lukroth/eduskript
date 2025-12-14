@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo, useMemo } from 'react'
 import { nanoid } from 'nanoid'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
@@ -18,7 +18,16 @@ import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
 import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare } from 'lucide-react'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
+import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/provider'
+import { useTeacherClass } from '@/contexts/teacher-class-context'
+import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
+import { useSession } from 'next-auth/react'
 import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment } from '@/lib/userdata/types'
+
+/** Data structure for broadcast highlights (separate from personal code data) */
+interface BroadcastHighlightsData {
+  highlights: CodeHighlight[]
+}
 import {
   codeHighlighting,
   addHighlight,
@@ -62,6 +71,8 @@ export const CodeEditor = memo(function CodeEditor({
   singleFile = false
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
+  const { data: session } = useSession()
+  const { selectedClass, selectedStudent, viewMode, isTeacher } = useTeacherClass()
   const [mounted, setMounted] = useState(false)
   const [runState, setRunState] = useState<RunState>(RunState.STOPPED)
   const [output, setOutput] = useState<OutputEntry[]>([])
@@ -69,11 +80,83 @@ export const CodeEditor = memo(function CodeEditor({
 
   // User data persistence - only if pageId is provided
   const componentId = `code-editor-${id}`
+  const highlightsComponentId = `code-highlights-${id}` // Separate adapter for broadcast highlights
   const { data: savedData, updateData: savePersistentData, isLoading } = useUserData<CodeEditorData>(
     pageId || 'no-page', // Fallback if no pageId
     componentId,
     null
   )
+
+  // Compute targeting options for broadcast highlights (same pattern as annotation-layer)
+  const syncOptions: SyncedUserDataOptions = useMemo(() => {
+    if (!isTeacher) return {}
+
+    if (viewMode === 'class-broadcast' && selectedClass) {
+      return { targetType: 'class' as const, targetId: selectedClass.id }
+    }
+    if (viewMode === 'student-view' && selectedStudent) {
+      return { targetType: 'student' as const, targetId: selectedStudent.id }
+    }
+    return {} // my-view: personal highlights (no targeting)
+  }, [isTeacher, viewMode, selectedClass, selectedStudent])
+
+  // Whether we're in broadcast mode (targeting is set)
+  const isBroadcastMode = Boolean(syncOptions.targetType && syncOptions.targetId)
+
+  // Broadcast highlights hook - only used when teacher is broadcasting
+  // This stores ONLY highlights (not code/settings) for the targeted audience
+  const { data: broadcastHighlightsData, updateData: updateBroadcastHighlights } = useSyncedUserData<BroadcastHighlightsData>(
+    isBroadcastMode && pageId ? pageId : '',
+    highlightsComponentId,
+    null,
+    syncOptions
+  )
+
+  // Current user's author ID for highlights/comments ownership
+  const currentAuthorId: string | undefined = session?.user?.id
+
+  // For students: receive teacher broadcasts (code highlights)
+  const isStudent = session?.user?.accountType === 'student'
+  const {
+    classCodeHighlights: teacherClassHighlights,
+    individualCodeHighlights: teacherIndividualHighlights,
+  } = useTeacherBroadcast(isStudent && pageId ? pageId : '')
+
+  // Get teacher highlights for THIS specific code editor (by editorId)
+  const teacherHighlightsForEditor = useMemo(() => {
+    if (!isStudent) return []
+
+    const highlights: CodeHighlight[] = []
+
+    // Class broadcasts (from enrolled classes)
+    for (const classHighlight of teacherClassHighlights) {
+      if (classHighlight.editorId === id) {
+        const data = classHighlight.data as BroadcastHighlightsData | null
+        if (data?.highlights) {
+          // Mark as teacher highlights for visual distinction
+          highlights.push(...data.highlights.map(h => ({
+            ...h,
+            isTeacherHighlight: true,
+          } as CodeHighlight & { isTeacherHighlight: boolean })))
+        }
+      }
+    }
+
+    // Individual feedback (from teacher to this student)
+    for (const individualHighlight of teacherIndividualHighlights) {
+      if (individualHighlight.editorId === id) {
+        const data = individualHighlight.data as BroadcastHighlightsData | null
+        if (data?.highlights) {
+          highlights.push(...data.highlights.map(h => ({
+            ...h,
+            isTeacherHighlight: true,
+          } as CodeHighlight & { isTeacherHighlight: boolean })))
+        }
+      }
+    }
+
+    return highlights
+  }, [isStudent, teacherClassHighlights, teacherIndividualHighlights, id])
 
   // Version history hooks
   const createVersion = useCreateVersion<CodeEditorData>(pageId || 'no-page', componentId)
@@ -168,6 +251,18 @@ export const CodeEditor = memo(function CodeEditor({
   const [highlightColor, setHighlightColor] = useState<HighlightColor>('yellow')
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [highlights, setHighlights] = useState<CodeHighlight[]>([])
+
+  // Combine student highlights with teacher highlights for display
+  // Teacher highlights are read-only and shown with visual distinction
+  const displayHighlights = useMemo(() => {
+    const studentHighlights = highlights.map(h => ({ ...h, isTeacher: false }))
+    const teacherHighlights = teacherHighlightsForEditor.map(h => ({
+      ...h,
+      isTeacher: true as const
+    }))
+    return [...studentHighlights, ...teacherHighlights]
+  }, [highlights, teacherHighlightsForEditor])
+
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null)
   const [deleteButtonPosition, setDeleteButtonPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -247,10 +342,40 @@ export const CodeEditor = memo(function CodeEditor({
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
-        if (savedData.highlights) setHighlights(savedData.highlights)
+        // Only load personal highlights if NOT in broadcast mode
+        if (savedData.highlights && !isBroadcastMode) {
+          setHighlights(savedData.highlights)
+        }
       }
     }
-  }, [isLoading, savedData, componentId, pageId, initialCode])
+  }, [isLoading, savedData, componentId, pageId, initialCode, isBroadcastMode])
+
+  // Track previous broadcast mode to detect mode switches
+  const prevBroadcastModeRef = useRef(isBroadcastMode)
+  const prevTargetingKeyRef = useRef(`${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`)
+
+  // Load highlights from appropriate source when mode changes
+  useEffect(() => {
+    const currentTargetingKey = `${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`
+    const modeChanged = prevBroadcastModeRef.current !== isBroadcastMode
+    const targetChanged = prevTargetingKeyRef.current !== currentTargetingKey
+
+    if (modeChanged || targetChanged) {
+      prevBroadcastModeRef.current = isBroadcastMode
+      prevTargetingKeyRef.current = currentTargetingKey
+
+      if (isBroadcastMode) {
+        // Switching TO broadcast mode - load broadcast highlights
+        setHighlights(broadcastHighlightsData?.highlights || [])
+      } else {
+        // Switching TO personal mode - load personal highlights
+        setHighlights(savedData?.highlights || [])
+      }
+
+      // Clear highlight refs for new data
+      hasAppliedInitialHighlights.current = false
+    }
+  }, [isBroadcastMode, syncOptions.targetType, syncOptions.targetId, broadcastHighlightsData, savedData])
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
 
@@ -291,18 +416,35 @@ export const CodeEditor = memo(function CodeEditor({
       return
     }
 
-    const dataToSave: CodeEditorData = {
-      files,
-      activeFileIndex,
-      fontSize,
-      editorWidth,
-      canvasTransform,
-      highlights,
-    }
+    // In broadcast mode: save highlights to broadcast record, personal data keeps other settings
+    // In personal mode: save everything to personal record
+    if (isBroadcastMode) {
+      // Save highlights to broadcast record
+      updateBroadcastHighlights({ highlights }, { immediate: true })
 
-    // Save immediately (debouncing already happened at the update listener level for content)
-    savePersistentData(dataToSave, { immediate: true })
-  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights])
+      // Save personal data WITHOUT highlights (keep them separate)
+      const personalData: CodeEditorData = {
+        files,
+        activeFileIndex,
+        fontSize,
+        editorWidth,
+        canvasTransform,
+        highlights: savedData?.highlights || [], // Preserve personal highlights
+      }
+      savePersistentData(personalData, { immediate: true })
+    } else {
+      // Personal mode: save everything including highlights
+      const dataToSave: CodeEditorData = {
+        files,
+        activeFileIndex,
+        fontSize,
+        editorWidth,
+        canvasTransform,
+        highlights,
+      }
+      savePersistentData(dataToSave, { immediate: true })
+    }
+  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights, isBroadcastMode, updateBroadcastHighlights, savedData?.highlights])
 
   // Helper function to create a version snapshot
   const createVersionSnapshot = useCallback(async (isManualSave = false) => {
@@ -344,11 +486,6 @@ export const CodeEditor = memo(function CodeEditor({
   useEffect(() => {
     createVersionSnapshotRef.current = createVersionSnapshot
   }, [createVersionSnapshot])
-
-  // Current user's author ID for highlights/comments
-  // In local mode, this is undefined (single user)
-  // When broadcasting, this will be the current user's ID from context
-  const currentAuthorId: string | undefined = undefined // TODO: get from user context when broadcasting
 
   // Highlight handlers
   const handleApplyHighlight = useCallback((color?: HighlightColor) => {
@@ -403,6 +540,7 @@ export const CodeEditor = memo(function CodeEditor({
   const highlighterModeRef = useRef(highlighterMode)
   const highlightColorRef = useRef(highlightColor)
   const highlightsRef = useRef(highlights)
+  const displayHighlightsRef = useRef(displayHighlights)
 
   // Keep refs in sync
   useEffect(() => {
@@ -418,6 +556,11 @@ export const CodeEditor = memo(function CodeEditor({
   useLayoutEffect(() => {
     highlightsRef.current = highlights
   }, [highlights])
+
+  // Keep display highlights ref in sync
+  useLayoutEffect(() => {
+    displayHighlightsRef.current = displayHighlights
+  }, [displayHighlights])
 
   // Long press state for color picker
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -733,10 +876,11 @@ export const CodeEditor = memo(function CodeEditor({
     const docLength = view.state.doc.length
 
     // Filter highlights for current file and validate bounds
-    const fileHighlights = highlights
+    // Use displayHighlights to include both student and teacher highlights
+    const fileHighlights = displayHighlights
       .filter(h => h.fileIndex === activeFileIndex)
       .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
-      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
+      .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id, isTeacher: h.isTeacher }))
 
     if (fileHighlights.length > 0) {
       view.dispatch({
@@ -745,7 +889,7 @@ export const CodeEditor = memo(function CodeEditor({
       hasAppliedInitialHighlights.current = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-apply when file changes or highlights are first loaded
-  }, [activeFileIndex, highlights.length])
+  }, [activeFileIndex, displayHighlights.length])
 
   // Handle splitter dragging (vertical splitter between editor and graphics)
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -1206,7 +1350,8 @@ export const CodeEditor = memo(function CodeEditor({
     editorViewRef.current = view
 
     // Re-apply highlights after editor creation
-    const currentHighlights = highlightsRef.current
+    // Use displayHighlightsRef to include both student and teacher highlights
+    const currentHighlights = displayHighlightsRef.current
     if (currentHighlights.length > 0) {
       const docLength = view.state.doc.length
 
@@ -1214,7 +1359,7 @@ export const CodeEditor = memo(function CodeEditor({
       const fileHighlights = currentHighlights
         .filter(h => h.fileIndex === activeFileIndex)
         .filter(h => h.from >= 0 && h.to >= 0 && h.from < docLength && h.to <= docLength && h.to > h.from)
-        .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id }))
+        .map(h => ({ from: h.from, to: h.to, color: h.color, id: h.id, isTeacher: h.isTeacher }))
 
       if (fileHighlights.length > 0) {
         // Defer dispatch to ensure view is fully initialized
@@ -2660,37 +2805,42 @@ plots
             }, 50)
           }}
         >
-          {/* Comment button */}
-          <button
-            className="relative w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-            onClick={() => handleOpenComment(hoveredHighlightId)}
-            title={highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ? "Edit comment" : "Add comment"}
-          >
-            <MessageSquare className="w-3 h-3" />
-            {/* Indicator dot if has comments */}
-            {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
-            )}
-          </button>
-          {/* Delete button - only show for your own highlights */}
-          {highlights.find(h => h.id === hoveredHighlightId)?.authorId === currentAuthorId && (
-            <button
-              className="w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              onClick={() => handleDeleteHighlight(hoveredHighlightId)}
-              title="Remove highlight"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-          {/* Comments preview tooltip */}
-          {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
-            <div className="absolute top-6 right-0 w-48 p-2 bg-background border border-border rounded shadow-lg text-xs max-h-32 overflow-y-auto space-y-2">
-              {highlights.find(h => h.id === hoveredHighlightId)?.comments?.map(comment => (
-                <div key={comment.id} className="text-muted-foreground whitespace-pre-wrap">
-                  {comment.text}
+          {/* Only show action buttons for student's own highlights (not teacher highlights) */}
+          {highlights.find(h => h.id === hoveredHighlightId) && (
+            <>
+              {/* Comment button */}
+              <button
+                className="relative w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                onClick={() => handleOpenComment(hoveredHighlightId)}
+                title={highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ? "Edit comment" : "Add comment"}
+              >
+                <MessageSquare className="w-3 h-3" />
+                {/* Indicator dot if has comments */}
+                {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
+                )}
+              </button>
+              {/* Delete button - only show for your own highlights */}
+              {highlights.find(h => h.id === hoveredHighlightId)?.authorId === currentAuthorId && (
+                <button
+                  className="w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  onClick={() => handleDeleteHighlight(hoveredHighlightId)}
+                title="Remove highlight"
+              >
+                <X className="w-3 h-3" />
+              </button>
+              )}
+              {/* Comments preview tooltip */}
+              {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
+                <div className="absolute top-6 right-0 w-48 p-2 bg-background border border-border rounded shadow-lg text-xs max-h-32 overflow-y-auto space-y-2">
+                  {highlights.find(h => h.id === hoveredHighlightId)?.comments?.map(comment => (
+                    <div key={comment.id} className="text-muted-foreground whitespace-pre-wrap">
+                      {comment.text}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>,
         document.body

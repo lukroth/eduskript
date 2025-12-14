@@ -25,7 +25,21 @@ export interface TeacherClassSnaps {
   updatedAt: number
 }
 
+export interface TeacherClassCodeHighlights {
+  classId: string
+  className: string
+  editorId: string
+  data: unknown
+  updatedAt: number
+}
+
 export interface TeacherIndividualFeedback {
+  data: unknown
+  updatedAt: number
+}
+
+export interface TeacherIndividualCodeHighlights {
+  editorId: string
   data: unknown
   updatedAt: number
 }
@@ -33,8 +47,10 @@ export interface TeacherIndividualFeedback {
 export interface TeacherBroadcastData {
   classAnnotations: TeacherClassAnnotation[]
   classSnaps: TeacherClassSnaps[]
+  classCodeHighlights: TeacherClassCodeHighlights[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
+  individualCodeHighlights: TeacherIndividualCodeHighlights[]
 }
 
 /**
@@ -47,8 +63,10 @@ export function useTeacherBroadcast(pageId: string) {
   const { status } = useSession()
   const [classAnnotations, setClassAnnotations] = useState<TeacherClassAnnotation[]>([])
   const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
+  const [classCodeHighlights, setClassCodeHighlights] = useState<TeacherClassCodeHighlights[]>([])
   const [individualFeedback, setIndividualFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualSnapFeedback, setIndividualSnapFeedback] = useState<TeacherIndividualFeedback | null>(null)
+  const [individualCodeHighlights, setIndividualCodeHighlights] = useState<TeacherIndividualCodeHighlights[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -76,13 +94,17 @@ export function useTeacherBroadcast(pageId: string) {
       console.log('[useTeacherBroadcast] Fetched data:', {
         classAnnotationsCount: data.classAnnotations?.length ?? 0,
         classSnapsCount: data.classSnaps?.length ?? 0,
+        classCodeHighlightsCount: data.classCodeHighlights?.length ?? 0,
         hasIndividualFeedback: !!data.individualFeedback,
-        hasIndividualSnapFeedback: !!data.individualSnapFeedback
+        hasIndividualSnapFeedback: !!data.individualSnapFeedback,
+        individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0
       })
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
+      setClassCodeHighlights(data.classCodeHighlights || [])
       setIndividualFeedback(data.individualFeedback || null)
       setIndividualSnapFeedback(data.individualSnapFeedback || null)
+      setIndividualCodeHighlights(data.individualCodeHighlights || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teacher annotations')
     } finally {
@@ -123,8 +145,10 @@ export function useTeacherBroadcast(pageId: string) {
   return {
     classAnnotations,
     classSnaps,
+    classCodeHighlights,
     individualFeedback,
     individualSnapFeedback,
+    individualCodeHighlights,
     isLoading,
     error,
     refetch: fetchAnnotations,
