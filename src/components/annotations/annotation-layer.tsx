@@ -33,7 +33,7 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   pageHeight,
   headingPositions,
   zoom,
-  zIndex = 8,
+  zIndex = 38, // Below main canvas (40), above code editor buttons (z-30)
   className = ''
 }: {
   canvasData: string
@@ -2249,7 +2249,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             // CRITICAL: When pen is actively drawing, disable touch actions to prevent scroll
             // When pen is not drawing, allow touch scrolling
             touchAction: penActive ? 'none' : 'auto',
-            zIndex: 10,
+            zIndex: 40, // Above code editor buttons (z-30), below snap overlay (z-10000)
             // Hide when my annotations visibility is toggled off
             opacity: activeLayerVisible ? 1 : 0,
             transition: 'opacity 0.15s ease-in-out'
@@ -2303,7 +2303,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   bottom: 0,
                   height: pageHeight,
                   pointerEvents: 'none',
-                  zIndex: 7, // Below all other layers
+                  zIndex: 37, // Below main canvas (40), above code editor buttons (z-30)
                   opacity: 0.5,
                 }}
               >
@@ -2337,7 +2337,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   bottom: 0,
                   height: pageHeight,
                   pointerEvents: 'none',
-                  zIndex: 7, // Below active layer
+                  zIndex: 37, // Below main canvas (40), above code editor buttons (z-30)
                   opacity: 0.5,
                 }}
               >
@@ -2372,7 +2372,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   bottom: 0,
                   height: pageHeight,
                   pointerEvents: 'none',
-                  zIndex: 7, // Below active layer
+                  zIndex: 37, // Below main canvas (40), above code editor buttons (z-30)
                   opacity: 0.5,
                 }}
               >
@@ -2415,7 +2415,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                     pageHeight={pageHeight}
                     headingPositions={headingPositions}
                     zoom={zoom}
-                    zIndex={8}
                   />,
                   paperElement
                 )}
@@ -2443,7 +2442,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                 pageHeight={pageHeight}
                 headingPositions={headingPositions}
                 zoom={zoom}
-                zIndex={9}
+                zIndex={39} // Below main canvas (40), above code editor buttons (z-30)
               />,
               paperElement
             )
@@ -2471,7 +2470,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   pageHeight={pageHeight}
                   headingPositions={headingPositions}
                   zoom={zoom}
-                  zIndex={6}
+                  zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
                 />,
                 paperElement
               )
@@ -2501,7 +2500,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                       pageHeight={pageHeight}
                       headingPositions={headingPositions}
                       zoom={zoom}
-                      zIndex={6}
+                      zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
                     />,
                     paperElement
                   )}

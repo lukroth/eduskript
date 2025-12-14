@@ -9,7 +9,10 @@
 
 ## 🎯 Priority List
 
+- integrate code quality review
+
 **LMS Features:**
+- **SEB** integrate safe exam browser and create exams using eduskript
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component with live answers.
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions. <Question> component would probably have to save question to db to quickly query questions.
 - **Randomized question / exercise pages** maybe through special skripts that serve their pages randomized per day / week?
