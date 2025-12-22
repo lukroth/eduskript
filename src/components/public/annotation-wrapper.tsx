@@ -19,6 +19,8 @@ interface AnnotationWrapperProps {
   publicAnnotations?: PublicAnnotation[]
   /** Whether current user can create public annotations */
   isPageAuthor?: boolean
+  /** Whether user is a student in an exam session (for SEB mode where NextAuth session isn't available) */
+  isExamStudent?: boolean
 }
 
 /**
@@ -26,9 +28,9 @@ interface AnnotationWrapperProps {
  * The children (MDX content) are rendered on the server, this component adds
  * the annotation layer on the client.
  */
-export function AnnotationWrapper({ pageId, content, children, publicAnnotations, isPageAuthor }: AnnotationWrapperProps) {
+export function AnnotationWrapper({ pageId, content, children, publicAnnotations, isPageAuthor, isExamStudent }: AnnotationWrapperProps) {
   return (
-    <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
+    <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
       {children}
     </AnnotationLayer>
   )

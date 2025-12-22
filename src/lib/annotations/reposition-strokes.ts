@@ -58,6 +58,8 @@ export interface StrokeData {
   width: number
   sectionId: string
   sectionOffsetY: number
+  avgX?: number  // Average X position of all points (for grouping)
+  avgY?: number  // Average Y position of all points (for section detection)
 }
 
 export interface HeadingPosition {

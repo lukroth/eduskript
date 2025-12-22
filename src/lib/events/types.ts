@@ -14,6 +14,9 @@ export type AppEvent =
   | TeacherFeedbackEvent
   | QuizSubmissionEvent
   | CollaborationRequestEvent
+  | ExamStateChangeEvent
+  | ExamStudentStatusEvent
+  | ExamReopenedEvent
 
 /**
  * Fired when a student is invited to a class (via bulk import or direct invite)
@@ -67,6 +70,41 @@ export interface CollaborationRequestEvent {
   type: 'collaboration-request'
   fromUserId: string
   fromName: string
+}
+
+/**
+ * Fired when exam state changes (closed/lobby/open)
+ * Used for waiting room real-time updates
+ */
+export interface ExamStateChangeEvent {
+  type: 'exam-state-change'
+  pageId: string
+  classId: string
+  state: 'closed' | 'lobby' | 'open'
+  timestamp: number
+}
+
+/**
+ * Fired when a student's exam status changes (started/submitted)
+ * Used for teacher dashboard real-time updates
+ */
+export interface ExamStudentStatusEvent {
+  type: 'exam-student-status'
+  pageId: string
+  classId: string
+  studentId: string
+  status: 'taking' | 'submitted'
+  timestamp: number
+}
+
+/**
+ * Fired when a teacher reopens an exam for a specific student
+ * Sent to the student so they can refresh and re-enter
+ */
+export interface ExamReopenedEvent {
+  type: 'exam-reopened'
+  pageId: string
+  timestamp: number
 }
 
 /**

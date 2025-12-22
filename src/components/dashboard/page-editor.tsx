@@ -414,13 +414,13 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     }
   }
 
-  // Copy SEB link to clipboard
+  // Copy exam link to clipboard (regular https - students login first, then SEB opens via download button)
   const handleCopySebLink = async () => {
     const userPageSlug = (session?.user as { pageSlug?: string })?.pageSlug
     if (!userPageSlug) return
 
-    const sebUrl = `sebs://${window.location.host}/${userPageSlug}/${collection.slug}/${skript.slug}/${page.slug}`
-    await navigator.clipboard.writeText(sebUrl)
+    const examUrl = `https://${window.location.host}/${userPageSlug}/${collection.slug}/${skript.slug}/${page.slug}`
+    await navigator.clipboard.writeText(examUrl)
     setSebLinkCopied(true)
     setTimeout(() => setSebLinkCopied(false), 2000)
   }
@@ -676,17 +676,17 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               </div>
             )}
 
-            {/* SEB Link - shown when requireSEB is enabled */}
+            {/* Exam Link - shown when requireSEB is enabled (students login via browser first, then SEB launches) */}
             {examSettings.requireSEB && sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
               <div className="flex items-center gap-2">
                 <code className="text-xs bg-background px-2 py-1 rounded border font-mono">
-                  sebs://{typeof window !== 'undefined' ? window.location.host : 'example.com'}/{(session?.user as { pageSlug?: string })?.pageSlug}/{collection.slug}/{skript.slug}/{page.slug}
+                  https://{typeof window !== 'undefined' ? window.location.host : 'example.com'}/{(session?.user as { pageSlug?: string })?.pageSlug}/{collection.slug}/{skript.slug}/{page.slug}
                 </code>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleCopySebLink}
-                  title="Copy SEB link"
+                  title="Copy exam link"
                 >
                   {sebLinkCopied ? (
                     <Check className="w-4 h-4 text-green-600" />

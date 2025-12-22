@@ -11,9 +11,11 @@
 
 import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { cookies } from 'next/headers'
 import { authOptions } from '@/lib/auth'
 import { eventBus } from '@/lib/events'
 import { prisma } from '@/lib/prisma'
+import { validateExamSession } from '@/lib/exam-tokens'
 
 // Force dynamic rendering (no caching)
 export const dynamic = 'force-dynamic'
@@ -23,10 +25,49 @@ export const runtime = 'nodejs'
  * GET /api/events/stream - SSE endpoint for real-time events
  */
 export async function GET(request: NextRequest) {
+  let userId: string | null = null
+  let userAccountType: 'teacher' | 'student' | undefined = undefined
+  let userPseudonym: string | null = null
+
+  // Try NextAuth session first
   const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    userId = session.user.id
+    userAccountType = session.user.accountType as 'teacher' | 'student' | undefined
+    userPseudonym = session.user.studentPseudonym ?? null
+  }
+
+  // If no NextAuth session, try exam session cookie (for SEB mode)
+  // For SSE, we don't have a pageId, so we validate against any active exam session
+  if (!userId) {
+    const cookieStore = await cookies()
+    const examSessionCookie = cookieStore.get('exam_session')?.value
+    if (examSessionCookie) {
+      // Decode the exam session to get the skript ID
+      try {
+        const examSession = await prisma.examSession.findUnique({
+          where: { id: examSessionCookie },
+          select: { userId: true, skriptId: true, expiresAt: true }
+        })
+        if (examSession && new Date(examSession.expiresAt) > new Date()) {
+          userId = examSession.userId
+          // Exam sessions are for students
+          userAccountType = 'student'
+          // Get student pseudonym for class channels
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { studentPseudonym: true }
+          })
+          userPseudonym = user?.studentPseudonym ?? null
+        }
+      } catch (error) {
+        console.error('[SSE] Failed to validate exam session:', error)
+      }
+    }
+  }
 
   // Require authentication
-  if (!session?.user?.id) {
+  if (!userId) {
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -34,13 +75,13 @@ export async function GET(request: NextRequest) {
   const channels: string[] = []
 
   // Always subscribe to user-specific channel
-  channels.push(`user:${session.user.id}`)
+  channels.push(`user:${userId}`)
 
   // For students, also subscribe to their enrolled classes
-  if (session.user.accountType === 'student') {
+  if (userAccountType === 'student') {
     try {
       const memberships = await prisma.classMembership.findMany({
-        where: { studentId: session.user.id },
+        where: { studentId: userId },
         select: { classId: true }
       })
 
@@ -50,8 +91,8 @@ export async function GET(request: NextRequest) {
       })
 
       // Also subscribe via pseudonym for pre-authorized invitations
-      if (session.user.studentPseudonym) {
-        channels.push(`pseudonym:${session.user.studentPseudonym}`)
+      if (userPseudonym) {
+        channels.push(`pseudonym:${userPseudonym}`)
       }
     } catch (error) {
       console.error('[SSE] Failed to fetch student classes:', error)
@@ -59,10 +100,10 @@ export async function GET(request: NextRequest) {
   }
 
   // For teachers, subscribe to their classes (for quiz submissions, etc.)
-  if (session.user.accountType === 'teacher') {
+  if (userAccountType === 'teacher') {
     try {
       const classes = await prisma.class.findMany({
-        where: { teacherId: session.user.id, isActive: true },
+        where: { teacherId: userId, isActive: true },
         select: { id: true }
       })
 

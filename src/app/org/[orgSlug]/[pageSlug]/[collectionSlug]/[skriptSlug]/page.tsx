@@ -180,11 +180,12 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
     }
   })
 
-  if (!skript || !skript.collectionSkripts[0]) {
+  if (!skript || !skript.collectionSkripts[0]?.collection) {
     notFound()
   }
 
-  const collection = skript.collectionSkripts[0].collection
+  // collection is guaranteed to exist by the check above
+  const collection = skript.collectionSkripts[0].collection!
 
   // Build site structure
   const siteStructure = [{

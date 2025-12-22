@@ -12,9 +12,16 @@ export interface TeacherSnap extends Snap {
   isTeacherSnap: true
 }
 
+// Student work snap type (for teachers viewing student's work)
+export interface StudentWorkSnap extends Snap {
+  layerId: string
+  layerName: string
+  isStudentWorkSnap: true
+}
+
 // Position override type
 export type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
-export type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides }
+export type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
 
 interface SnapsDisplayProps {
   snaps: Snap[]
@@ -22,12 +29,272 @@ interface SnapsDisplayProps {
   onRenameSnap: (id: string, newName: string) => void
   onReorderSnaps: (snaps: Snap[]) => void
   teacherSnaps?: TeacherSnap[]
+  studentWorkSnaps?: StudentWorkSnap[]
   snapOverrides?: SnapOverridesData | null
   onTeacherSnapOverride?: (snapId: string, layerType: 'class' | 'individual', position: { top: number; left: number; width: number; height: number }) => void
+  onStudentWorkSnapOverride?: (snapId: string, position: { top: number; left: number; width: number; height: number }) => void
   zoom: number
 }
 
 const DEBUG_STATE = false
+
+// Student work snap component - moveable by teacher viewing student's work
+const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
+  snap,
+  zoom,
+  onExpand,
+  overridePosition,
+  onPositionChange,
+}: {
+  snap: StudentWorkSnap
+  zoom: number
+  onExpand: (id: string) => void
+  overridePosition?: { top: number; left: number; width: number; height: number }
+  onPositionChange?: (position: { top: number; left: number; width: number; height: number }) => void
+}) {
+  if (DEBUG_STATE) console.log(`[StudentWorkSnapItem ${snap.id.slice(-4)}] Render`)
+
+  const elementRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  // Use override position if available, otherwise use original snap position
+  const position = useMemo(() =>
+    overridePosition || { top: snap.top, left: snap.left, width: snap.width, height: snap.height },
+    [overridePosition, snap.top, snap.left, snap.width, snap.height]
+  )
+
+  const dragStateRef = useRef<{
+    isDragging: boolean
+    isResizing: boolean
+    startX: number
+    startY: number
+    startTop: number
+    startLeft: number
+    startWidth: number
+    startHeight: number
+    currentX: number
+    currentY: number
+    currentWidth: number
+    currentHeight: number
+  }>({
+    isDragging: false,
+    isResizing: false,
+    startX: 0,
+    startY: 0,
+    startTop: 0,
+    startLeft: 0,
+    startWidth: 0,
+    startHeight: 0,
+    currentX: 0,
+    currentY: 0,
+    currentWidth: 0,
+    currentHeight: 0,
+  })
+
+  const handlePointerMoveRef = useRef<(e: PointerEvent) => void>(() => {})
+  const handlePointerUpRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    handlePointerMoveRef.current = (e: PointerEvent) => {
+      const state = dragStateRef.current
+      if (!state.isDragging && !state.isResizing) return
+
+      const element = elementRef.current
+      if (!element) return
+
+      const deltaX = (e.clientX - state.startX) / zoom
+      const deltaY = (e.clientY - state.startY) / zoom
+
+      if (state.isDragging) {
+        state.currentX = deltaX
+        state.currentY = deltaY
+        element.style.transform = `translate(${deltaX}px, ${deltaY}px)`
+      } else if (state.isResizing) {
+        const aspectRatio = state.startWidth / state.startHeight
+        const scale = Math.max(0.5, 1 + (deltaX + deltaY) / (state.startWidth + state.startHeight))
+        const newWidth = Math.max(100, state.startWidth * scale)
+        const newHeight = newWidth / aspectRatio
+
+        state.currentWidth = newWidth
+        state.currentHeight = newHeight
+
+        element.style.width = `${newWidth}px`
+        if (imageRef.current) {
+          imageRef.current.style.width = `${newWidth}px`
+          imageRef.current.style.height = `${newHeight}px`
+        }
+      }
+    }
+  }, [zoom])
+
+  // Store onPositionChange in a ref to avoid stale closures
+  const onPositionChangeRef = useRef(onPositionChange)
+  useEffect(() => {
+    onPositionChangeRef.current = onPositionChange
+  }, [onPositionChange])
+
+  // Store current position in ref for pointer handlers
+  const positionRef = useRef(position)
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
+
+  useEffect(() => {
+    handlePointerUpRef.current = () => {
+      const state = dragStateRef.current
+      const element = elementRef.current
+
+      window.removeEventListener('pointermove', handlePointerMoveRef.current)
+      window.removeEventListener('pointerup', handlePointerUpRef.current)
+
+      if (!element) {
+        state.isDragging = false
+        state.isResizing = false
+        return
+      }
+
+      element.style.transform = ''
+      element.style.opacity = ''
+      element.style.boxShadow = ''
+      element.style.zIndex = ''
+      element.style.cursor = ''
+
+      if (state.isDragging) {
+        const finalTop = state.startTop + state.currentY
+        const finalLeft = state.startLeft + state.currentX
+        // Persist the new position via callback
+        onPositionChangeRef.current?.({
+          top: finalTop,
+          left: finalLeft,
+          width: positionRef.current.width,
+          height: positionRef.current.height,
+        })
+      } else if (state.isResizing) {
+        // Persist the new size via callback
+        onPositionChangeRef.current?.({
+          top: positionRef.current.top,
+          left: positionRef.current.left,
+          width: state.currentWidth,
+          height: state.currentHeight,
+        })
+      }
+
+      state.isDragging = false
+      state.isResizing = false
+    }
+  }, [])
+
+  const handleDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const element = elementRef.current
+    if (!element) return
+
+    const state = dragStateRef.current
+    state.isDragging = true
+    state.startX = e.clientX
+    state.startY = e.clientY
+    state.startTop = position.top
+    state.startLeft = position.left
+    state.startWidth = position.width
+    state.startHeight = position.height
+    state.currentX = 0
+    state.currentY = 0
+
+    element.style.opacity = '0.9'
+    element.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)'
+    element.style.zIndex = '1000'
+    element.style.cursor = 'grabbing'
+
+    window.addEventListener('pointermove', handlePointerMoveRef.current)
+    window.addEventListener('pointerup', handlePointerUpRef.current)
+  }, [position.top, position.left, position.width, position.height])
+
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const element = elementRef.current
+    if (!element) return
+
+    const state = dragStateRef.current
+    state.isResizing = true
+    state.startX = e.clientX
+    state.startY = e.clientY
+    state.startTop = position.top
+    state.startLeft = position.left
+    state.startWidth = position.width
+    state.startHeight = position.height
+    state.currentWidth = position.width
+    state.currentHeight = position.height
+
+    element.style.opacity = '0.9'
+    element.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)'
+    element.style.zIndex = '1000'
+
+    window.addEventListener('pointermove', handlePointerMoveRef.current)
+    window.addEventListener('pointerup', handlePointerUpRef.current)
+  }, [position.top, position.left, position.width, position.height])
+
+  return (
+    <div
+      ref={elementRef}
+      className="absolute z-40 bg-card border-2 border-purple-500 shadow-lg rounded-lg overflow-hidden group student-work-snap-fade-in"
+      style={{
+        top: position.top,
+        left: position.left,
+        width: position.width,
+        willChange: 'transform',
+      }}
+    >
+      {/* Drag handle - styled for student work snaps (purple) */}
+      <div
+        className="px-3 py-2 bg-muted/50 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing select-none"
+        style={{ touchAction: 'none' }}
+        onPointerDown={handleDragStart}
+      >
+        <GripVertical className="w-4 h-4 text-purple-500 flex-shrink-0" />
+        <span className="text-sm font-medium text-foreground">
+          {snap.name}
+        </span>
+        <span className="text-xs text-purple-500 ml-auto">
+          {snap.layerName}
+        </span>
+      </div>
+
+      {/* Image */}
+      <div
+        className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden rounded-b-lg -m-px"
+        onClick={() => onExpand(snap.id)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          ref={imageRef}
+          src={snap.imageUrl}
+          alt={snap.name}
+          className="block rounded-b-lg"
+          style={{
+            width: position.width,
+            height: position.height,
+            border: 'none',
+          }}
+        />
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+        style={{ touchAction: 'none' }}
+        onPointerDown={handleResizeStart}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-purple-500">
+          <path d="M15 10L10 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    </div>
+  )
+})
 
 // Teacher snap component - read-only, moveable but no delete
 const TeacherSnapItem = memo(function TeacherSnapItem({
@@ -595,11 +862,12 @@ const SnapItem = memo(function SnapItem({
   )
 })
 
-export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, teacherSnaps = [], snapOverrides, onTeacherSnapOverride, zoom }: SnapsDisplayProps) {
-  if (DEBUG_STATE) console.log(`[SnapsDisplay] Render - ${snaps.length} snaps, ${teacherSnaps.length} teacher snaps`)
+export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, teacherSnaps = [], studentWorkSnaps = [], snapOverrides, onTeacherSnapOverride, onStudentWorkSnapOverride, zoom }: SnapsDisplayProps) {
+  if (DEBUG_STATE) console.log(`[SnapsDisplay] Render - ${snaps.length} snaps, ${teacherSnaps.length} teacher snaps, ${studentWorkSnaps.length} student work snaps`)
 
   const [expandedSnapIndex, setExpandedSnapIndex] = useState<number | null>(null)
   const [expandedIsTeacher, setExpandedIsTeacher] = useState(false)
+  const [expandedIsStudentWork, setExpandedIsStudentWork] = useState(false)
   const [newSnapIds, setNewSnapIds] = useState<Set<string>>(new Set())
   const prevSnapIdsRef = useRef<Set<string>>(new Set())
 
@@ -638,13 +906,23 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     if (index !== -1) {
       setExpandedSnapIndex(index)
       setExpandedIsTeacher(true)
+      setExpandedIsStudentWork(false)
     }
   }, [teacherSnaps])
 
-  if (snaps.length === 0 && teacherSnaps.length === 0) return null
+  const handleStudentWorkSnapExpand = useCallback((id: string) => {
+    const index = studentWorkSnaps.findIndex(s => s.id === id)
+    if (index !== -1) {
+      setExpandedSnapIndex(index)
+      setExpandedIsTeacher(false)
+      setExpandedIsStudentWork(true)
+    }
+  }, [studentWorkSnaps])
+
+  if (snaps.length === 0 && teacherSnaps.length === 0 && studentWorkSnaps.length === 0) return null
 
   // Get snaps for the viewer based on which type is expanded
-  const viewerSnaps = expandedIsTeacher ? teacherSnaps : snaps
+  const viewerSnaps = expandedIsStudentWork ? studentWorkSnaps : (expandedIsTeacher ? teacherSnaps : snaps)
 
   return (
     <>
@@ -683,6 +961,22 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
         )
       })}
 
+      {/* Student work snaps (moveable by teachers viewing student's work) */}
+      {studentWorkSnaps.map((snap) => {
+        const overridePosition = snapOverrides?.studentWorkSnaps?.[snap.id]
+
+        return (
+          <StudentWorkSnapItem
+            key={snap.id}
+            snap={snap}
+            zoom={zoom}
+            onExpand={handleStudentWorkSnapExpand}
+            overridePosition={overridePosition}
+            onPositionChange={onStudentWorkSnapOverride ? (pos) => onStudentWorkSnapOverride(snap.id, pos) : undefined}
+          />
+        )
+      })}
+
       {/* Expanded snap modal */}
       {expandedSnapIndex !== null && (
         <SnapViewerOverlay
@@ -691,6 +985,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
           onClose={() => {
             setExpandedSnapIndex(null)
             setExpandedIsTeacher(false)
+            setExpandedIsStudentWork(false)
           }}
         />
       )}

@@ -28,19 +28,49 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { cookies } from 'next/headers'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { validateExamSession } from '@/lib/exam-tokens'
 
 export async function GET(request: NextRequest) {
   try {
+    let userId: string | null = null
+
+    // Try NextAuth session first
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (session?.user?.id) {
+      userId = session.user.id
+    }
+
+    // If no NextAuth session, try exam session cookie (for SEB mode)
+    if (!userId) {
+      const cookieStore = await cookies()
+      const examSessionCookie = cookieStore.get('exam_session')?.value
+      if (examSessionCookie) {
+        // For exam session, we need to validate against the skript
+        // Get pageId from query params to look up the skript
+        const { searchParams } = new URL(request.url)
+        const pageId = searchParams.get('pageId')
+        if (pageId) {
+          const page = await prisma.page.findUnique({
+            where: { id: pageId },
+            select: { skriptId: true }
+          })
+          if (page?.skriptId) {
+            userId = await validateExamSession(examSessionCookie, page.skriptId)
+          }
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
-    const { searchParams } = new URL(request.url)
-    const pageId = searchParams.get('pageId')
+    // Get pageId from search params (may have been parsed above for exam session validation)
+    const searchParamsForQuery = new URL(request.url).searchParams
+    const pageId = searchParamsForQuery.get('pageId')
 
     if (!pageId) {
       return NextResponse.json(
@@ -175,6 +205,12 @@ export async function GET(request: NextRequest) {
       select: {
         data: true,
         updatedAt: true,
+        user: {
+          select: {
+            name: true,
+            pageSlug: true,
+          },
+        },
       },
     })
 
@@ -189,6 +225,12 @@ export async function GET(request: NextRequest) {
       select: {
         data: true,
         updatedAt: true,
+        user: {
+          select: {
+            name: true,
+            pageSlug: true,
+          },
+        },
       },
     })
 
@@ -258,12 +300,14 @@ export async function GET(request: NextRequest) {
         ? {
             data: individualFeedback.data,
             updatedAt: individualFeedback.updatedAt.getTime(),
+            teacherName: individualFeedback.user?.name || individualFeedback.user?.pageSlug || 'Teacher',
           }
         : null,
       individualSnapFeedback: hasValidSnapFeedback && individualSnapFeedback
         ? {
             data: individualSnapFeedback.data,
             updatedAt: individualSnapFeedback.updatedAt.getTime(),
+            teacherName: individualSnapFeedback.user?.name || individualSnapFeedback.user?.pageSlug || 'Teacher',
           }
         : null,
       individualCodeHighlights: individualCodeHighlightsWithInfo,

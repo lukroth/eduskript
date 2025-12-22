@@ -1,6 +1,6 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-12-08*
+*Last updated: 2025-12-20*
 *Current Status: Simplified Architecture - Username-Based Routing*
 
 > **Note**: Completed features have been moved to `docs/COMPLETED_FEATURES.md`
@@ -9,10 +9,33 @@
 
 ## 🎯 Priority List
 
-- integrate code quality review
+- **SEB** integrate safe exam browser and create exams using eduskript
+  - ✅ SEB token/session authentication (one-time tokens, persistent sessions)
+  - ✅ Exam session persistence (4 hours)
+  - ✅ Race condition fix (atomic token validation)
+  - ✅ PageUnlock model for class/student unlocks
+  - ✅ ExamState model (closed/open/ended per class)
+  - ✅ ExamSubmission model for tracking hand-ins
+  - ✅ Teacher exam toolbar (open/close/end exam, live student counts)
+  - ✅ Student exam layout (no sidebar, hand-in button always visible)
+  - ✅ Waiting room with polling until teacher opens exam
+  - ✅ Hand-in flow with confirmation dialog
+  - ✅ Auto-create ExamState when unlocking exam for class
+  - ✅ SSE event types for exam state changes
+  - 🔲 TODO: Switch to see what students are doing (like annotation system)
+  - 🔲 TODO: After-exam teacher UX (correct/view exam, points overview)
+  - 🔲 TODO: SEB security: increase from spoofable user agent to BEK validation
+
+Issues
+- annotations: make groups "real" ? advantage would be in repositioning, but also maybe a horizontal repositioning
+- annotations + positioning system: could scrolling be made more natural
+
+- major:on safari ipad when i use the snap feature it freezes after the border animation is done. it then toook around 30 seconds until the snap appeared with the wrong font and no annotations.
+- minor: font resize doesn't initially have the correct state and it doesn't trigger annotation repositioning
+- minor: it might be the org frontpage cache invalidation isn't working. i updated a frontpage and still got the old version
+
 
 **LMS Features:**
-- **SEB** integrate safe exam browser and create exams using eduskript, working in plans/compressed-tickling-feigenbaum.md
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component with live answers.
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions. <Question> component would probably have to save question to db to quickly query questions.
 - **Randomized question / exercise pages** maybe through special skripts that serve their pages randomized per day / week?

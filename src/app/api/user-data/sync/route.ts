@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
+import { cookies } from 'next/headers'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadSnapImage, deleteSnapImage, isS3Configured } from '@/lib/s3'
@@ -118,12 +119,44 @@ async function canCreatePageAnnotations(userId: string, pageId: string, isAdmin?
 
 export async function POST(request: NextRequest) {
   try {
+    let userId: string | null = null
+    let isTeacher = false
+    let isAdmin = false
+
+    // Try NextAuth session first
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (session?.user?.id) {
+      userId = session.user.id
+      isTeacher = session.user.accountType === 'teacher'
+      isAdmin = !!session.user.isAdmin
+    }
+
+    // If no NextAuth session, try exam session cookie (for SEB mode)
+    if (!userId) {
+      const cookieStore = await cookies()
+      const examSessionCookie = cookieStore.get('exam_session')?.value
+      if (examSessionCookie) {
+        try {
+          const examSession = await prisma.examSession.findUnique({
+            where: { id: examSessionCookie },
+            select: { userId: true, expiresAt: true }
+          })
+          if (examSession && new Date(examSession.expiresAt) > new Date()) {
+            userId = examSession.userId
+            // Exam sessions are for students - they can save personal data but not broadcast
+            isTeacher = false
+            isAdmin = false
+          }
+        } catch (error) {
+          console.error('[sync] Failed to validate exam session:', error)
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
     const body = await request.json()
     const items: SyncItem[] = body.items
 
@@ -139,7 +172,6 @@ export async function POST(request: NextRequest) {
     const teacherBroadcasts: TeacherBroadcast[] = []
 
     // For targeted items, validate authorization upfront
-    const isTeacher = session.user.accountType === 'teacher'
     const targetedItems = items.filter(item => item.targetType && item.targetId)
     const pageTargetedItems = items.filter(item => item.targetType === 'page')
     const classStudentTargetedItems = items.filter(item => item.targetType && item.targetType !== 'page' && item.targetId)
@@ -154,7 +186,6 @@ export async function POST(request: NextRequest) {
 
     // Page targeting requires author permission on the page
     if (pageTargetedItems.length > 0) {
-      const isAdmin = session.user.isAdmin
       for (const item of pageTargetedItems) {
         const canCreate = await canCreatePageAnnotations(userId, item.itemId, isAdmin)
         if (!canCreate) {
@@ -380,7 +411,7 @@ export async function POST(request: NextRequest) {
 
     // Publish SSE events for quiz submissions
     // Notify all classes the student is enrolled in so teachers see real-time updates
-    if (quizSubmissions.length > 0 && session.user.accountType === 'student') {
+    if (quizSubmissions.length > 0 && !isTeacher) {
       console.log(`[user-data/sync] Publishing ${quizSubmissions.length} quiz submissions for student ${userId}`)
       try {
         const memberships = await prisma.classMembership.findMany({
@@ -389,7 +420,12 @@ export async function POST(request: NextRequest) {
         })
 
         console.log(`[user-data/sync] Student is in ${memberships.length} classes`)
-        const studentPseudonym = session.user.studentPseudonym ?? ''
+        // Get student pseudonym from database (for exam session case where we don't have session)
+        const studentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { studentPseudonym: true }
+        })
+        const studentPseudonym = studentUser?.studentPseudonym ?? ''
 
         for (const submission of quizSubmissions) {
           for (const membership of memberships) {

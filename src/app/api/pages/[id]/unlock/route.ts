@@ -161,6 +161,22 @@ export async function POST(
       }
     })
 
+    // For exam pages unlocked for a class, auto-create ExamState if not exists
+    // This ensures the waiting room is ready when students arrive
+    if (classId && page.pageType === 'exam') {
+      await prisma.examState.upsert({
+        where: {
+          pageId_classId: { pageId, classId }
+        },
+        create: {
+          pageId,
+          classId,
+          state: 'closed' // Students will see waiting room until teacher opens
+        },
+        update: {} // Don't change state if already exists
+      })
+    }
+
     return NextResponse.json({ unlock })
   } catch (error) {
     console.error('Error creating page unlock:', error)

@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
@@ -7,7 +7,10 @@ import { ExportPDF } from '@/components/public/export-pdf'
 import { DevClearDataButton } from '@/components/dev/dev-clear-data-button'
 import { ExamLockedPage } from '@/components/exam/exam-locked-page'
 import { SEBRequiredPage } from '@/components/exam/seb-required-page'
+import { ExamSubmittedPage } from '@/components/exam/exam-submitted-page'
 import { isSEBRequest, type ExamSettings } from '@/lib/seb'
+import { validateExamToken, validateExamSession } from '@/lib/exam-tokens'
+import { cookies } from 'next/headers'
 import type { Metadata } from 'next'
 import {
   getTeacherByUsernameDeduped,
@@ -25,6 +28,7 @@ interface PageProps {
     skriptSlug: string
     pageSlug: string
   }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 // Enable ISR - pages are cached until explicitly invalidated via revalidateTag
@@ -97,8 +101,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function PublicPage({ params }: PageProps) {
+export default async function PublicPage({ params, searchParams }: PageProps) {
   const { domain, collectionSlug, skriptSlug, pageSlug } = await params
+  const resolvedSearchParams = await searchParams
 
   // Filter out obviously invalid domain values (browser/system requests)
   const invalidDomains = ['.well-known', '_next', 'api', 'favicon', 'robots', 'sitemap', 'apple-touch-icon', 'manifest']
@@ -130,14 +135,59 @@ export default async function PublicPage({ params }: PageProps) {
   const { collection, skript, page, allPages } = content
 
   // EXAM ACCESS CONTROL
+  // Variable to track if we need to set an exam session cookie after rendering
+  let examSessionToCreate: { userId: string; pageId: string; skriptId: string } | null = null
+
   // If this is an exam page, check if the user has access
   if (page.pageType === 'exam') {
-    const session = await getServerSession(authOptions)
+    const headersList = await headers()
+    const cookieStore = await cookies()
+    const examSettings = page.examSettings as ExamSettings | null
     const currentUrl = `/${domain}/${collectionSlug}/${skriptSlug}/${pageSlug}`
     const loginUrl = `/auth/signin?callbackUrl=${encodeURIComponent(currentUrl)}`
 
-    // Check 1: User must be logged in
-    if (!session?.user?.id) {
+    // Authentication priority:
+    // 1. SEB token (one-time, from config download)
+    // 2. Exam session cookie (persistent during exam)
+    // 3. Regular NextAuth session
+
+    let authenticatedUserId: string | null = null
+    let authenticatedViaToken = false
+    let authenticatedViaExamSession = false
+
+    // Check for SEB token authentication (one-time token from SEB config download)
+    // Token only works if request is from SEB
+    const sebToken = typeof resolvedSearchParams.seb_token === 'string'
+      ? resolvedSearchParams.seb_token
+      : undefined
+
+    if (sebToken && isSEBRequest(headersList)) {
+      authenticatedUserId = await validateExamToken(sebToken, page.id)
+      if (authenticatedUserId) {
+        authenticatedViaToken = true
+        // We'll create an exam session after access control passes
+      }
+    }
+
+    // Check for existing exam session (for multi-page navigation within SEB)
+    if (!authenticatedUserId && isSEBRequest(headersList)) {
+      const examSessionCookie = cookieStore.get('exam_session')?.value
+      if (examSessionCookie) {
+        authenticatedUserId = await validateExamSession(examSessionCookie, skript.id)
+        if (authenticatedUserId) {
+          authenticatedViaExamSession = true
+        }
+      }
+    }
+
+    // Fall back to regular NextAuth session
+    if (!authenticatedUserId) {
+      const session = await getServerSession(authOptions)
+      authenticatedUserId = session?.user?.id || null
+    }
+
+    // Check 1: User must be logged in (or have valid SEB token)
+    if (!authenticatedUserId) {
       return (
         <ExamLockedPage
           pageTitle={page.title}
@@ -149,7 +199,7 @@ export default async function PublicPage({ params }: PageProps) {
     }
 
     // Check 2: User must have an unlock (either via class membership or direct student unlock)
-    const studentId = session.user.id
+    const studentId = authenticatedUserId
 
     // Check for direct student unlock
     const studentUnlock = await prisma.pageUnlock.findFirst({
@@ -196,10 +246,37 @@ export default async function PublicPage({ params }: PageProps) {
       }
     }
 
-    // Check 3: If SEB is required, verify request is from SEB
-    const examSettings = page.examSettings as ExamSettings | null
-    if (examSettings?.requireSEB) {
-      const headersList = await headers()
+    // Check 3: If student already submitted, show the submitted page
+    // This check comes before SEB check so students can see their status without SEB
+    const existingSubmission = await prisma.examSubmission.findUnique({
+      where: {
+        pageId_studentId: { pageId: page.id, studentId }
+      },
+      select: { submittedAt: true }
+    })
+
+    // Only show submitted page for students, not teachers
+    const isTeacherAuthor = await prisma.pageAuthor.findFirst({
+      where: { pageId: page.id, userId: studentId, permission: 'author' }
+    }) || await prisma.skriptAuthor.findFirst({
+      where: { skriptId: skript.id, userId: studentId, permission: 'author' }
+    }) || await prisma.collectionAuthor.findFirst({
+      where: { collectionId: collection.id, userId: studentId, permission: 'author' }
+    })
+
+    if (!isTeacherAuthor && existingSubmission) {
+      return (
+        <ExamSubmittedPage
+          pageTitle={page.title}
+          pageId={page.id}
+          submittedAt={existingSubmission.submittedAt}
+        />
+      )
+    }
+
+    // Check 4: If SEB is required, verify request is from SEB
+    // (Skip if authenticated via token or exam session - they must be in SEB)
+    if (examSettings?.requireSEB && !authenticatedViaToken && !authenticatedViaExamSession) {
       if (!isSEBRequest(headersList)) {
         return (
           <SEBRequiredPage
@@ -209,6 +286,23 @@ export default async function PublicPage({ params }: PageProps) {
         )
       }
     }
+
+    // Create exam session if authenticated via one-time token
+    // This allows subsequent page navigations without re-authentication
+    if (authenticatedViaToken) {
+      examSessionToCreate = { userId: studentId, pageId: page.id, skriptId: skript.id }
+    }
+  }
+
+  // Create exam session if needed (after all access control has passed)
+  // We redirect to an API route because Server Components cannot set cookies during render
+  if (examSessionToCreate) {
+    const currentUrl = `/${domain}/${collectionSlug}/${skriptSlug}/${pageSlug}`
+    const startSessionUrl = `/api/exams/${examSessionToCreate.pageId}/start-session?` +
+      `userId=${encodeURIComponent(examSessionToCreate.userId)}&` +
+      `skriptId=${encodeURIComponent(examSessionToCreate.skriptId)}&` +
+      `returnUrl=${encodeURIComponent(currentUrl)}`
+    redirect(startSessionUrl)
   }
 
   // Fetch public annotations for this page (annotations broadcast to all visitors)

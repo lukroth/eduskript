@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useSession } from 'next-auth/react'
+import { useExamSession } from '@/contexts/exam-session-context'
 import type { AppEvent } from '@/lib/events/types'
 
 type EventType = AppEvent['type']
@@ -143,6 +144,30 @@ interface UseRealtimeEventsOptions {
 }
 
 /**
+ * Check if we're running through ngrok tunnel
+ *
+ * WORKAROUND: ngrok's TLS certificate handling causes "PR_END_OF_FILE_ERROR"
+ * in Safe Exam Browser (SEB) on iPad when the page is refreshed while an SSE
+ * connection is active. The initial page load works, but refresh fails.
+ *
+ * This appears to be an incompatibility between:
+ * - ngrok's TLS certificate (possibly certificate renegotiation)
+ * - SEB's embedded WebKit browser on iOS
+ * - Long-running SSE connections
+ *
+ * We detect ngrok by checking for "ngrok" in the hostname and disable SSE
+ * for exam sessions in this case. This means live teacher broadcasts won't
+ * work during local development with ngrok, but the exam will still function
+ * (students just need to refresh to see teacher annotations).
+ *
+ * In production with a real SSL certificate, SSE works normally.
+ */
+function isNgrokEnvironment(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.hostname.includes('ngrok')
+}
+
+/**
  * Subscribe to real-time events from the server
  * Uses a singleton EventSource connection shared across all components
  */
@@ -153,6 +178,13 @@ export function useRealtimeEvents<T extends EventType>(
 ) {
   const { enabled = true } = options
   const { status } = useSession()
+  const examSession = useExamSession()
+
+  // Consider authenticated if either NextAuth session OR exam session is active
+  // However, disable SSE for exam sessions when running through ngrok
+  // (ngrok's TLS handling causes errors in SEB's embedded browser on refresh)
+  const isExamSessionAuth = examSession.isInExamSession && !isNgrokEnvironment()
+  const isAuthenticated = status === 'authenticated' || isExamSessionAuth
 
   // Use ref to always have latest callback without re-subscribing
   const onEventRef = useRef(onEvent)
@@ -172,7 +204,7 @@ export function useRealtimeEvents<T extends EventType>(
   )
 
   useEffect(() => {
-    if (!enabled || status !== 'authenticated' || typeof window === 'undefined') {
+    if (!enabled || !isAuthenticated || typeof window === 'undefined') {
       return
     }
 
@@ -190,7 +222,7 @@ export function useRealtimeEvents<T extends EventType>(
     return () => {
       unsubscribe()
     }
-  }, [enabled, status, eventTypesKey])
+  }, [enabled, isAuthenticated, eventTypesKey])
 
   return { isConnected }
 }
@@ -200,11 +232,15 @@ export function useRealtimeEvents<T extends EventType>(
  */
 export function useRealtimeConnection() {
   const { status } = useSession()
+  const examSession = useExamSession()
+
+  // Consider authenticated if either NextAuth session OR exam session is active
+  const isAuthenticated = status === 'authenticated' || examSession.isInExamSession
 
   const { isConnected } = useRealtimeEvents(
     [],
     () => {},
-    { enabled: status === 'authenticated' }
+    { enabled: isAuthenticated }
   )
 
   return { isConnected, error: null }

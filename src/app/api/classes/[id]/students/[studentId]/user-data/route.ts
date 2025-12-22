@@ -6,13 +6,21 @@
  *   &adapters=annotations,code,snaps,quiz-q1
  *
  * Fetch a specific student's user data for teacher viewing.
- * Teacher must own the class that the student is enrolled in.
+ *
+ * Security Requirements (both must be true):
+ * 1. Teacher must own the class that the student is enrolled in
+ * 2. Teacher must have view rights on the page (author on page, skript, or collection)
+ *
+ * This dual check ensures:
+ * - Teachers can't view student work on pages they don't teach
+ * - Teachers can't view students who aren't in their class
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { checkPagePermissions } from '@/lib/permissions'
 
 interface RouteParams {
   params: Promise<{
@@ -54,6 +62,52 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (classRecord.teacherId !== teacherId) {
       return NextResponse.json(
         { error: 'You do not own this class' },
+        { status: 403 }
+      )
+    }
+
+    // Verify teacher has view rights on this page
+    // This prevents teachers from viewing student work on pages they don't teach
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      include: {
+        authors: { include: { user: { select: { id: true } } } },
+        skript: {
+          include: {
+            authors: { include: { user: { select: { id: true } } } },
+            // Navigate through junction table to get collection authors
+            collectionSkripts: {
+              include: {
+                collection: {
+                  include: {
+                    authors: { include: { user: { select: { id: true } } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!page) {
+      return NextResponse.json({ error: 'Page not found' }, { status: 404 })
+    }
+
+    // Collect all collection authors from all collections this skript belongs to
+    const collectionAuthors = page.skript?.collectionSkripts
+      ?.flatMap(cs => cs.collection?.authors || []) || []
+
+    const pagePermissions = checkPagePermissions(
+      teacherId,
+      page.authors,
+      page.skript?.authors || [],
+      collectionAuthors
+    )
+
+    if (!pagePermissions.canView) {
+      return NextResponse.json(
+        { error: 'You do not have access to this page' },
         { status: 403 }
       )
     }

@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { gzipSync } from 'zlib'
 import { prisma } from '@/lib/prisma'
 import { generateSEBConfig, getSEBMimeType, getSEBFilename } from '@/lib/seb'
+import { generateExamToken } from '@/lib/exam-tokens'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 /**
  * GET /api/exams/[pageId]/seb-config
  * Download SEB configuration file for an exam page
- * Publicly accessible - SEB needs to fetch this without authentication
+ *
+ * Authentication options:
+ * 1. Session cookie (when downloading from regular browser)
+ * 2. download_token query param (when SEB fetches via sebs:// protocol)
+ *
+ * A one-time exam token is embedded in the startURL so the user doesn't need to
+ * log in again inside SEB.
  */
 export async function GET(
   request: NextRequest,
@@ -14,8 +23,33 @@ export async function GET(
 ) {
   try {
     const { pageId } = await params
+    const searchParams = request.nextUrl.searchParams
+    const downloadToken = searchParams.get('download_token')
 
-    // Get page with skript info (no auth required - config is public for exam pages)
+    let userId: string | null = null
+
+    // Try session auth first (regular browser with cookies)
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      userId = session.user.id
+    }
+
+    // If no session, try download token (SEB fetching via sebs:// protocol)
+    if (!userId && downloadToken) {
+      const { validateExamToken } = await import('@/lib/exam-tokens')
+      // Download tokens are also stored as exam tokens, but we validate without pageId check
+      // since the token was created specifically for downloading this config
+      userId = await validateExamToken(downloadToken, pageId)
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'You must be logged in to download the SEB configuration' },
+        { status: 401 }
+      )
+    }
+
+    // Get page with skript info
     const page = await prisma.page.findFirst({
       where: {
         id: pageId,
@@ -52,9 +86,16 @@ export async function GET(
     }
 
     // Build the exam URL - use https for all external hosts, http only for localhost
+    // URL structure: /org/{orgSlug}/{teacherPageSlug}/{collectionSlug}/{skriptSlug}/{pageSlug}
     const host = request.headers.get('host') || 'eduskript.org'
     const protocol = host.startsWith('localhost') ? 'http' : 'https'
-    const examUrl = `${protocol}://${host}/${teacher.pageSlug}/${collectionSkript.collection.slug}/${page.skript.slug}/${page.slug}`
+    const orgSlug = process.env.DEFAULT_ORG_SLUG || 'eduskript'
+    const baseExamUrl = `${protocol}://${host}/org/${orgSlug}/${teacher.pageSlug}/${collectionSkript.collection.slug}/${page.skript.slug}/${page.slug}`
+
+    // Generate one-time token for SEB authentication
+    // This allows the user to be authenticated inside SEB without logging in again
+    const { token } = await generateExamToken(userId, pageId)
+    const examUrl = `${baseExamUrl}?seb_token=${token}`
 
     // Generate SEB config XML
     const examTitle = `${page.title} - ${page.skript.title}`

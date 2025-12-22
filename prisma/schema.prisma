@@ -149,6 +149,14 @@ model User {
   // Individual billing groundwork (payment provider TBD)
   billingPlan String @default("free") @map("billing_plan") // "free" | "pro" | etc.
 
+  // SEB exam tokens and sessions
+  examTokens   ExamToken[]   @relation("ExamTokens")
+  examSessions ExamSession[] @relation("ExamSessions")
+
+  // Exam submissions (student) and grading (teacher)
+  examSubmissions      ExamSubmission[] @relation("StudentExamSubmissions")
+  gradedExamSubmissions ExamSubmission[] @relation("GradedExamSubmissions")
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -230,6 +238,9 @@ model Skript {
   // Front page (intro/landing page for skript)
   frontPage   FrontPage?
 
+  // SEB exam sessions
+  examSessions ExamSession[] @relation("ExamSessionSkript")
+
   @@map("skripts")
 }
 
@@ -274,6 +285,14 @@ model Page {
 
   // Exam unlocks
   unlocks     PageUnlock[]
+
+  // SEB exam tokens and sessions
+  examTokens   ExamToken[]   @relation("ExamTokens")
+  examSessions ExamSession[] @relation("ExamSessionPage")
+
+  // Exam state and submissions
+  examStates      ExamState[]      @relation("ExamStates")
+  examSubmissions ExamSubmission[] @relation("ExamSubmissions")
 
   @@unique([skriptId, slug])
   @@map("pages")
@@ -499,6 +518,7 @@ model Class {
   memberships           ClassMembership[]
   preAuthorizedStudents PreAuthorizedStudent[]
   pageUnlocks           PageUnlock[]              @relation("ClassUnlocks") // Pages unlocked for this class
+  examStates            ExamState[]               @relation("ClassExamStates") // Exam states per class
 
   @@index([teacherId])
   @@index([inviteCode])
@@ -731,4 +751,94 @@ model CustomDomain {
   @@index([domain])
   @@index([organizationId])
   @@map("custom_domains")
+}
+
+// One-time tokens for SEB exam authentication
+// When a logged-in user opens SEB, a token is generated and embedded in the startURL
+// SEB navigates to the URL with the token, which authenticates the user without re-login
+model ExamToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @map("token_hash") // SHA256 hash of plaintext token
+  userId    String    @map("user_id")
+  pageId    String    @map("page_id")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at") // Set when token is consumed (one-time use)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation("ExamTokens", fields: [userId], references: [id], onDelete: Cascade)
+  page Page @relation("ExamTokens", fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@index([pageId])
+  @@map("exam_tokens")
+}
+
+// Exam sessions for multi-page SEB exams
+// After token auth, an exam session is created to persist auth across page navigations
+// Session allows access to all pages within the same skript during the exam
+model ExamSession {
+  id        String   @id @default(cuid())
+  sessionId String   @unique @map("session_id") // Random ID stored in cookie
+  userId    String   @map("user_id")
+  pageId    String   @map("page_id")    // Initial exam page that started session
+  skriptId  String   @map("skript_id")  // Allow access to all pages in this skript
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation("ExamSessions", fields: [userId], references: [id], onDelete: Cascade)
+  page   Page   @relation("ExamSessionPage", fields: [pageId], references: [id], onDelete: Cascade)
+  skript Skript @relation("ExamSessionSkript", fields: [skriptId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([skriptId])
+  @@map("exam_sessions")
+}
+
+// Exam state per class - controls when students can access/submit
+// States:
+//   "closed" - Students cannot enter at all
+//   "lobby"  - Students can enter but see waiting room until teacher opens
+//   "open"   - Students can take the exam
+// Teachers can freely switch between any state at any time
+model ExamState {
+  id        String    @id @default(cuid())
+  pageId    String    @map("page_id")
+  classId   String    @map("class_id")
+  state     String    @default("closed") // "closed" | "lobby" | "open"
+  openedAt  DateTime? @map("opened_at")
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  page  Page  @relation("ExamStates", fields: [pageId], references: [id], onDelete: Cascade)
+  class Class @relation("ClassExamStates", fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, classId])
+  @@index([pageId])
+  @@index([classId])
+  @@map("exam_states")
+}
+
+// Exam submission tracking - records when students hand in
+model ExamSubmission {
+  id          String    @id @default(cuid())
+  pageId      String    @map("page_id")
+  studentId   String    @map("student_id")
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+
+  // Future: grading
+  score    Float?
+  gradedBy String?   @map("graded_by")
+  gradedAt DateTime? @map("graded_at")
+
+  page    Page @relation("ExamSubmissions", fields: [pageId], references: [id], onDelete: Cascade)
+  student User @relation("StudentExamSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  grader  User? @relation("GradedExamSubmissions", fields: [gradedBy], references: [id])
+
+  @@unique([pageId, studentId])
+  @@index([pageId])
+  @@index([studentId])
+  @@map("exam_submissions")
 }

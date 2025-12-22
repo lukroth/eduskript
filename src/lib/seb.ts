@@ -69,8 +69,11 @@ export function generateSEBConfig(
   // - Restricts navigation and app switching
   // - Only allows access to the exam domain
 
+  // quitURL goes to the API route that clears the session cookie,
+  // then redirects to /exam-complete
   const quitUrl = new URL(examUrl)
-  quitUrl.pathname = '/exam-complete'
+  quitUrl.pathname = '/api/exams/end-session'
+  quitUrl.search = '' // Clear any query params so quit URL is clean
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -155,22 +158,34 @@ export function generateSEBConfig(
   <key>showSideMenu</key>
   <false/>
 
-  <!-- URL filtering - only allow exam domain -->
+  <!-- URL filtering - disabled for now, needs proper pattern testing -->
   <key>URLFilterEnable</key>
-  <true/>
+  <false/>
   <key>URLFilterEnableContentFilter</key>
   <false/>
   <key>URLFilterRules</key>
   <array>
+    <!-- Allow all paths on exam domain using regex -->
     <dict>
       <key>action</key>
       <integer>1</integer>
       <key>active</key>
       <true/>
       <key>expression</key>
-      <string>${escapeXml(new URL(examUrl).origin)}/*</string>
+      <string>${escapeXml(new URL(examUrl).origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))}.*</string>
       <key>regex</key>
-      <false/>
+      <true/>
+    </dict>
+    <!-- Block everything else -->
+    <dict>
+      <key>action</key>
+      <integer>0</integer>
+      <key>active</key>
+      <true/>
+      <key>expression</key>
+      <string>.*</string>
+      <key>regex</key>
+      <true/>
     </dict>
   </array>
 
@@ -196,12 +211,29 @@ export function generateSEBConfig(
   <key>allowAudioCapture</key>
   <false/>
 
-${isDevelopment ? `
-  <!-- SSL/TLS settings (allow self-signed certs for development) -->
+  <!-- SSL/TLS settings -->
   <key>pinEmbeddedCertificates</key>
   <false/>
+  <key>sendBrowserExamKey</key>
+  <false/>
+${isDevelopment ? `  <!-- Development: relaxed TLS settings for ngrok/tunnels -->
   <key>allowAnyTLSVersion</key>
-  <true/>` : ''}
+  <true/>
+  <key>URLFilterIgnoreTLS</key>
+  <true/>
+  <!-- Skip ngrok browser warning -->
+  <key>sendCustomRequestHeaders</key>
+  <array>
+    <dict>
+      <key>url</key>
+      <string>*</string>
+      <key>headers</key>
+      <dict>
+        <key>ngrok-skip-browser-warning</key>
+        <string>true</string>
+      </dict>
+    </dict>
+  </array>` : ''}
 </dict>
 </plist>`
 }

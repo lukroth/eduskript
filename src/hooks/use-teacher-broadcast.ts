@@ -25,6 +25,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { useExamSession } from '@/contexts/exam-session-context'
 import { useRealtimeEvents } from './use-realtime-events'
 
 export interface TeacherClassAnnotation {
@@ -57,6 +58,7 @@ export interface TeacherClassCodeHighlights {
 export interface TeacherIndividualFeedback {
   data: unknown
   updatedAt: number
+  teacherName?: string
 }
 
 /**
@@ -86,6 +88,7 @@ export interface TeacherBroadcastData {
  */
 export function useTeacherBroadcast(pageId: string) {
   const { status } = useSession()
+  const examSession = useExamSession()
   const [classAnnotations, setClassAnnotations] = useState<TeacherClassAnnotation[]>([])
   const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
   const [classCodeHighlights, setClassCodeHighlights] = useState<TeacherClassCodeHighlights[]>([])
@@ -95,11 +98,14 @@ export function useTeacherBroadcast(pageId: string) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Consider authenticated if either NextAuth session OR exam session is active
+  const isAuthenticated = status === 'authenticated' || examSession.isInExamSession
+
   // Fetch teacher annotations from API
   // Uses SWR pattern: keep showing stale data while fetching, then swap when ready.
   // This prevents UI flicker during refetch.
   const fetchAnnotations = useCallback(async () => {
-    if (status !== 'authenticated' || !pageId) {
+    if (!isAuthenticated || !pageId) {
       setIsLoading(false)
       return
     }
@@ -122,7 +128,9 @@ export function useTeacherBroadcast(pageId: string) {
         classCodeHighlightsCount: data.classCodeHighlights?.length ?? 0,
         hasIndividualFeedback: !!data.individualFeedback,
         hasIndividualSnapFeedback: !!data.individualSnapFeedback,
-        individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0
+        individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0,
+        individualFeedbackTeacherName: data.individualFeedback?.teacherName,
+        individualSnapFeedbackTeacherName: data.individualSnapFeedback?.teacherName,
       })
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
@@ -135,7 +143,7 @@ export function useTeacherBroadcast(pageId: string) {
     } finally {
       setIsLoading(false)
     }
-  }, [pageId, status])
+  }, [pageId, isAuthenticated])
 
   // Initial fetch
   useEffect(() => {
@@ -164,7 +172,7 @@ export function useTeacherBroadcast(pageId: string) {
         }
       }
     },
-    { enabled: status === 'authenticated' }
+    { enabled: isAuthenticated }
   )
 
   return {

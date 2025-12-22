@@ -12,6 +12,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { useExamSession } from '@/contexts/exam-session-context'
 import { syncEngine, type SyncStatus } from './sync-engine'
 import { userDataService } from './userDataService'
 import { db } from './schema'
@@ -54,17 +55,23 @@ interface UserDataProviderProps {
 
 /**
  * Provider component that manages user data sync with authentication
+ *
+ * Supports two authentication methods:
+ * 1. NextAuth session (regular browser login)
+ * 2. Exam session context (SEB mode, where NextAuth isn't available)
  */
 export function UserDataProvider({ children }: UserDataProviderProps) {
   const { data: session, status } = useSession()
+  const examSession = useExamSession()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncEngine.getStatus())
   const [annotationVersionMismatch, setAnnotationVersionMismatch] = useState(false)
   const [onClearAnnotations, setOnClearAnnotationsState] = useState<(() => void) | null>(null)
   const [isDbReady, setIsDbReady] = useState(false)
   const userChangeHandledRef = useRef(false)
 
-  const userId = session?.user?.id ?? null
-  const isAuthenticated = status === 'authenticated' && userId !== null
+  // Use NextAuth session first, fall back to exam session
+  const userId = session?.user?.id ?? examSession.user?.id ?? null
+  const isAuthenticated = (status === 'authenticated' && session?.user?.id !== null) || examSession.isInExamSession
 
   // CRITICAL: Clear IndexedDB when user changes OR when cache version is outdated
   // IndexedDB keys don't include userId, so different users on the same browser would
