@@ -277,14 +277,14 @@ export function PublicSiteLayout({
         <ReadingProgress />
 
       {/* Top-right controls - only visible on mobile when sidebar is closed */}
-      <div className="lg:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
+      <div className="min-[1344px]:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
         <FontSizeControls />
         <PublicThemeToggle />
         <AuthButton pageId={pageId} />
       </div>
 
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className="min-[1344px]:hidden fixed top-4 left-4 z-50">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className="p-2 bg-card rounded-md shadow-md border border-border"
@@ -296,7 +296,7 @@ export function PublicSiteLayout({
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-40 bg-card paper-shadow transform transition-all duration-300 ease-in-out ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0 ${
+      } min-[1344px]:translate-x-0 ${
         isSidebarCollapsed ? 'w-16 min-w-16' : 'w-80'
       }`}>
         <div className="flex flex-col h-full">
@@ -605,8 +605,8 @@ export function PublicSiteLayout({
 
       {/* Overlay for mobile */}
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+        <div
+          className="fixed inset-0 bg-black/50 z-30 min-[1344px]:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -615,7 +615,7 @@ export function PublicSiteLayout({
         <div
           id="scroll-container"
           className={`transition-all duration-300 h-screen overflow-auto ${
-            isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-80'
+            isSidebarCollapsed ? 'min-[1344px]:ml-16' : 'min-[1344px]:ml-80'
           }`}
         >
           <main className="bg-background min-h-screen">

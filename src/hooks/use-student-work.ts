@@ -7,9 +7,12 @@
  * from the /api/classes/[classId]/students/[studentId]/user-data endpoint.
  *
  * This allows teachers to see what students have drawn/written on a page.
+ *
+ * Subscribes to SSE events for real-time updates when the student saves.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRealtimeEvents } from './use-realtime-events'
 
 export interface StudentWorkData {
   annotations?: {
@@ -108,6 +111,22 @@ export function useStudentWork({
   useEffect(() => {
     fetchStudentWork()
   }, [classId, studentId, pageId, adaptersKey]) // Don't include fetchStudentWork to avoid loop
+
+  // Subscribe to real-time student work updates via SSE
+  // When the student we're viewing saves their work, automatically refetch
+  useRealtimeEvents(
+    ['student-work-update'],
+    (event) => {
+      // Only refetch if this is the student we're currently viewing
+      if (event.studentId === studentId && event.pageId === pageId) {
+        console.log('[useStudentWork] Received student-work-update, refetching...')
+        // Clear the lastFetchKey to force a refetch
+        lastFetchKeyRef.current = ''
+        fetchStudentWork()
+      }
+    },
+    { enabled: !!classId && !!studentId }
+  )
 
   return {
     data,

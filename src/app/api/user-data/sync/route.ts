@@ -450,6 +450,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Publish SSE events for student annotation updates
+    // Notify teachers who may be viewing this student's work
+    if (!isTeacher && synced.length > 0) {
+      // Get items that were personal saves (not targeted broadcasts)
+      const personalItems = items.filter(item => !item.targetType && !item.targetId)
+
+      if (personalItems.length > 0) {
+        try {
+          // Find all classes this student is in
+          const memberships = await prisma.classMembership.findMany({
+            where: { studentId: userId },
+            select: { classId: true }
+          })
+
+          if (memberships.length > 0) {
+            // Deduplicate by pageId to avoid spamming
+            const pageIds = [...new Set(personalItems.map(item => item.itemId))]
+
+            for (const pageId of pageIds) {
+              for (const membership of memberships) {
+                await eventBus.publish(`class:${membership.classId}:teacher`, {
+                  type: 'student-work-update',
+                  studentId: userId,
+                  classId: membership.classId,
+                  pageId,
+                  timestamp: Date.now()
+                })
+              }
+            }
+            console.log(`[user-data/sync] Published student-work-update to ${memberships.length} class(es) for ${pageIds.length} page(s)`)
+          }
+        } catch (err) {
+          console.error('[user-data/sync] Failed to publish student work events:', err)
+          // Don't fail the sync if event publishing fails
+        }
+      }
+    }
+
     // Publish SSE events for teacher broadcasts/feedback
     // Deduplicate broadcasts by targetType+targetId+pageId to avoid spamming students
     // when multiple adapters (e.g., 5 code editors) sync in the same request

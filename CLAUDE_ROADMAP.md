@@ -1,6 +1,6 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-12-20*
+*Last updated: 2025-12-22*
 *Current Status: Simplified Architecture - Username-Based Routing*
 
 > **Note**: Completed features have been moved to `docs/COMPLETED_FEATURES.md`
@@ -22,20 +22,23 @@
   - ✅ Hand-in flow with confirmation dialog
   - ✅ Auto-create ExamState when unlocking exam for class
   - ✅ SSE event types for exam state changes
-  - 🔲 TODO: Switch to see what students are doing (like annotation system)
-  - 🔲 TODO: After-exam teacher UX (correct/view exam, points overview)
-  - 🔲 TODO: SEB security: increase from spoofable user agent to BEK validation
-
-Issues
-- annotations: font resize doesn't initially have the correct state and it doesn't trigger annotation repositioning
-- annotations + positioning system: could scrolling be made more natural
+  - 🔲 Switch to see what students are doing (like annotation system)
+  - 🔲 After-exam teacher UX (correct/view exam, points overview)
+  - 🔲 SEB security: increase from spoofable user agent to BEK validation
 
 **Annotation Positioning: Tablet-First Fixed Paper Width** (see `docs/annotation-positioning-research.md`)
-- 🔲 Change `.paper-responsive` to fixed 768px width (no responsive padding breakpoints)
-- 🔲 Ensure sidebar behavior works correctly (floating on tablet, fixed on desktop)
-- 🔲 Test annotation alignment across tablet/desktop
-- 🔲 Accept phones as "scaled down" experience (pinch-zoom to read)
+- ✅ Fixed paper width (1024px) with responsive scaling for narrow viewports
+- ✅ Safari/iPad font size fixes (CSS variable propagation, em-unit workarounds)
+- ✅ Consistent line-height across browsers (fixes subpixel rounding differences)
+- ✅ Font-size change triggers annotation repositioning via custom event
+- ✅ Paper scales proportionally on viewports < 1024px (transform: scale)
+- ✅ Sidebar floats on tablet (<1024px), fixed on desktop
+- ✅ Finger draw mode blocks touch scrolling for annotation on touch devices
+- 🔲 Improve annotation UX again, it feels a little laggy on iPad again. Pressure curve might be a bit off, too.
 - 🔲 Future: "Reading mode" toggle for responsive text without annotations
+
+Issues (annotation system):
+- 🔲 Scrolling could be more natural (investigate momentum/inertia)
 
 - major:on safari ipad when i use the snap feature it freezes after the border animation is done. it then toook around 30 seconds until the snap appeared with the wrong font and no annotations.
 - minor: it might be the org frontpage cache invalidation isn't working. i updated a frontpage and still got the old version

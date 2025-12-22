@@ -17,6 +17,7 @@ export type AppEvent =
   | ExamStateChangeEvent
   | ExamStudentStatusEvent
   | ExamReopenedEvent
+  | StudentWorkUpdateEvent
 
 /**
  * Fired when a student is invited to a class (via bulk import or direct invite)
@@ -103,6 +104,18 @@ export interface ExamStudentStatusEvent {
  */
 export interface ExamReopenedEvent {
   type: 'exam-reopened'
+  pageId: string
+  timestamp: number
+}
+
+/**
+ * Fired when a student updates their work (annotations, code, etc.)
+ * Sent to class teacher so they can see real-time student progress
+ */
+export interface StudentWorkUpdateEvent {
+  type: 'student-work-update'
+  studentId: string
+  classId: string
   pageId: string
   timestamp: number
 }
