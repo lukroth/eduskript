@@ -82,7 +82,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, User, Users, MessageSquare, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
@@ -94,10 +94,12 @@ import { repositionStrokes, repositionSnaps } from '@/lib/annotations/reposition
 import { useLayout } from '@/contexts/layout-context'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
+import { useStudentWork } from '@/hooks/use-student-work'
 import { parseStrokes, type AnimatedStroke } from '@/hooks/use-stroke-animation'
 import { useSession } from 'next-auth/react'
 import { SnapOverlay, type Snap } from './snap-overlay'
-import { SnapsDisplay } from './snaps-display'
+import { SnapsDisplay, type StudentWorkSnap } from './snaps-display'
+import { LayerBadges } from './layer-badges'
 import { createLogger } from '@/lib/logger'
 
 const log = createLogger('annotations:layer')
@@ -114,7 +116,9 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   headingPositions,
   zoom,
   zIndex = 38, // Below main canvas (40), above code editor buttons (z-30)
-  className = ''
+  className = '',
+  badge,
+  showBadge = true
 }: {
   canvasData: string
   paperWidth: number
@@ -123,6 +127,13 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   zoom: number
   zIndex?: number
   className?: string
+  badge?: {
+    layerId: string
+    layerName: string
+    layerColor: 'purple' | 'blue' | 'orange' | 'green'
+    icon: React.ReactNode
+  }
+  showBadge?: boolean
 }) {
   // Parse strokes from data
   const allStrokes = useMemo(() => parseStrokes(canvasData), [canvasData])
@@ -256,6 +267,17 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
           />
         </div>
       )}
+      {/* Floating badges to identify layer ownership - hidden by default, shown on toolbar hover */}
+      {badge && showBadge && (
+        <LayerBadges
+          canvasData={canvasData}
+          layerId={badge.layerId}
+          layerName={badge.layerName}
+          layerColor={badge.layerColor}
+          icon={badge.icon}
+          zoom={zoom}
+        />
+      )}
     </div>
   )
 })
@@ -311,9 +333,11 @@ interface AnnotationLayerProps {
   publicAnnotations?: PublicAnnotation[]
   /** Whether current user can create public annotations (checked server-side) */
   isPageAuthor?: boolean
+  /** Whether user is a student in an exam session (for SEB mode where NextAuth session isn't available) */
+  isExamStudent?: boolean
 }
 
-export function AnnotationLayer({ pageId, content, children, publicAnnotations = [], isPageAuthor: isPageAuthorProp = false }: AnnotationLayerProps) {
+export function AnnotationLayer({ pageId, content, children, publicAnnotations = [], isPageAuthor: isPageAuthorProp = false, isExamStudent = false }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
   const { data: session } = useSession()
   const { selectedClass, setSelectedClass, selectedStudent, setSelectedStudent, broadcastToPage, setBroadcastToPage, viewMode, isTeacher } = useTeacherClass()
@@ -476,7 +500,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   )
 
   // For students: fetch teacher broadcasts (annotations + snaps)
-  const isStudent = session?.user?.accountType === 'student'
+  // isExamStudent handles the SEB exam case where NextAuth session isn't available
+  const isStudent = session?.user?.accountType === 'student' || isExamStudent
   const {
     classAnnotations: teacherClassAnnotations,
     classSnaps: teacherClassSnaps,
@@ -563,8 +588,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (layerId === 'personal' && isTeacher && viewMode !== 'my-view') {
       return false
     }
-    // Student feedback hidden by default when in class-broadcast mode
-    if (layerId === 'student-feedback' && isTeacher && viewMode === 'class-broadcast') {
+    // Student feedback and student work hidden by default when in class-broadcast mode
+    // (these two layers are treated as one unified layer from teacher's perspective)
+    if ((layerId === 'student-feedback' || layerId === 'student-work') && isTeacher && viewMode === 'class-broadcast') {
       return false
     }
     return true // All other layers visible by default
@@ -636,11 +662,26 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   }, [toggleLayerVisibility, classBroadcastVisible])
 
   // Student feedback visibility (for teachers)
+  // This controls BOTH student-feedback (teacher's feedback to student) AND student-work (student's own annotations)
+  // They're shown as a unified layer from the teacher's perspective
   const studentFeedbackVisible = isLayerVisible('student-feedback')
   const toggleStudentFeedbackVisibility = useCallback(() => {
     log('toggleStudentFeedbackVisibility called, current:', studentFeedbackVisible)
-    toggleLayerVisibility('student-feedback')
-  }, [toggleLayerVisibility, studentFeedbackVisible])
+    // Toggle both layers together - they appear as one unified layer to the teacher
+    setLayerVisibility(prev => {
+      const currentVisible = 'student-feedback' in prev ? prev['student-feedback'] : true
+      const newVisible = !currentVisible
+      const next = {
+        ...prev,
+        'student-feedback': newVisible,
+        'student-work': newVisible,
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('annotation-layer-visibility', JSON.stringify(next))
+      }
+      return next
+    })
+  }, [studentFeedbackVisible])
 
   // Page broadcast visibility (for page authors)
   const pageBroadcastVisible = isLayerVisible('page-broadcast')
@@ -764,6 +805,27 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     })
   }, [studentFeedbackData, studentFeedbackSyncOptions])
 
+  // Load the student's OWN annotations and snaps (their personal work, not teacher feedback TO them)
+  // This allows teachers to see what the student has drawn on the page
+  const { data: studentWorkData, isLoading: studentWorkLoading } = useStudentWork({
+    classId: isTeacher && studentForFeedback ? selectedClass?.id ?? null : null,
+    studentId: isTeacher && studentForFeedback ? studentForFeedback.id : null,
+    pageId,
+    adapters: ['annotations', 'snaps']
+  })
+
+  // Debug: log when studentWorkData changes
+  useEffect(() => {
+    if (isTeacher && studentForFeedback) {
+      log('studentWorkData changed:', {
+        hasData: !!studentWorkData?.annotations?.data,
+        canvasDataLength: (studentWorkData?.annotations?.data as { canvasData?: string } | undefined)?.canvasData?.length ?? 0,
+        studentId: studentForFeedback.id,
+        isLoading: studentWorkLoading
+      })
+    }
+  }, [studentWorkData, studentForFeedback, isTeacher, studentWorkLoading])
+
   // Sync options for page-broadcast (public annotations)
   const pageBroadcastSyncOptions: SyncedUserDataOptions = useMemo(() => {
     return { targetType: 'page', targetId: pageId }
@@ -782,6 +844,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const [pageVersion, setPageVersion] = useState<string>('')
   const [hasAnnotations, setHasAnnotations] = useState(false)
   const [canvasData, setCanvasData] = useState<string>('')
+  // Layer badges visibility - hidden by default, shown when hovering layers dropdown in toolbar
+  const [showLayerBadges, setShowLayerBadges] = useState(false)
 
   // Check if class broadcast and student feedback layers have content
   // IMPORTANT: When in the respective mode, use local canvasData/hasAnnotations state (which updates immediately)
@@ -1116,7 +1180,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       ...snap,
       id: `individual-${snap.id}`, // Make IDs unique
       layerId: 'individual',
-      layerName: 'Teacher feedback',
+      layerName: teacherIndividualSnapFeedback.teacherName || 'Teacher',
       isTeacherSnap: true as const,
     }))
   }, [isStudent, teacherIndividualSnapFeedback, isLayerVisible])
@@ -1126,15 +1190,42 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     return [...teacherClassSnapsData, ...teacherIndividualSnapsData]
   }, [teacherClassSnapsData, teacherIndividualSnapsData])
 
+  // Extract student work snaps for teachers viewing student's work
+  const studentWorkSnapsData: StudentWorkSnap[] = useMemo(() => {
+    if (!isTeacher || !studentForFeedback || !isLayerVisible('student-work')) return []
+
+    const snapsData = studentWorkData?.snaps?.data as { snaps?: Snap[] } | null
+    if (!snapsData?.snaps?.length) return []
+
+    return snapsData.snaps.map(snap => ({
+      ...snap,
+      layerId: 'student-work',
+      layerName: `${studentForFeedback.displayName || 'Student'}'s work`,
+      isStudentWorkSnap: true as const,
+    }))
+  }, [isTeacher, studentForFeedback, studentWorkData, isLayerVisible])
+
   // Student position overrides for teacher snaps (persisted via useSyncedUserData)
   type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
-  type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides }
+  type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
   const emptySnapOverrides = useMemo(() => ({ classSnaps: {}, feedbackSnaps: {} } as SnapOverridesData), [])
-  const { data: snapOverrides, updateData: updateSnapOverrides } = useSyncedUserData<SnapOverridesData>(
+  const { data: studentSnapOverrides, updateData: updateSnapOverrides } = useSyncedUserData<SnapOverridesData>(
     isStudent ? pageId : '__skip__',
     'snap-overrides',
     emptySnapOverrides
   )
+
+  // Teacher-side overrides for viewing student work snaps (local state, session only)
+  const [teacherSnapOverrides, setTeacherSnapOverrides] = useState<SnapPositionOverrides>({})
+
+  // Combined snap overrides - students use persisted overrides, teachers use local state for student work snaps
+  const snapOverrides = useMemo(() => {
+    const base = studentSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
+    if (isTeacher) {
+      return { ...base, studentWorkSnaps: teacherSnapOverrides }
+    }
+    return base
+  }, [studentSnapOverrides, teacherSnapOverrides, isTeacher])
 
   // Callback for when student moves/resizes a teacher snap
   const handleTeacherSnapOverride = useCallback((
@@ -1143,7 +1234,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     position: { top: number; left: number; width: number; height: number }
   ) => {
     const key = layerType === 'class' ? 'classSnaps' : 'feedbackSnaps'
-    const currentOverrides = snapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
+    const currentOverrides = studentSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
     updateSnapOverrides({
       classSnaps: currentOverrides.classSnaps ?? {},
       feedbackSnaps: currentOverrides.feedbackSnaps ?? {},
@@ -1152,7 +1243,18 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         [snapId]: position
       }
     })
-  }, [snapOverrides, updateSnapOverrides])
+  }, [studentSnapOverrides, updateSnapOverrides])
+
+  // Callback for when teacher moves/resizes a student work snap
+  const handleStudentWorkSnapOverride = useCallback((
+    snapId: string,
+    position: { top: number; left: number; width: number; height: number }
+  ) => {
+    setTeacherSnapOverrides(prev => ({
+      ...prev,
+      [snapId]: position
+    }))
+  }, [])
 
   // Pen priority: pen always wins, ignore other inputs for 200ms after last pen event
   const lastPenEventTimeRef = useRef<number>(0)
@@ -2459,7 +2561,62 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             )
           })()}
 
-          {/* Class broadcast annotations (blue tint) - for students */}
+          {/* Student's own annotations (their personal work) - for teachers viewing student */}
+          {isTeacher && studentForFeedback && isLayerVisible('student-work') && (() => {
+            const studentAnnotations = studentWorkData?.annotations?.data as { canvasData?: string; headingOffsets?: Record<string, number>; paddingLeft?: number } | undefined
+            const studentCanvasData = studentAnnotations?.canvasData
+            if (!studentCanvasData || studentCanvasData === '[]') return null
+
+            // Reposition student strokes to match current layout
+            const repositionedCanvasData = repositionTeacherAnnotations(
+              studentCanvasData,
+              studentAnnotations?.headingOffsets,
+              studentAnnotations?.paddingLeft,
+              headingPositions,
+              currentPaddingLeft
+            )
+
+            return createPortal(
+              <div
+                className="reference-layer-fade-in"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: pageHeight,
+                  pointerEvents: 'none',
+                  zIndex: 36, // Below other layers
+                  opacity: 0.85, // Slightly reduced to show depth, but no color distortion
+                }}
+              >
+                <SimpleCanvas
+                  width={paperWidth}
+                  height={pageHeight}
+                  mode="view"
+                  initialData={repositionedCanvasData}
+                  headingPositions={headingPositions}
+                  zoom={zoom}
+                  readOnly
+                />
+                {/* Floating badges to identify student work - hidden by default, shown on toolbar hover */}
+                {showLayerBadges && (
+                  <LayerBadges
+                    canvasData={repositionedCanvasData}
+                    layerId="student-work"
+                    layerName={studentForFeedback.displayName || 'Student'}
+                    layerColor="purple"
+                    icon={<User className="w-3 h-3" />}
+                    zoom={zoom}
+                  />
+                )}
+              </div>,
+              paperElement
+            )
+          })()}
+
+          {/* Class broadcast annotations - for students */}
           {isStudent && teacherClassAnnotations.map((classAnnotation) => {
             const layerId = `class-${classAnnotation.classId}`
             if (!isLayerVisible(layerId)) return null
@@ -2484,6 +2641,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                     pageHeight={pageHeight}
                     headingPositions={headingPositions}
                     zoom={zoom}
+                    badge={{
+                      layerId,
+                      layerName: classAnnotation.className || 'Class',
+                      layerColor: 'blue',
+                      icon: <Users className="w-3 h-3" />
+                    }}
+                    showBadge={showLayerBadges}
                   />,
                   paperElement
                 )}
@@ -2491,7 +2655,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             )
           })}
 
-          {/* Individual feedback annotations (orange tint) - for students */}
+          {/* Individual feedback annotations - for students */}
           {isStudent && teacherIndividualFeedback && isLayerVisible('individual') && (() => {
             const layerAnnotationData = teacherIndividualFeedback.data as AnnotationData | null
             if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
@@ -2512,12 +2676,19 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                 headingPositions={headingPositions}
                 zoom={zoom}
                 zIndex={39} // Below main canvas (40), above code editor buttons (z-30)
+                badge={{
+                  layerId: 'individual-feedback',
+                  layerName: teacherIndividualFeedback.teacherName || 'Teacher',
+                  layerColor: 'orange',
+                  icon: <MessageSquare className="w-3 h-3" />
+                }}
+                showBadge={showLayerBadges}
               />,
               paperElement
             )
           })()}
 
-          {/* Public page annotations (green tint) - visible to everyone */}
+          {/* Public page annotations - visible to everyone */}
           {/* Don't show when user is actively editing page-broadcast (they see their own edits in the main layer) */}
           {viewMode !== 'page-broadcast' && isLayerVisible('public') && (() => {
             // Use synced pageBroadcastData (updates dynamically) or fall back to server-passed publicAnnotations
@@ -2540,6 +2711,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   headingPositions={headingPositions}
                   zoom={zoom}
                   zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
+                  badge={{
+                    layerId: 'public',
+                    layerName: 'Public',
+                    layerColor: 'green',
+                    icon: <Globe className="w-3 h-3" />
+                  }}
+                  showBadge={showLayerBadges}
                 />,
                 paperElement
               )
@@ -2570,6 +2748,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                       headingPositions={headingPositions}
                       zoom={zoom}
                       zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
+                      badge={{
+                        layerId: `public-${annotation.userId}`,
+                        layerName: 'Public',
+                        layerColor: 'green',
+                        icon: <Globe className="w-3 h-3" />
+                      }}
+                      showBadge={showLayerBadges}
                     />,
                     paperElement
                   )}
@@ -2597,6 +2782,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         layers={toolbarLayers}
         onLayerToggle={toggleLayerVisibility}
         onLayerDelete={handleLayerDelete}
+        // Layer badges visibility (controlled by layers dropdown hover)
+        showLayerBadges={showLayerBadges}
+        onShowLayerBadgesChange={setShowLayerBadges}
         // My annotations controls (person icon - always controls personal annotations)
         myAnnotationsVisible={myAnnotationsVisible}
         myAnnotationsActive={myAnnotationsActive}
@@ -2649,8 +2837,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           onRenameSnap={handleRenameSnap}
           onReorderSnaps={handleReorderSnaps}
           teacherSnaps={allTeacherSnaps}
+          studentWorkSnaps={studentWorkSnapsData}
           snapOverrides={snapOverrides}
           onTeacherSnapOverride={handleTeacherSnapOverride}
+          onStudentWorkSnapOverride={isTeacher ? handleStudentWorkSnapOverride : undefined}
           zoom={zoom}
         />,
         mainElement

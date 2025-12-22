@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe } from 'lucide-react'
+import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe, Layers } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/contexts/layout-context'
@@ -116,6 +116,9 @@ interface AnnotationToolbarProps {
   layers?: AnnotationLayer[]
   onLayerToggle?: (layerId: string) => void
   onLayerDelete?: (layerId: string) => void
+  // Layer badges visibility (controlled by layers dropdown hover)
+  showLayerBadges?: boolean
+  onShowLayerBadgesChange?: (show: boolean) => void
   // My annotations controls
   myAnnotationsVisible?: boolean
   myAnnotationsActive?: boolean // True when this is the layer we're drawing to
@@ -166,6 +169,9 @@ export function AnnotationToolbar({
   layers = [],
   onLayerToggle,
   onLayerDelete,
+  // Layer badges visibility
+  showLayerBadges = false,
+  onShowLayerBadgesChange,
   // My annotations
   myAnnotationsVisible = true,
   myAnnotationsActive = true,
@@ -207,6 +213,10 @@ export function AnnotationToolbar({
   const [showStudentDropdown, setShowStudentDropdown] = useState(false)
   const classDropdownRef = useRef<HTMLDivElement>(null)
   const studentDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Layers dropdown state
+  const [showLayersDropdown, setShowLayersDropdown] = useState(false)
+  const layersDropdownRef = useRef<HTMLDivElement>(null)
 
   // My annotations button state (for delete popup)
   const [showMyAnnotationsPopup, setShowMyAnnotationsPopup] = useState(false)
@@ -570,10 +580,14 @@ export function AnnotationToolbar({
       if (myAnnotationsRef.current && !myAnnotationsRef.current.contains(e.target as Node)) {
         setShowMyAnnotationsPopup(false)
       }
+      if (layersDropdownRef.current && !layersDropdownRef.current.contains(e.target as Node)) {
+        setShowLayersDropdown(false)
+        onShowLayerBadgesChange?.(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [onShowLayerBadgesChange])
 
   // My annotations button hover/long-press handlers
   const handleMyAnnotationsMouseEnter = () => {
@@ -748,6 +762,13 @@ export function AnnotationToolbar({
                       setShowStudentDropdown(!showStudentDropdown)
                       setShowClassDropdown(false)
                     }}
+                    onMouseEnter={() => onShowLayerBadgesChange?.(true)}
+                    onMouseLeave={() => {
+                      // Only hide badges if dropdown is closed
+                      if (!showStudentDropdown) {
+                        onShowLayerBadgesChange?.(false)
+                      }
+                    }}
                     className={cn(
                       'p-2 rounded-md transition-colors flex items-center gap-1',
                       'bg-primary text-primary-foreground' // Always highlighted - this is the active target
@@ -772,7 +793,11 @@ export function AnnotationToolbar({
                     const mainListStudents = students.filter(s => s.id !== quickAccessStudent?.id)
 
                     return (
-                    <div className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[280px] overflow-y-auto">
+                    <div
+                      className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[280px] overflow-y-auto"
+                      onMouseEnter={() => onShowLayerBadgesChange?.(true)}
+                      onMouseLeave={() => onShowLayerBadgesChange?.(false)}
+                    >
                       {/* Student list (excluding quick-access student) */}
                       {mainListStudents.map(student => (
                         <button
@@ -799,7 +824,7 @@ export function AnnotationToolbar({
                         const isStudentActive = selectedStudent?.id === quickAccessStudent.id
                         return (
                         <div className={cn(
-                          'flex items-center gap-1 px-2 py-1.5 mx-1 rounded-md',
+                          'flex items-center gap-1 px-2 py-1.5 mx-1 rounded-md layers-menu-purple',
                           isStudentActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
                         )}>
                           <button
@@ -862,7 +887,7 @@ export function AnnotationToolbar({
 
                       {/* "Entire class" option */}
                       <div className={cn(
-                        'flex items-center gap-1 px-2 py-1.5 mx-1 rounded-md',
+                        'flex items-center gap-1 px-2 py-1.5 mx-1 rounded-md layers-menu-blue',
                         !selectedStudent ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
                       )}>
                         <button
@@ -927,32 +952,78 @@ export function AnnotationToolbar({
         )}
 
         {/* ============ SECTION 2: Layer Controls (Students - broadcasted teacher layers) ============ */}
-        {!isTeacher && layers.length > 0 && (
+        {/* Layers dropdown button - hovering shows labels on annotations */}
+        {!isTeacher && layers.filter(l => !l.isActive).length > 0 && (
           <>
             <ToolbarSection>
-              {layers.filter(l => !l.isActive).map(layer => (
-                <div
-                  key={layer.id}
-                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md text-xs"
+              <div className="relative" ref={layersDropdownRef}>
+                <button
+                  onClick={() => {
+                    const newState = !showLayersDropdown
+                    setShowLayersDropdown(newState)
+                    onShowLayerBadgesChange?.(newState)
+                  }}
+                  onMouseEnter={() => onShowLayerBadgesChange?.(true)}
+                  onMouseLeave={() => {
+                    // Only hide badges if dropdown is closed
+                    if (!showLayersDropdown) {
+                      onShowLayerBadgesChange?.(false)
+                    }
+                  }}
+                  className={cn(
+                    'p-2 rounded-md transition-colors flex items-center gap-1',
+                    showLayersDropdown
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  )}
+                  title="View layers"
                 >
-                  {/* Eye toggle */}
-                  <button
-                    onClick={() => onLayerToggle?.(layer.id)}
-                    className={cn(
-                      'p-1 rounded transition-colors',
-                      layer.visible
-                        ? 'text-foreground hover:bg-accent'
-                        : 'text-muted-foreground/50 hover:bg-accent'
-                    )}
-                    title={layer.visible ? `Hide ${layer.label}` : `Show ${layer.label}`}
+                  <Layers className="w-4 h-4" />
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+
+                {/* Layers dropdown menu */}
+                {showLayersDropdown && (
+                  <div
+                    className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
+                    onMouseEnter={() => onShowLayerBadgesChange?.(true)}
+                    onMouseLeave={() => {
+                      if (!showLayersDropdown) {
+                        onShowLayerBadgesChange?.(false)
+                      }
+                    }}
                   >
-                    {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  </button>
-                  <span className={cn('whitespace-nowrap', !layer.visible && 'text-muted-foreground/50')}>
-                    {layer.label}
-                  </span>
-                </div>
-              ))}
+                    {layers.filter(l => !l.isActive).map(layer => {
+                      // Map layer color to badge color class
+                      const colorClass = layer.color.includes('blue') ? 'layers-menu-blue'
+                        : layer.color.includes('orange') ? 'layers-menu-orange'
+                        : layer.color.includes('green') ? 'layers-menu-green'
+                        : layer.color.includes('purple') ? 'layers-menu-purple'
+                        : ''
+
+                      return (
+                        <div
+                          key={layer.id}
+                          className={cn(
+                            'flex items-center gap-2 px-3 py-1.5 text-sm transition-colors',
+                            colorClass,
+                            !layer.visible && 'opacity-50'
+                          )}
+                        >
+                          <button
+                            onClick={() => onLayerToggle?.(layer.id)}
+                            className="p-0.5 rounded hover:bg-accent/50 transition-colors"
+                            title={layer.visible ? `Hide ${layer.label}` : `Show ${layer.label}`}
+                          >
+                            {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                          </button>
+                          <span className="flex-1 truncate">{layer.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </ToolbarSection>
             <ToolbarDivider />
           </>
