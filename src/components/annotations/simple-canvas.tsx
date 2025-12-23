@@ -480,6 +480,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       try {
         const paths = JSON.parse(initialData)
+
         // Ensure all strokes have stable IDs (backward compatibility for existing data)
         pathsRef.current = paths.map((stroke: typeof pathsRef.current[0]) => ({
           ...stroke,

@@ -1148,9 +1148,8 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 .prose-theme h1.color-title::before {
   content: attr(data-heading-text);
   position: absolute;
-  right: 4px;
-  top: 2px;
-  filter: blur(2px);
+  right: 1px;
+  top: 1px;
   width: 100%;
   text-align: center;
   z-index: -1;

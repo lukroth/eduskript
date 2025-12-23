@@ -34,15 +34,16 @@
 - ✅ Paper scales proportionally on viewports < 1024px (transform: scale)
 - ✅ Sidebar floats on tablet (<1024px), fixed on desktop
 - ✅ Finger draw mode blocks touch scrolling for annotation on touch devices
+- ✅ CSS transform scale fix: heading positions now converted to unscaled coordinates for correct cross-device annotation repositioning
 - 🔲 Improve annotation UX again, it feels a little laggy on iPad again. Pressure curve might be a bit off, too.
 - 🔲 Future: "Reading mode" toggle for responsive text without annotations
 
 Issues (annotation system):
-- 🔲 Scrolling could be more natural (investigate momentum/inertia)
+- 🔲 Scrolling could be more natural (investigate momentum/inertia). when zooming out, when page is narrower than viewport, it should be center aligned.
 
+- major: two sessions seem to be running sometimes. i logged out as eduadmin and was reverted to being logged in as a@a.com
 - major:on safari ipad when i use the snap feature it freezes after the border animation is done. it then toook around 30 seconds until the snap appeared with the wrong font and no annotations.
 - minor: it might be the org frontpage cache invalidation isn't working. i updated a frontpage and still got the old version
-
 
 **LMS Features:**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component with live answers.

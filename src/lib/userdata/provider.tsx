@@ -257,39 +257,69 @@ export function useSyncedUserData<T>(
         setIsLoading(true)
 
         // Always try to load from local IndexedDB first (includes targeting in key)
-        const record = await userDataService.get<T>(pageId, componentId, { targetType, targetId })
+        const localRecord = await userDataService.get<T>(pageId, componentId, { targetType, targetId })
 
-        if (mounted) {
-          if (record) {
-            setData(record.data)
-            setIsSynced(record.savedToRemote)
-          } else if (isBroadcastMode && targetType !== 'page') {
-            // In broadcast mode (class/student), also try server if no local data
-            // (in case teacher synced from another device)
-            // NOTE: Skip for targetType='page' - public annotations are passed via server props
-            try {
-              const response = await fetch(
-                `/api/user-data/${componentId}/${encodeURIComponent(pageId)}?targetType=${targetType}&targetId=${targetId}`
-              )
-              if (response.ok) {
-                const serverData = await response.json()
-                if (mounted && serverData.data) {
+        // For broadcast mode (class/student), also check server and compare versions
+        // This ensures we get the newest data regardless of which device saved it
+        if (isBroadcastMode && targetType !== 'page') {
+          try {
+            const response = await fetch(
+              `/api/user-data/${componentId}/${encodeURIComponent(pageId)}?targetType=${targetType}&targetId=${targetId}`
+            )
+            if (response.ok) {
+              const serverData = await response.json()
+              const serverVersion = serverData.version ?? 0
+              const localVersion = localRecord?.version ?? 0
+
+              if (mounted) {
+                if (serverData.data && serverVersion >= localVersion) {
+                  // Server has same or newer version - use server data
                   setData(serverData.data as T)
                   setIsSynced(true)
-                } else if (mounted) {
+                  // Update local cache with server data if server is newer
+                  if (serverVersion > localVersion) {
+                    await userDataService.save(pageId, componentId, serverData.data, {
+                      immediate: true,
+                      targetType,
+                      targetId
+                    })
+                  }
+                } else if (localRecord) {
+                  // Local has newer version - use local data
+                  setData(localRecord.data)
+                  setIsSynced(localRecord.savedToRemote)
+                } else {
                   setData(initialDataRef.current)
                   setIsSynced(true)
                 }
-              } else if (mounted) {
-                setData(initialDataRef.current)
-                setIsSynced(true)
               }
-            } catch {
-              if (mounted) {
+            } else if (mounted) {
+              // Server fetch failed - fall back to local data
+              if (localRecord) {
+                setData(localRecord.data)
+                setIsSynced(localRecord.savedToRemote)
+              } else {
                 setData(initialDataRef.current)
                 setIsSynced(true)
               }
             }
+          } catch {
+            // Network error - fall back to local data
+            if (mounted) {
+              if (localRecord) {
+                setData(localRecord.data)
+                setIsSynced(localRecord.savedToRemote)
+              } else {
+                setData(initialDataRef.current)
+                setIsSynced(true)
+              }
+            }
+          }
+        } else if (mounted) {
+          // Non-broadcast mode (personal data) - just use local
+          if (localRecord) {
+            setData(localRecord.data)
+            setIsSynced(localRecord.savedToRemote)
           } else {
             setData(initialDataRef.current)
             setIsSynced(true)

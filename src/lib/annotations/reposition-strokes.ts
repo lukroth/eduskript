@@ -18,15 +18,16 @@
  * Each stroke stores:
  * - `sectionId`: Which heading it belongs to (e.g., "h2-introduction")
  * - `sectionOffsetY`: The Y position of that heading when drawn
+ * - `avgX`, `avgY`: Average position for quick section lookups
  *
  * On display, we compute the delta between stored and current heading Y,
  * then translate all stroke points by that delta.
  *
- * ## Majority Voting
+ * ## Section Detection
  *
- * A stroke may cross multiple sections. We assign it to whichever section
- * contains the majority of its points. This handles edge cases where users
- * draw across heading boundaries.
+ * Section detection uses stored sectionId first (most reliable), then falls
+ * back to avgY-based lookup. This is O(n) where n = number of sections,
+ * much faster than the previous O(n*m) majority voting approach.
  *
  * ## Known Limitations
  *
@@ -42,12 +43,8 @@
  *    strokes in that section don't reposition internally. They move as a
  *    block with the section heading.
  *
- * 4. **O(n*m) majority voting**: Each stroke checks all its points against
- *    all sections. For very long strokes (1000+ points), this could be slow.
- *    In practice, most strokes have <100 points.
- *
  * @see annotation-layer.tsx - Uses this for teacher→student broadcasts
- * @see simple-canvas.tsx - Records sectionId/sectionOffsetY per stroke
+ * @see simple-canvas.tsx - Records sectionId/sectionOffsetY/avgX/avgY per stroke
  */
 
 export interface StrokeData {
@@ -74,56 +71,55 @@ export interface RepositionResult {
 }
 
 /**
- * Determines which section a stroke belongs to based on majority of points
- * Uses the OLD heading positions (from when stroke was saved) to determine section ownership
+ * Determines which section a stroke belongs to using avgY (O(1) lookup)
+ * Falls back to stored sectionId if avgY unavailable or section not in old offsets
+ *
+ * Previous implementation did O(n*m) majority voting across all points - now replaced
+ * with simple avgY-based lookup since strokes store their average position.
  */
-function findStrokeMajoritySection(
+function findStrokeSection(
   stroke: StrokeData,
   oldHeadingOffsets: Record<string, number>
 ): string | null {
-  if (Object.keys(oldHeadingOffsets).length === 0) {
-    // No old offsets available, trust the stored sectionId
+  // If stroke has a stored sectionId and that section exists in old offsets, use it directly
+  // This is the most reliable path - trust what was computed at draw time
+  if (stroke.sectionId && stroke.sectionId !== 'unknown' && oldHeadingOffsets[stroke.sectionId] !== undefined) {
     return stroke.sectionId
   }
 
-  const sectionCounts = new Map<string, number>()
+  // If no old offsets available, trust the stored sectionId even if not in offsets
+  if (Object.keys(oldHeadingOffsets).length === 0) {
+    return stroke.sectionId
+  }
+
+  // Use avgY for section detection (O(n) where n = number of sections)
+  // Compute avgY if not stored (backward compat with old strokes)
+  let avgY = stroke.avgY
+  if (avgY === undefined && stroke.points.length > 0) {
+    avgY = stroke.points.reduce((sum, p) => sum + p.y, 0) / stroke.points.length
+  }
+
+  if (avgY === undefined) {
+    return stroke.sectionId || null
+  }
 
   // Convert old offsets to sorted array
   const oldPositions = Object.entries(oldHeadingOffsets)
     .map(([sectionId, offsetY]) => ({ sectionId, offsetY }))
     .sort((a, b) => a.offsetY - b.offsetY)
 
-  // Count points in each section using OLD positions
-  stroke.points.forEach(point => {
-    // Point.y is already in absolute page coordinates
-    const absoluteY = point.y
-
-    // Find which section this point was in based on OLD positions
-    let sectionId: string | null = null
-    for (let i = oldPositions.length - 1; i >= 0; i--) {
-      if (absoluteY >= oldPositions[i].offsetY) {
-        sectionId = oldPositions[i].sectionId
-        break
-      }
+  // Find which section contains avgY (last section whose offsetY <= avgY)
+  let foundSection: string | null = null
+  for (let i = oldPositions.length - 1; i >= 0; i--) {
+    if (avgY >= oldPositions[i].offsetY) {
+      foundSection = oldPositions[i].sectionId
+      break
     }
+  }
 
-    if (sectionId) {
-      sectionCounts.set(sectionId, (sectionCounts.get(sectionId) || 0) + 1)
-    }
-  })
-
-  // Find section with most points
-  let maxCount = 0
-  let majoritySection: string | null = null
-
-  sectionCounts.forEach((count, sectionId) => {
-    if (count > maxCount) {
-      maxCount = count
-      majoritySection = sectionId
-    }
-  })
-
-  return majoritySection
+  // If avgY is before all sections (e.g., annotations above first tracked heading),
+  // fall back to stored sectionId
+  return foundSection || stroke.sectionId || null
 }
 
 /**
@@ -169,33 +165,51 @@ export function repositionStrokes(
   let orphanedCount = 0
 
   strokes.forEach(stroke => {
-    // Determine which section this stroke ACTUALLY belongs to
-    // by checking where the majority of its points are using OLD positions
-    const majoritySection = findStrokeMajoritySection(stroke, oldHeadingOffsets)
+    // Determine which section this stroke belongs to
+    // Uses stored sectionId when available, falls back to avgY-based lookup
+    const strokeSection = findStrokeSection(stroke, oldHeadingOffsets)
 
-    if (!majoritySection || majoritySection === 'unknown') {
+    if (!strokeSection || strokeSection === 'unknown') {
       // Stroke has no section association, keep at absolute position
       repositioned.push(stroke)
       return
     }
 
-    // Find current position of the majority section
-    const currentHeading = currentHeadingPositions.find(h => h.sectionId === majoritySection)
+    // Find current position of the stroke's section
+    const currentHeading = currentHeadingPositions.find(h => h.sectionId === strokeSection)
 
     if (!currentHeading) {
       // Section was deleted - mark as orphaned
       orphanedCount++
       repositioned.push({
         ...stroke,
-        sectionId: majoritySection + '-ORPHANED'
+        sectionId: strokeSection + '-ORPHANED'
       })
       return
     }
 
     // Get the old position of this section
-    const oldOffsetY = oldHeadingOffsets[majoritySection]
+    const oldOffsetY = oldHeadingOffsets[strokeSection]
     if (oldOffsetY === undefined) {
-      // No old offset data, keep stroke as-is
+      // Section exists in current layout but wasn't tracked when saved
+      // Use stored sectionOffsetY if available, otherwise keep stroke as-is
+      if (stroke.sectionOffsetY !== undefined) {
+        const deltaY = currentHeading.offsetY - stroke.sectionOffsetY
+        if (deltaY !== 0 || deltaX !== 0) {
+          const transformedPoints = stroke.points.map(point => ({
+            ...point,
+            x: point.x + deltaX,
+            y: point.y + deltaY
+          }))
+          repositioned.push({
+            ...stroke,
+            points: transformedPoints,
+            sectionId: strokeSection,
+            sectionOffsetY: currentHeading.offsetY
+          })
+          return
+        }
+      }
       repositioned.push(stroke)
       return
     }
@@ -220,7 +234,7 @@ export function repositionStrokes(
     repositioned.push({
       ...stroke,
       points: transformedPoints,
-      sectionId: majoritySection,
+      sectionId: strokeSection,
       sectionOffsetY: currentHeading.offsetY
     })
   })

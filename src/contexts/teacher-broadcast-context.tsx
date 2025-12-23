@@ -107,14 +107,6 @@ export function TeacherBroadcastProvider({ pageId, children }: TeacherBroadcastP
       }
 
       const data: TeacherBroadcastData = await res.json()
-      console.log('[TeacherBroadcastContext] Fetched data:', {
-        classAnnotationsCount: data.classAnnotations?.length ?? 0,
-        classSnapsCount: data.classSnaps?.length ?? 0,
-        classCodeHighlightsCount: data.classCodeHighlights?.length ?? 0,
-        hasIndividualFeedback: !!data.individualFeedback,
-        hasIndividualSnapFeedback: !!data.individualSnapFeedback,
-        individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0,
-      })
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
       setClassCodeHighlights(data.classCodeHighlights || [])
@@ -137,9 +129,7 @@ export function TeacherBroadcastProvider({ pageId, children }: TeacherBroadcastP
   useRealtimeEvents(
     ['teacher-annotations-update', 'teacher-feedback'],
     (event) => {
-      console.log('[TeacherBroadcastContext] Received SSE event:', event.type, 'pageId:', (event as { pageId?: string }).pageId, 'current pageId:', pageId)
       if ((event.type === 'teacher-annotations-update' || event.type === 'teacher-feedback') && (event as { pageId?: string }).pageId === pageId) {
-        console.log('[TeacherBroadcastContext] Event matches page, refetching')
         fetchAnnotations()
       }
     },

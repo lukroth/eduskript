@@ -1146,7 +1146,7 @@ export function AnnotationToolbar({
                     <input
                       type="range"
                       min="2"
-                      max="30"
+                      max="20"
                       step="1"
                       value={penSizes[penIndex]}
                       onChange={(e) => handleSizeChange(penIndex, parseFloat(e.target.value))}

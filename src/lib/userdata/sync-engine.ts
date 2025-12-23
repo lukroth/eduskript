@@ -137,16 +137,6 @@ export class SyncEngine {
       targetId?: string | null
     } = {}
   ): void {
-    // Debug: log targeting info received
-    console.log('[SyncEngine.queueSync]', {
-      adapter,
-      itemId,
-      targetType: options.targetType,
-      targetId: options.targetId,
-      dataLength: data?.length ?? 0,
-      immediate: options.immediate
-    })
-
     // Include targeting in key to allow same adapter/itemId with different targets
     const targetKey = options.targetType && options.targetId
       ? `:${options.targetType}:${options.targetId}`
@@ -208,15 +198,6 @@ export class SyncEngine {
 
     const batch = Array.from(this.syncQueue.values())
     this.syncQueue.clear()
-
-    // Debug: log batch being sent
-    console.log('[SyncEngine.sync] Sending batch:', batch.map(item => ({
-      adapter: item.adapter,
-      itemId: item.itemId,
-      targetType: item.targetType,
-      targetId: item.targetId,
-      dataLength: item.data?.length ?? 0
-    })))
 
     // Log pending operations
     const operationIds = batch.map((item) =>

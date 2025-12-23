@@ -295,11 +295,13 @@ function repositionTeacherAnnotations(
 ): string {
   // If no teacher heading offsets, can't reposition - return as-is
   if (!teacherHeadingOffsets || Object.keys(teacherHeadingOffsets).length === 0) {
+    console.log('[Reposition] No teacher heading offsets, skipping repositioning')
     return canvasData
   }
 
   // If student hasn't calculated heading positions yet, return as-is
   if (studentHeadingPositions.length === 0) {
+    console.log('[Reposition] No student heading positions yet, skipping repositioning')
     return canvasData
   }
 
@@ -789,6 +791,12 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     })
   }, [classBroadcastData, classBroadcastSyncOptions])
 
+  // Track classBroadcastData.canvasData for triggering recalculation later
+  const classBroadcastCanvasDataRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    classBroadcastCanvasDataRef.current = classBroadcastData?.canvasData
+  }, [classBroadcastData?.canvasData])
+
   const { data: studentFeedbackData, updateData: updateStudentFeedbackData } = useSyncedUserData<AnnotationData>(
     shouldLoadStudentFeedback ? pageId : '__skip__', // Use placeholder to skip loading
     'annotations',
@@ -1093,7 +1101,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const [zoom, setZoom] = useState(1.0)
   // Default values used for both SSR and initial client render
   const defaultPenColors: [string, string, string] = ['#000000', '#FF0000', '#0000FF']
-  const defaultPenSizes: [number, number, number] = [4, 8, 14]
+  const defaultPenSizes: [number, number, number] = [10, 10, 10]
 
   const [penColors, setPenColors] = useState<[string, string, string]>(defaultPenColors)
   const [penSizes, setPenSizes] = useState<[number, number, number]>(defaultPenSizes)
@@ -1277,7 +1285,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (paper) {
       setPaperElement(paper)
 
-      setPaperWidth(paper.getBoundingClientRect().width)
+      // Use offsetWidth to get the untransformed width (ignores CSS transform scale on mobile)
+      setPaperWidth(paper.offsetWidth)
 
       // Ensure paper has position:relative for absolute canvas positioning
       paper.style.position = 'relative'
@@ -1604,7 +1613,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       setPageHeight(paperElement.offsetHeight)
 
       // Also recalculate paper dimensions when content changes
-      const paperRect = paperElement.getBoundingClientRect()
       const style = window.getComputedStyle(paperElement)
 
       const paddingLeft = parseFloat(style.paddingLeft) || 0
@@ -1612,13 +1620,21 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       // Track current padding for horizontal repositioning
       setCurrentPaddingLeft(paddingLeft)
 
-      setPaperWidth(paperRect.width)
+      // Use offsetWidth to get the untransformed width (ignores CSS transform scale)
+      // getBoundingClientRect().width returns the scaled size on mobile, but we need
+      // the actual 1024px width for canvas coordinates to align with content
+      setPaperWidth(paperElement.offsetWidth)
     }
 
     // Query for all elements with data-section-id (headings, code blocks, callouts, etc.)
     const sectionElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
     const positions: HeadingPosition[] = []
+
+    // Get the CSS transform scale factor applied to paper (for mobile responsive scaling)
+    // getBoundingClientRect() returns scaled coordinates, but we need unscaled for canvas
     const paperRect = paperElement!.getBoundingClientRect()
+    // Calculate scale from height ratio (same as width for uniform CSS transform scale)
+    const scale = (paperRect.height / paperElement!.offsetHeight) || 1
 
     sectionElements.forEach((element) => {
       const sectionId = element.getAttribute('data-section-id')
@@ -1627,21 +1643,24 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       if (sectionId) {
         // Get the element's position relative to paper element
+        // Divide by scale to convert from scaled (getBoundingClientRect) to unscaled (canvas) coordinates
         const rect = element.getBoundingClientRect()
+        const unscaledOffsetY = (rect.top - paperRect.top) / scale
 
         // Add top reference point
         positions.push({
           sectionId,
-          offsetY: rect.top - paperRect.top,
+          offsetY: unscaledOffsetY,
           headingText: headingText || ''
         })
+
 
         // For dynamic-height elements (callouts, code editors), also track bottom
         // This ensures annotations BELOW these elements move when they expand/collapse
         if (isDynamicHeight) {
           positions.push({
             sectionId: `${sectionId}-end`,
-            offsetY: rect.bottom - paperRect.top,
+            offsetY: (rect.bottom - paperRect.top) / scale,
             headingText: ''
           })
         }
@@ -1661,6 +1680,14 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
     return () => clearTimeout(timer)
   }, [children, recalculateHeadingPositions]) // Re-run when children change (markdown re-renders)
+
+  // Recalculate heading positions when teacher broadcast data arrives
+  // This fixes a timing issue on iPad where page height may not be fully calculated yet
+  useEffect(() => {
+    if (classBroadcastCanvasDataRef.current) {
+      recalculateHeadingPositions()
+    }
+  }, [classBroadcastData?.canvasData, recalculateHeadingPositions])
 
   // EXPERIMENTAL: Track heading positions on window resize for live repositioning
   // This allows real-time annotation repositioning when window width changes and text reflows
