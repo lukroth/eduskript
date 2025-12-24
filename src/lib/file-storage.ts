@@ -560,6 +560,12 @@ export async function getFileById(fileId: string, userId?: string): Promise<{
             select: {
               isPublished: true
             }
+          },
+          // Include FrontPages that use this skript for file storage
+          frontPageFileStorage: {
+            select: {
+              isPublished: true
+            }
           }
         }
       }
@@ -574,8 +580,11 @@ export async function getFileById(fileId: string, userId?: string): Promise<{
   // Allow access if:
   // 1. User is an author of the skript
   // 2. File belongs to a skript with at least one published page (public access)
+  // 3. File belongs to a skript used as file storage for a published FrontPage
   const hasAuthorPermission = userId && file.skript.authors.some(author => author.userId === userId)
-  const hasPublicAccess = file.skript.pages.some(page => page.isPublished)
+  const hasPublishedPage = file.skript.pages.some(page => page.isPublished)
+  const hasPublishedFrontPage = file.skript.frontPageFileStorage?.isPublished ?? false
+  const hasPublicAccess = hasPublishedPage || hasPublishedFrontPage
 
   if (!hasAuthorPermission && !hasPublicAccess) {
     throw new Error('Permission denied')

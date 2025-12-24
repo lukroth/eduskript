@@ -119,6 +119,10 @@ export async function GET(request: NextRequest) {
         authors: true,
         pages: {
           select: { isPublished: true }
+        },
+        // Include FrontPages that use this skript for file storage
+        frontPageFileStorage: {
+          select: { isPublished: true }
         }
       }
     })
@@ -128,10 +132,12 @@ export async function GET(request: NextRequest) {
     }
 
     const isAuthor = userId && skript.authors.some(a => a.userId === userId)
-    const hasPublishedContent = skript.pages.some(p => p.isPublished)
+    const hasPublishedPage = skript.pages.some(p => p.isPublished)
+    const hasPublishedFrontPage = skript.frontPageFileStorage?.isPublished ?? false
+    const hasPublicAccess = hasPublishedPage || hasPublishedFrontPage
 
-    // Allow access if user is author OR skript has published pages (public access for file resolution)
-    if (!isAuthor && !hasPublishedContent) {
+    // Allow access if user is author OR skript has published content (pages or FrontPages)
+    if (!isAuthor && !hasPublicAccess) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
