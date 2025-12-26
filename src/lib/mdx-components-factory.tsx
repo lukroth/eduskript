@@ -22,6 +22,7 @@ import { OurTeachers } from '@/components/markdown/our-teachers'
 import { DemoEditor } from '@/components/demo/demo-editor'
 import { ColorSliders } from '@/components/markdown/color-sliders'
 import { StickMe } from '@/components/markdown/stick-me'
+import { DijkstraVisualizer } from '@/components/markdown/dijkstra-visualizer'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -558,5 +559,7 @@ export function createMDXComponents(
     // Educational interactive components
     ColorSliders,
     StickMe,
+    DijkstraVisualizer,
+    'dijkstravisualizer': DijkstraVisualizer,
   }
 }
