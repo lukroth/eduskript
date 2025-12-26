@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Globe, Settings, Users } from 'lucide-react'
+import { Globe, LayoutDashboard, Settings, Users } from 'lucide-react'
 
-export type OrgNavTab = 'settings' | 'members' | 'teacher-domains'
+export type OrgNavTab = 'settings' | 'page-builder' | 'members' | 'domains'
 
 export function OrgNav({ orgId, active }: { orgId: string; active: OrgNavTab }) {
   return (
@@ -20,6 +20,17 @@ export function OrgNav({ orgId, active }: { orgId: string; active: OrgNavTab }) 
         Settings
       </Link>
       <Link
+        href={`/dashboard/org/${orgId}/page-builder`}
+        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          active === 'page-builder'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        <LayoutDashboard className="h-4 w-4" />
+        Page Builder
+      </Link>
+      <Link
         href={`/dashboard/org/${orgId}/members`}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
           active === 'members'
@@ -31,15 +42,15 @@ export function OrgNav({ orgId, active }: { orgId: string; active: OrgNavTab }) 
         Members
       </Link>
       <Link
-        href={`/dashboard/org/${orgId}/teacher-domains`}
+        href={`/dashboard/org/${orgId}/domains`}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-          active === 'teacher-domains'
+          active === 'domains'
             ? 'border-primary text-primary'
             : 'border-transparent text-muted-foreground hover:text-foreground'
         }`}
       >
         <Globe className="h-4 w-4" />
-        Teacher Domains
+        Domains
       </Link>
     </div>
   )

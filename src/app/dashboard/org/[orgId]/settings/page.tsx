@@ -342,33 +342,6 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
             </dl>
           </div>
 
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-medium mb-4">Public Page</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Customize what visitors see when they visit your organization&apos;s public page.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href={`/dashboard/org/${orgId}/page-builder`}>
-                <Button variant="outline" className="gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Page Builder
-                </Button>
-              </Link>
-              <Link href={`/dashboard/org/${orgId}/frontpage`}>
-                <Button variant="outline" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Edit Front Page
-                </Button>
-              </Link>
-              <Link href={`/dashboard/org/${orgId}/domains`}>
-                <Button variant="outline" className="gap-2">
-                  <Globe className="h-4 w-4" />
-                  Custom Domains
-                </Button>
-              </Link>
-            </div>
-          </div>
-
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>
               {saving ? 'Saving...' : 'Save Settings'}

@@ -51,7 +51,7 @@ export default async function OrgFrontPageEditPage({
       type="organization"
       frontPage={frontPage}
       organization={organization}
-      backUrl={`/dashboard/org/${orgId}/settings`}
+      backUrl={`/dashboard/org/${orgId}/page-builder`}
       previewUrl={previewUrl}
     />
   )

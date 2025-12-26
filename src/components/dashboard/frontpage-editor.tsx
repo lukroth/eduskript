@@ -51,6 +51,7 @@ interface FrontPageEditorProps {
   }
   backUrl: string
   previewUrl?: string
+  hideHeader?: boolean // When true, omit the header (used when parent provides OrgNav)
 }
 
 export function FrontPageEditor({
@@ -59,7 +60,8 @@ export function FrontPageEditor({
   skript,
   organization,
   backUrl,
-  previewUrl
+  previewUrl,
+  hideHeader = false
 }: FrontPageEditorProps) {
   const [content, setContent] = useState(frontPage?.content || '')
   const [isSaving, setIsSaving] = useState(false)
@@ -494,59 +496,105 @@ export function FrontPageEditor({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link href={backUrl}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-semibold">{title}</h1>
-            <p className="text-sm text-muted-foreground">{description}</p>
-          </div>
-        </div>
-
-        <div className="flex gap-2 items-center">
-          {/* Custom Publish Toggle */}
-          <Button
-            variant={isPublished ? 'default' : 'outline'}
-            size="sm"
-            onClick={handlePublishToggle}
-            title={isPublished ? 'Published - click to unpublish' : 'Draft - click to publish'}
-          >
-            {isPublished ? 'Published' : 'Draft'}
-          </Button>
-
-          {previewUrl && (
-            <Link
-              href={previewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              prefetch={false}
-            >
-              <Button variant="ghost" size="sm" title="Preview front page">
-                <Eye className="w-4 h-4" />
+      {/* Header - can be hidden when parent provides its own nav */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link href={backUrl}>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-          )}
+            <div>
+              <h1 className="text-2xl font-semibold">{title}</h1>
+              <p className="text-sm text-muted-foreground">{description}</p>
+            </div>
+          </div>
 
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            size="sm"
-            className="relative"
-            title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save'}
-            {hasUnsavedChanges && (
-              <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+          <div className="flex gap-2 items-center">
+            {/* Custom Publish Toggle */}
+            <Button
+              variant={isPublished ? 'default' : 'outline'}
+              size="sm"
+              onClick={handlePublishToggle}
+              title={isPublished ? 'Published - click to unpublish' : 'Draft - click to publish'}
+            >
+              {isPublished ? 'Published' : 'Draft'}
+            </Button>
+
+            {previewUrl && (
+              <Link
+                href={previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                prefetch={false}
+              >
+                <Button variant="ghost" size="sm" title="Preview front page">
+                  <Eye className="w-4 h-4" />
+                </Button>
+              </Link>
             )}
-          </Button>
+
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="sm"
+              className="relative"
+              title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Save'}
+              {hasUnsavedChanges && (
+                <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Toolbar when header is hidden */}
+      {hideHeader && (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">{description}</p>
+          <div className="flex gap-2 items-center">
+            <Button
+              variant={isPublished ? 'default' : 'outline'}
+              size="sm"
+              onClick={handlePublishToggle}
+              title={isPublished ? 'Published - click to unpublish' : 'Draft - click to publish'}
+            >
+              {isPublished ? 'Published' : 'Draft'}
+            </Button>
+
+            {previewUrl && (
+              <Link
+                href={previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                prefetch={false}
+              >
+                <Button variant="ghost" size="sm" title="Preview front page">
+                  <Eye className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
+
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="sm"
+              className="relative"
+              title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Save'}
+              {hasUnsavedChanges && (
+                <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Files Section */}
       {effectiveSkriptId ? (
