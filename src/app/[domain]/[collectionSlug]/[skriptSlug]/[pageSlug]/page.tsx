@@ -15,8 +15,9 @@ import type { Metadata } from 'next'
 import {
   getTeacherByUsernameDeduped,
   getPublishedPage,
-  getAllPublishedCollections,
+  getFullSiteStructure,
 } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -365,43 +366,29 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
     }
   }
 
-  // Build site structure for navigation (only published pages)
-  const siteStructure = [{
+  // Build site structure for contextual navigation using shared utility
+  const siteStructure = buildSiteStructure([{
     id: collection.id,
     title: collection.title,
     slug: collection.slug,
-    skripts: [{
-      id: skript.id,
-      title: skript.title,
-      slug: skript.slug,
-      pages: allPages.map(p => ({
-        id: p.id,
-        title: p.title,
-        slug: p.slug
-      }))
+    accentColor: collection.accentColor,
+    isPublished: collection.isPublished,
+    collectionSkripts: [{
+      order: skript.order,
+      skript: {
+        id: skript.id,
+        title: skript.title,
+        slug: skript.slug,
+        isPublished: skript.isPublished,
+        pages: allPages
+      }
     }]
-  }]
+  }], { onlyPublished: true })
 
   // Fetch full site structure if sidebar behavior is "full" (cached)
-  let fullSiteStructure = undefined
-  if (teacher.sidebarBehavior === 'full') {
-    const allCollections = await getAllPublishedCollections(teacher.id, domain)
-
-    fullSiteStructure = allCollections.map(col => ({
-      id: col.id,
-      title: col.title,
-      slug: col.slug,
-      skripts: col.collectionSkripts
-        .map(cs => cs.skript)
-        .filter(s => s.isPublished)
-        .map(s => ({
-          id: s.id,
-          title: s.title,
-          slug: s.slug,
-          pages: s.pages
-        }))
-    }))
-  }
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, domain)
+    : undefined
 
   // Prepare teacher data for the layout component
   const teacherForLayout = {

@@ -10,6 +10,7 @@ import {
   getTeacherByUsernameDeduped,
   getTeacherWithLayout,
   getTeacherHomepageContent,
+  getFullSiteStructure,
 } from '@/lib/cached-queries'
 import { prisma } from '@/lib/prisma'
 
@@ -146,6 +147,11 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
       )
     : { collections: [], rootSkripts: [] }
 
+  // Fetch full site structure when sidebar is in "full" mode
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, domain)
+    : undefined
+
   const teacherData = {
     name: teacher.name || 'Teacher',
     pageSlug: teacher.pageSlug || '',
@@ -161,6 +167,7 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
       teacher={teacherData}
       siteStructure={collections}
       rootSkripts={rootSkripts}
+      fullSiteStructure={fullSiteStructure}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
     >

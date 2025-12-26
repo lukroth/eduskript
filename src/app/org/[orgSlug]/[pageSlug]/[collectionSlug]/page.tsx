@@ -3,6 +3,8 @@ import { PublicSiteLayout } from '@/components/public/layout'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
+import { getFullSiteStructure } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 
 interface PageProps {
   params: Promise<{
@@ -175,22 +177,13 @@ export default async function OrgTeacherCollectionPage({ params }: PageProps) {
     notFound()
   }
 
-  // Build site structure
-  const siteStructure = [{
-    id: collection.id,
-    title: collection.title,
-    slug: collection.slug,
-    skripts: collection.collectionSkripts.map(cs => ({
-      id: cs.skript.id,
-      title: cs.skript.title,
-      slug: cs.skript.slug,
-      pages: cs.skript.pages.map(p => ({
-        id: p.id,
-        title: p.title,
-        slug: p.slug
-      }))
-    }))
-  }]
+  // Build site structure using shared utility
+  const siteStructure = buildSiteStructure([collection], { onlyPublished: true })
+
+  // Fetch full site structure when sidebar is in "full" mode
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, teacher.pageSlug || pageSlug)
+    : undefined
 
   const teacherData = {
     name: teacher.name || 'Teacher',
@@ -208,6 +201,7 @@ export default async function OrgTeacherCollectionPage({ params }: PageProps) {
     <PublicSiteLayout
       teacher={teacherData}
       siteStructure={siteStructure}
+      fullSiteStructure={fullSiteStructure}
       currentPath={currentPath}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}

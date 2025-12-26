@@ -9,7 +9,8 @@ import { PublicSiteLayout } from '@/components/public/layout'
 import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
 import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import { headers } from 'next/headers'
-import { getAllPublishedCollections } from '@/lib/cached-queries'
+import { getAllPublishedCollections, getFullSiteStructure } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -256,27 +257,31 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
     const showFrontpage = frontPage?.content || isAuthor
 
     if (showFrontpage) {
-      // Get all published collections for sidebar
-      const rawCollections = await getAllPublishedCollections(teacher.id, domain)
-
-      // Transform to SiteStructure format
-      const collections = rawCollections.map(c => ({
-        id: c.id,
-        title: c.title,
-        slug: c.slug,
-        skripts: c.collectionSkripts.map(cs => ({
-          id: cs.skript.id,
-          title: cs.skript.title,
-          slug: cs.skript.slug,
-          pages: cs.skript.pages
-        }))
-      }))
-
-      // Get teacher's preferences
+      // Get teacher's preferences first
       const teacherPrefs = await prisma.user.findUnique({
         where: { id: teacher.id },
         select: { sidebarBehavior: true, typographyPreference: true }
       })
+
+      // Build contextual structure (just this collection/skript)
+      const contextualStructure = buildSiteStructure([{
+        id: collection.id,
+        title: collection.title,
+        slug: collection.slug,
+        accentColor: collection.accentColor,
+        collectionSkripts: [{
+          order: collectionSkript.order,
+          skript: {
+            ...skript,
+            pages: skript.pages.filter((p: CollectionPage) => isAuthor || p.isPublished)
+          }
+        }]
+      }], { onlyPublished: !isAuthor })
+
+      // Get full site structure if in "full" mode
+      const fullSiteStructure = teacherPrefs?.sidebarBehavior === 'full'
+        ? await getFullSiteStructure(teacher.id, domain)
+        : undefined
 
       const teacherData = {
         name: teacher.name || 'Teacher',
@@ -288,19 +293,15 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
         title: teacher.title || null
       }
 
-      // Get available pages for navigation
-      const availablePages = skript.pages.filter((page: CollectionPage) =>
-        isAuthor || page.isPublished
-      )
-
       // Check if this is a preview (unpublished)
       const isPreviewMode = isAuthor && frontPage && !frontPage.isPublished
 
       return (
         <PublicSiteLayout
           teacher={teacherData}
-          siteStructure={collections}
+          siteStructure={contextualStructure}
           rootSkripts={[]}
+          fullSiteStructure={fullSiteStructure}
           sidebarBehavior={teacherPrefs?.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
           typographyPreference={teacherPrefs?.typographyPreference as 'modern' | 'classic' || 'modern'}
         >

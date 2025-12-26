@@ -20,6 +20,8 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { headers } from 'next/headers'
+import { getFullSiteStructure } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 
 interface PageProps {
   params: Promise<{
@@ -508,22 +510,29 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
     isPageAuthor = !!skriptAuthor
   }
 
-  // Build site structure for navigation
-  const siteStructure = [{
+  // Build site structure for contextual navigation using shared utility
+  const siteStructure = buildSiteStructure([{
     id: collection.id,
     title: collection.title,
     slug: collection.slug,
-    skripts: [{
-      id: skript.id,
-      title: skript.title,
-      slug: skript.slug,
-      pages: allPages.map(p => ({
-        id: p.id,
-        title: p.title,
-        slug: p.slug
-      }))
+    accentColor: collection.accentColor,
+    isPublished: collection.isPublished,
+    collectionSkripts: [{
+      order: skript.collectionSkripts[0]?.order ?? 0,
+      skript: {
+        id: skript.id,
+        title: skript.title,
+        slug: skript.slug,
+        isPublished: skript.isPublished,
+        pages: allPages
+      }
     }]
-  }]
+  }], { onlyPublished: true })
+
+  // Fetch full site structure if sidebar behavior is "full"
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, teacher.pageSlug || pageSlug)
+    : undefined
 
   const teacherData = {
     name: teacher.name || 'Teacher',
@@ -622,6 +631,7 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
     <PublicSiteLayout
       teacher={teacherData}
       siteStructure={siteStructure}
+      fullSiteStructure={fullSiteStructure}
       currentPath={currentPath}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}

@@ -6,7 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { getNavigationUrl } from '@/lib/utils'
 import { headers } from 'next/headers'
-import { getTeacherByUsernameDeduped, getPublishedCollection } from '@/lib/cached-queries'
+import { getTeacherByUsernameDeduped, getPublishedCollection, getFullSiteStructure } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -242,25 +243,14 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
     redirect(redirectUrl)
   }
 
-  // Build site structure for navigation
-  const siteStructure = [{
-    id: collection.id,
-    title: collection.title,
-    slug: collection.slug,
-    isPublished: collection.isPublished,
-    skripts: collection.collectionSkripts.map(cs => ({
-      id: cs.skript.id,
-      title: cs.skript.title,
-      slug: cs.skript.slug,
-      isPublished: cs.skript.isPublished,
-      pages: cs.skript.pages.map((page: CollectionPage) => ({
-        id: page.id,
-        title: page.title,
-        slug: page.slug,
-        isPublished: page.isPublished
-      }))
-    }))
-  }]
+  // Build site structure for navigation using shared utility
+  // Authors see all content (including unpublished), visitors only see published
+  const siteStructure = buildSiteStructure([collection], { onlyPublished: !isAuthor })
+
+  // Fetch full site structure when sidebar is in "full" mode
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, domain)
+    : undefined
 
   // Prepare teacher data for the layout component
   const teacherForLayout = {
@@ -278,6 +268,7 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
       <PublicSiteLayout
         teacher={teacherForLayout}
         siteStructure={siteStructure}
+        fullSiteStructure={fullSiteStructure}
         currentPath={`/${collectionSlug}`}
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
         typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}

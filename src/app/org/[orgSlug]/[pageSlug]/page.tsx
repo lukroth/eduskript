@@ -7,6 +7,7 @@ import { PublicSiteLayout } from '@/components/public/layout'
 import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
 import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import { prisma } from '@/lib/prisma'
+import { getFullSiteStructure } from '@/lib/cached-queries'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -284,6 +285,11 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
     }
   }
 
+  // Fetch full site structure when sidebar is in "full" mode
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, teacher.pageSlug || pageSlug)
+    : undefined
+
   const teacherData = {
     name: teacher.name || 'Teacher',
     pageSlug: teacher.pageSlug || '',
@@ -299,6 +305,7 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
       teacher={teacherData}
       siteStructure={collections}
       rootSkripts={rootSkripts}
+      fullSiteStructure={fullSiteStructure}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       routePrefix={`/org/${orgSlug}/${pageSlug}`}

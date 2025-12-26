@@ -3,6 +3,8 @@ import { PublicSiteLayout } from '@/components/public/layout'
 import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
+import { getFullSiteStructure } from '@/lib/cached-queries'
+import { buildSiteStructure } from '@/lib/site-structure'
 
 interface PageProps {
   params: Promise<{
@@ -189,22 +191,35 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
   // collection is guaranteed to exist by the check above
   const collection = skript.collectionSkripts[0].collection!
 
-  // Build site structure
-  const siteStructure = [{
+  // Build site structure using shared utility
+  const siteStructure = buildSiteStructure([{
     id: collection.id,
     title: collection.title,
     slug: collection.slug,
-    skripts: [{
-      id: skript.id,
-      title: skript.title,
-      slug: skript.slug,
-      pages: skript.pages.map(p => ({
-        id: p.id,
-        title: p.title,
-        slug: p.slug
-      }))
+    accentColor: collection.accentColor,
+    isPublished: collection.isPublished,
+    collectionSkripts: [{
+      order: skript.collectionSkripts[0].order,
+      skript: {
+        id: skript.id,
+        title: skript.title,
+        slug: skript.slug,
+        isPublished: skript.isPublished,
+        pages: skript.pages.map(p => ({
+          id: p.id,
+          title: p.title,
+          slug: p.slug,
+          isPublished: true, // Already filtered for isPublished
+          order: 0
+        }))
+      }
     }]
-  }]
+  }], { onlyPublished: true })
+
+  // Fetch full site structure when sidebar is in "full" mode
+  const fullSiteStructure = teacher.sidebarBehavior === 'full'
+    ? await getFullSiteStructure(teacher.id, teacher.pageSlug || pageSlug)
+    : undefined
 
   const teacherData = {
     name: teacher.name || 'Teacher',
@@ -222,6 +237,7 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
     <PublicSiteLayout
       teacher={teacherData}
       siteStructure={siteStructure}
+      fullSiteStructure={fullSiteStructure}
       currentPath={currentPath}
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
