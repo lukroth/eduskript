@@ -14,7 +14,8 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, Sparkles } from 'lucide-react'
+import { AIChatModal } from '@/components/ai'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -87,6 +88,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const [unlockedClassIds, setUnlockedClassIds] = useState<string[]>([])
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [aiModalOpen, setAiModalOpen] = useState(false)
 
   // Shared file list state - updated for new file system
   const [fileList, setFileList] = useState<Array<{
@@ -594,6 +596,14 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => setAiModalOpen(true)}
+            title="AI Assistant"
+          >
+            <Sparkles className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'}
           >
@@ -915,6 +925,15 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         type={alert.type}
         title={alert.title}
         message={alert.message}
+      />
+
+      <AIChatModal
+        open={aiModalOpen}
+        onOpenChange={setAiModalOpen}
+        skriptId={skript.id}
+        skriptTitle={skript.title}
+        pageId={page.id}
+        pageTitle={page.title}
       />
     </div>
   )

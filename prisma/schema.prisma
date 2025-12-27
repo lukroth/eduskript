@@ -716,6 +716,7 @@ model Organization {
   allowTeacherCustomDomains Boolean @default(false) @map("allow_teacher_custom_domains") // Teachers can have custom domains
   requireEmailDomain        String? @map("require_email_domain")               // e.g., "@school.edu" - auto-join on signup
   sidebarBehavior           String? @default("contextual") @map("sidebar_behavior") // "contextual" or "full"
+  aiSystemPrompt            String? @map("ai_system_prompt") @db.Text          // Custom system prompt for AI assistant
 
   // Billing groundwork (payment provider TBD)
   billingPlan String @default("free") @map("billing_plan") // "free" | "school" | "enterprise"

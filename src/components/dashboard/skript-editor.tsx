@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { AIChatModal } from '@/components/ai'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { ArrowLeft, FileText, Home } from 'lucide-react'
+import { ArrowLeft, FileText, Home, Sparkles } from 'lucide-react'
 import { SortablePages } from './sortable-pages'
 import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
@@ -35,6 +36,7 @@ interface SkriptEditorProps {
 export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions, currentUserId }: SkriptEditorProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [aiModalOpen, setAiModalOpen] = useState(false)
   const alert = useAlertDialog()
 
   const handleSkriptUpdated = (newSlug?: string) => {
@@ -114,6 +116,15 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
                     Front Page
                   </Button>
                 </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setAiModalOpen(true)}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  AI Assistant
+                </Button>
                 <EditModal
                   type="skript"
                   item={skript}
@@ -198,6 +209,13 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
         type={alert.type}
         title={alert.title}
         message={alert.message}
+      />
+
+      <AIChatModal
+        open={aiModalOpen}
+        onOpenChange={setAiModalOpen}
+        skriptId={skript.id}
+        skriptTitle={skript.title}
       />
     </div>
   )
