@@ -899,6 +899,37 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     return hasPublicContent
   }, [viewMode, hasAnnotations, hasPublicContent])
 
+  // Badge visibility logic:
+  // 1. Toolbar hover: show ALL badges (including active layer)
+  // 2. Drawing: show badges for OTHER layers only (not active layer)
+  // 3. Not drawing + not hovering: no badges
+
+  // Badge info for the active layer (main canvas)
+  const activeLayerBadge = useMemo(() => {
+    if (activeLayerKey === 'page-broadcast') {
+      return { layerId: 'public', layerName: 'Public', layerColor: 'green' as const, icon: <Globe className="w-3 h-3" /> }
+    }
+    if (activeLayerKey === 'class-broadcast' && selectedClass) {
+      return { layerId: `class-${selectedClass.id}`, layerName: selectedClass.name || 'Class', layerColor: 'blue' as const, icon: <Users className="w-3 h-3" /> }
+    }
+    if (activeLayerKey === 'student-feedback' && studentForFeedback) {
+      return { layerId: 'individual-feedback', layerName: studentForFeedback.displayName || 'Feedback', layerColor: 'orange' as const, icon: <MessageSquare className="w-3 h-3" /> }
+    }
+    // Default: personal annotations
+    return { layerId: 'personal', layerName: 'Personal', layerColor: 'blue' as const, icon: <User className="w-3 h-3" /> }
+  }, [activeLayerKey, selectedClass, studentForFeedback])
+
+  // Badge for the active layer (main canvas) - only on toolbar hover
+  const showActiveLayerBadge = showLayerBadges
+
+  // Badge for reference layers - on toolbar hover OR while drawing
+  const shouldShowReferenceBadge = useCallback((_layerId: string) => {
+    // Toolbar hover always shows all badges
+    if (showLayerBadges) return true
+    // If drawing, show badges for reference layers (they're always "other" layers)
+    return mode !== 'view'
+  }, [showLayerBadges, mode])
+
   // Canvas ref needed by delete callbacks
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)
 
@@ -1225,6 +1256,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const allTeacherSnaps = useMemo(() => {
     return [...teacherClassSnapsData, ...teacherIndividualSnapsData, ...publicSnapsData]
   }, [teacherClassSnapsData, teacherIndividualSnapsData, publicSnapsData])
+
+  // Filter out local snaps that are duplicates of public/teacher snaps
+  // This prevents showing the same snap twice (once as deletable local, once as read-only public)
+  // The public version takes precedence since it's the authoritative source
+  const filteredSnaps = useMemo(() => {
+    if (allTeacherSnaps.length === 0) return snaps
+    // Create a set of public snap imageUrls for fast lookup
+    const publicSnapUrls = new Set(allTeacherSnaps.map(s => s.imageUrl))
+    // Filter out any local snaps that have the same imageUrl as a public snap
+    return snaps.filter(snap => !publicSnapUrls.has(snap.imageUrl))
+  }, [snaps, allTeacherSnaps])
 
   // Extract student work snaps for teachers viewing student's work
   const studentWorkSnapsData: StudentWorkSnap[] = useMemo(() => {
@@ -2621,6 +2663,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             zoom={zoom}
             headingPositions={headingPositions}
           />
+          {/* Badge for active layer - shown on toolbar hover only */}
+          {showActiveLayerBadge && hasAnnotations && (
+            <LayerBadges
+              canvasData={canvasData}
+              layerId={activeLayerBadge.layerId}
+              layerName={activeLayerBadge.layerName}
+              layerColor={activeLayerBadge.layerColor}
+              icon={activeLayerBadge.icon}
+              zoom={zoom}
+            />
+          )}
         </div>,
         paperElement
       )}
@@ -2665,6 +2718,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   zoom={zoom}
                   readOnly
                 />
+                {/* Badge for personal reference layer */}
+                {shouldShowReferenceBadge('personal') && (
+                  <LayerBadges
+                    canvasData={repositionedCanvasData}
+                    layerId="personal"
+                    layerName="Personal"
+                    layerColor="blue"
+                    icon={<User className="w-3 h-3" />}
+                    zoom={zoom}
+                  />
+                )}
               </div>,
               paperElement
             )
@@ -2684,6 +2748,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
               headingPositions,
               currentPaddingLeft
             )
+
+            const layerId = `class-${selectedClass?.id}`
 
             return createPortal(
               <div
@@ -2709,6 +2775,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   zoom={zoom}
                   readOnly
                 />
+                {/* Badge for class broadcast reference layer */}
+                {shouldShowReferenceBadge(layerId) && (
+                  <LayerBadges
+                    canvasData={repositionedCanvasData}
+                    layerId={layerId}
+                    layerName={selectedClass?.name || 'Class'}
+                    layerColor="blue"
+                    icon={<Users className="w-3 h-3" />}
+                    zoom={zoom}
+                  />
+                )}
               </div>,
               paperElement
             )
@@ -2753,6 +2830,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   zoom={zoom}
                   readOnly
                 />
+                {/* Badge for student feedback reference layer */}
+                {shouldShowReferenceBadge('individual-feedback') && (
+                  <LayerBadges
+                    canvasData={repositionedCanvasData}
+                    layerId="individual-feedback"
+                    layerName={studentForFeedback?.displayName || 'Feedback'}
+                    layerColor="orange"
+                    icon={<MessageSquare className="w-3 h-3" />}
+                    zoom={zoom}
+                  />
+                )}
               </div>,
               paperElement
             )
@@ -2797,8 +2885,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   zoom={zoom}
                   readOnly
                 />
-                {/* Floating badges to identify student work - hidden by default, shown on toolbar hover */}
-                {showLayerBadges && (
+                {/* Floating badges to identify student work - shown on toolbar hover or while drawing */}
+                {shouldShowReferenceBadge('student-work') && (
                   <LayerBadges
                     canvasData={repositionedCanvasData}
                     layerId="student-work"
@@ -2844,7 +2932,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                       layerColor: 'blue',
                       icon: <Users className="w-3 h-3" />
                     }}
-                    showBadge={showLayerBadges}
+                    showBadge={shouldShowReferenceBadge(layerId)}
                   />,
                   paperElement
                 )}
@@ -2879,7 +2967,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   layerColor: 'orange',
                   icon: <MessageSquare className="w-3 h-3" />
                 }}
-                showBadge={showLayerBadges}
+                showBadge={shouldShowReferenceBadge('individual-feedback')}
               />,
               paperElement
             )
@@ -2918,7 +3006,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                         layerColor: 'green',
                         icon: <Globe className="w-3 h-3" />
                       }}
-                      showBadge={showLayerBadges}
+                      showBadge={shouldShowReferenceBadge('public')}
                     />
                   )
                 }
@@ -2953,7 +3041,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                         layerColor: 'green',
                         icon: <Globe className="w-3 h-3" />
                       }}
-                      showBadge={showLayerBadges}
+                      showBadge={shouldShowReferenceBadge('public')}
                     />
                   )
                 })
@@ -3033,7 +3121,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       {/* Snaps display - portaled into paper (overflow:visible allows snaps to extend beyond) */}
       {paperElement && createPortal(
         <SnapsDisplay
-          snaps={snaps}
+          snaps={filteredSnaps}
           onRemoveSnap={handleRemoveSnap}
           onRenameSnap={handleRenameSnap}
           onReorderSnaps={handleReorderSnaps}

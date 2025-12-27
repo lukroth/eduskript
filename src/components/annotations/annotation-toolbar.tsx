@@ -76,18 +76,12 @@ function BrushIndicator({ className }: { className?: string }) {
 // TOOLBAR SECTION WRAPPER - provides consistent styling for each section
 // =============================================================================
 
-function ToolbarSection({ children, className, onMouseEnter, onMouseLeave }: {
+function ToolbarSection({ children, className }: {
   children: ReactNode
   className?: string
-  onMouseEnter?: () => void
-  onMouseLeave?: () => void
 }) {
   return (
-    <div
-      className={cn('flex items-center gap-1', className)}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <div className={cn('flex items-center gap-1', className)}>
       {children}
     </div>
   )
@@ -639,17 +633,20 @@ export function AnnotationToolbar({
   }
 
   const toolbarContent = (
-    <div data-annotation-toolbar className="fixed bottom-6 z-50 select-none" style={{ left: `calc(${sidebarWidth}px + (100% - ${sidebarWidth}px) / 2)`, transform: 'translateX(-50%)', isolation: 'isolate', touchAction: 'manipulation' }}>
+    <div
+      data-annotation-toolbar
+      className="fixed bottom-6 z-50 select-none"
+      style={{ left: `calc(${sidebarWidth}px + (100% - ${sidebarWidth}px) / 2)`, transform: 'translateX(-50%)', isolation: 'isolate', touchAction: 'manipulation' }}
+      onMouseEnter={() => onShowLayerBadgesChange?.(true)}
+      onMouseLeave={() => onShowLayerBadgesChange?.(false)}
+    >
       {/* Single horizontal toolbar */}
       <div className="bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
 
         {/* ============ SECTION 1: Broadcast Controls (Teachers and Page Authors) ============ */}
         {(isTeacher || isPageAuthor) && (
           <>
-            <ToolbarSection
-              onMouseEnter={() => onShowLayerBadgesChange?.(true)}
-              onMouseLeave={() => onShowLayerBadgesChange?.(false)}
-            >
+            <ToolbarSection>
               {/* Class/Page selector dropdown - picks class or "Public" for page authors */}
               <div className="relative" ref={classDropdownRef}>
                 <button
@@ -774,13 +771,6 @@ export function AnnotationToolbar({
                       setShowStudentDropdown(!showStudentDropdown)
                       setShowClassDropdown(false)
                     }}
-                    onMouseEnter={() => onShowLayerBadgesChange?.(true)}
-                    onMouseLeave={() => {
-                      // Only hide badges if dropdown is closed
-                      if (!showStudentDropdown) {
-                        onShowLayerBadgesChange?.(false)
-                      }
-                    }}
                     className={cn(
                       'p-2 rounded-md transition-colors flex items-center gap-1',
                       'bg-primary text-primary-foreground' // Always highlighted - this is the active target
@@ -807,8 +797,6 @@ export function AnnotationToolbar({
                     return (
                     <div
                       className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[280px] overflow-y-auto"
-                      onMouseEnter={() => onShowLayerBadgesChange?.(true)}
-                      onMouseLeave={() => onShowLayerBadgesChange?.(false)}
                     >
                       {/* Student list (excluding quick-access student) */}
                       {mainListStudents.map(student => (
@@ -975,13 +963,6 @@ export function AnnotationToolbar({
                     setShowLayersDropdown(newState)
                     onShowLayerBadgesChange?.(newState)
                   }}
-                  onMouseEnter={() => onShowLayerBadgesChange?.(true)}
-                  onMouseLeave={() => {
-                    // Only hide badges if dropdown is closed
-                    if (!showLayersDropdown) {
-                      onShowLayerBadgesChange?.(false)
-                    }
-                  }}
                   className={cn(
                     'p-2 rounded-md transition-colors flex items-center gap-1',
                     showLayersDropdown
@@ -998,12 +979,6 @@ export function AnnotationToolbar({
                 {showLayersDropdown && (
                   <div
                     className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
-                    onMouseEnter={() => onShowLayerBadgesChange?.(true)}
-                    onMouseLeave={() => {
-                      if (!showLayersDropdown) {
-                        onShowLayerBadgesChange?.(false)
-                      }
-                    }}
                   >
                     {layers.filter(l => !l.isActive).map(layer => {
                       // Map layer color to badge color class

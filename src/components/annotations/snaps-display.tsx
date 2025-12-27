@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react'
-import { GripVertical, Trash2 } from 'lucide-react'
+import { GripVertical, Trash2, Globe, Users, User } from 'lucide-react'
 import type { Snap } from './snap-overlay'
 import { SnapViewerOverlay } from './snap-viewer-overlay'
 
@@ -22,6 +22,24 @@ export interface StudentWorkSnap extends Snap {
 // Position override type
 export type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
 export type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; publicSnaps?: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
+
+// Helper to get icon and color based on layer type
+function getLayerIcon(layerId: string): { Icon: typeof Globe; colorClass: string; borderClass: string } {
+  if (layerId === 'public') {
+    return { Icon: Globe, colorClass: 'text-green-500', borderClass: 'border-green-500' }
+  }
+  if (layerId.startsWith('class-')) {
+    return { Icon: Users, colorClass: 'text-blue-500', borderClass: 'border-blue-500' }
+  }
+  if (layerId === 'individual') {
+    return { Icon: User, colorClass: 'text-orange-500', borderClass: 'border-orange-500' }
+  }
+  if (layerId === 'student-work') {
+    return { Icon: User, colorClass: 'text-purple-500', borderClass: 'border-purple-500' }
+  }
+  // Default fallback
+  return { Icon: User, colorClass: 'text-blue-500', borderClass: 'border-blue-500' }
+}
 
 interface SnapsDisplayProps {
   snaps: Snap[]
@@ -244,10 +262,12 @@ const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
     window.addEventListener('pointerup', handlePointerUpRef.current)
   }, [position.top, position.left, position.width, position.height])
 
+  const { Icon, colorClass, borderClass } = getLayerIcon(snap.layerId)
+
   return (
     <div
       ref={elementRef}
-      className="absolute z-50 bg-card border-2 border-purple-500 shadow-lg rounded-lg overflow-hidden group student-work-snap-fade-in"
+      className={`absolute z-50 bg-card border-2 ${borderClass} shadow-lg rounded-lg overflow-hidden group student-work-snap-fade-in`}
       style={{
         top: position.top,
         left: position.left,
@@ -255,17 +275,18 @@ const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
         willChange: 'transform',
       }}
     >
-      {/* Drag handle - styled for student work snaps (purple) */}
+      {/* Drag handle - styled for student work snaps */}
       <div
         className="px-3 py-2 bg-muted/50 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing select-none"
         style={{ touchAction: 'none' }}
         onPointerDown={handleDragStart}
       >
-        <GripVertical className="w-4 h-4 text-purple-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-foreground">
+        <GripVertical className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
+        <span className="text-sm font-medium text-foreground truncate flex-1">
           {snap.name}
         </span>
-        <span className="text-xs text-purple-500 ml-auto">
+        <span className={`text-xs ${colorClass} flex items-center gap-1 flex-shrink-0`}>
+          <Icon className="w-3 h-3" />
           {snap.layerName}
         </span>
       </div>
@@ -295,7 +316,7 @@ const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
         style={{ touchAction: 'none' }}
         onPointerDown={handleResizeStart}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-purple-500">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={colorClass}>
           <path d="M15 10L10 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </div>
@@ -504,10 +525,12 @@ const TeacherSnapItem = memo(function TeacherSnapItem({
     window.addEventListener('pointerup', handlePointerUpRef.current)
   }, [position.top, position.left, position.width, position.height])
 
+  const { Icon, colorClass, borderClass } = getLayerIcon(snap.layerId)
+
   return (
     <div
       ref={elementRef}
-      className="absolute z-50 bg-card border-2 border-blue-500 shadow-lg rounded-lg overflow-hidden group teacher-snap-fade-in"
+      className={`absolute z-50 bg-card border-2 ${borderClass} shadow-lg rounded-lg overflow-hidden group teacher-snap-fade-in`}
       style={{
         top: position.top,
         left: position.left,
@@ -515,17 +538,18 @@ const TeacherSnapItem = memo(function TeacherSnapItem({
         willChange: 'transform',
       }}
     >
-      {/* Drag handle - styled differently for teacher snaps */}
+      {/* Drag handle - styled for teacher snaps */}
       <div
         className="px-3 py-2 bg-muted/50 border-b border-border flex items-center gap-2 cursor-grab active:cursor-grabbing select-none"
         style={{ touchAction: 'none' }}
         onPointerDown={handleDragStart}
       >
-        <GripVertical className="w-4 h-4 text-blue-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-foreground">
+        <GripVertical className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
+        <span className="text-sm font-medium text-foreground truncate flex-1">
           {snap.name}
         </span>
-        <span className="text-xs text-blue-500 ml-auto">
+        <span className={`text-xs ${colorClass} flex items-center gap-1 flex-shrink-0`}>
+          <Icon className="w-3 h-3" />
           {snap.layerName}
         </span>
       </div>
@@ -555,7 +579,7 @@ const TeacherSnapItem = memo(function TeacherSnapItem({
         style={{ touchAction: 'none' }}
         onPointerDown={handleResizeStart}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-blue-500">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={colorClass}>
           <path d="M15 10L10 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </div>
