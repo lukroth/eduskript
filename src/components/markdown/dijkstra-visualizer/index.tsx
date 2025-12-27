@@ -130,6 +130,7 @@ export function DijkstraVisualizer({
     if (config.animationState !== AnimationState.PLAYING) return
 
     if (config.currentStepIndex >= config.steps.length - 1) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setConfig(prev => ({ ...prev, animationState: AnimationState.FINISHED }))
       return
     }

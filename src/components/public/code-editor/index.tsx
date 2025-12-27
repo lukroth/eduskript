@@ -16,7 +16,7 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText } from 'lucide-react'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
 import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
@@ -219,6 +219,7 @@ export const CodeEditor = memo(function CodeEditor({
     files: [{ name: `main${getFileExtension(language)}`, content: initialCode }],
     activeFileIndex: 0,
     fontSize: 14,
+    lineWrapping: true,
     editorWidth: 50,
   }
 
@@ -350,6 +351,9 @@ export const CodeEditor = memo(function CodeEditor({
   // Font size state
   const [fontSize, setFontSize] = useState<number>(defaultData.fontSize ?? 14)
 
+  // Line wrapping state
+  const [lineWrapping, setLineWrapping] = useState<boolean>(defaultData.lineWrapping ?? false)
+
   // Canvas pan and zoom state
   const [canvasTransform, setCanvasTransform] = useState(defaultData.canvasTransform ?? { x: 0, y: 0, scale: 1 })
 
@@ -378,6 +382,7 @@ export const CodeEditor = memo(function CodeEditor({
         // Markdown was updated - don't restore old saved content
         // But do restore other settings like fontSize, editorWidth, etc.
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
+        if (savedData.lineWrapping !== undefined) setLineWrapping(savedData.lineWrapping)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
         // Don't restore highlights when markdown changed - they'd be at wrong positions
@@ -386,6 +391,7 @@ export const CodeEditor = memo(function CodeEditor({
         if (savedData.files) setFiles(savedData.files)
         if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
         if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
+        if (savedData.lineWrapping !== undefined) setLineWrapping(savedData.lineWrapping)
         if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
         if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
         // Only load personal highlights if NOT in broadcast mode
@@ -483,6 +489,7 @@ export const CodeEditor = memo(function CodeEditor({
         files,
         activeFileIndex,
         fontSize,
+        lineWrapping,
         editorWidth,
         canvasTransform,
         highlights: savedData?.highlights || [], // Preserve personal highlights
@@ -494,13 +501,14 @@ export const CodeEditor = memo(function CodeEditor({
         files,
         activeFileIndex,
         fontSize,
+        lineWrapping,
         editorWidth,
         canvasTransform,
         highlights,
       }
       savePersistentData(dataToSave, { immediate: true })
     }
-  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights, isBroadcastMode, updateBroadcastHighlights, savedData?.highlights])
+  }, [activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights, isBroadcastMode, updateBroadcastHighlights, savedData?.highlights])
 
   // Helper function to create a version snapshot
   const createVersionSnapshot = useCallback(async (isManualSave = false) => {
@@ -510,6 +518,7 @@ export const CodeEditor = memo(function CodeEditor({
       files,
       activeFileIndex,
       fontSize,
+      lineWrapping,
       editorWidth,
       canvasTransform,
       highlights,
@@ -536,7 +545,7 @@ export const CodeEditor = memo(function CodeEditor({
       // Clear highlight after 2 seconds
       setTimeout(() => setHighlightedVersion(null), 2000)
     }
-  }, [pageId, files, activeFileIndex, fontSize, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
+  }, [pageId, files, activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
 
   // Keep ref in sync with callback (avoids dependency in CodeMirror effect)
   useEffect(() => {
@@ -1370,6 +1379,11 @@ export const CodeEditor = memo(function CodeEditor({
     // Add VSCode theme (light or dark)
     extensions.push(isDark ? vsCodeDark : vsCodeLight)
 
+    // Add line wrapping if enabled
+    if (lineWrapping) {
+      extensions.push(EditorView.lineWrapping)
+    }
+
     // Add code highlighting extension
     extensions.push(...codeHighlighting())
 
@@ -1493,7 +1507,7 @@ export const CodeEditor = memo(function CodeEditor({
         clearTimeout(contentSaveTimeoutRef.current)
       }
     }
-  }, [mounted, resolvedTheme, language, initialCode, fontSize, debouncedSaveContent, activeFileIndex, files])
+  }, [mounted, resolvedTheme, language, initialCode, fontSize, lineWrapping, debouncedSaveContent, activeFileIndex, files])
 
   // Attach non-passive wheel event listener to prevent page scroll
   useEffect(() => {
@@ -2314,6 +2328,16 @@ plots
               >
                 <ZoomIn className="w-3 h-3" />
               </Button>
+              <button
+                onClick={() => setLineWrapping(!lineWrapping)}
+                className="h-6 w-6 p-0 rounded-md flex items-center justify-center transition-colors hover:bg-accent hover:text-accent-foreground"
+                style={lineWrapping ? {
+                  backgroundColor: resolvedTheme === 'dark' ? '#374151' : '#d1d5db'
+                } : undefined}
+                title={lineWrapping ? 'Disable line wrapping' : 'Enable line wrapping'}
+              >
+                <WrapText className="w-3 h-3" />
+              </button>
 
               {/* Python Kernel Indicator */}
               {language === 'python' && (
@@ -2822,6 +2846,7 @@ plots
                             if (data.files) setFiles(data.files)
                             if (data.activeFileIndex !== undefined) setActiveFileIndex(data.activeFileIndex)
                             if (data.fontSize !== undefined) setFontSize(data.fontSize)
+                            if (data.lineWrapping !== undefined) setLineWrapping(data.lineWrapping)
                             if (data.editorWidth !== undefined) setEditorWidth(data.editorWidth)
                             if (data.canvasTransform) setCanvasTransform(data.canvasTransform)
                             await refreshVersions()

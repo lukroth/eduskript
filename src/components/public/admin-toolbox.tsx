@@ -19,6 +19,7 @@ export function AdminToolbox({ pageId }: AdminToolboxProps) {
 
   // Only render after hydration to avoid mismatch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Standard hydration pattern
     setIsMounted(true)
   }, [])
 

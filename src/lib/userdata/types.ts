@@ -49,6 +49,7 @@ export interface CodeEditorData {
   files: PythonFile[]       // Array of Python files
   activeFileIndex: number   // Currently active file
   fontSize?: number         // Editor font size
+  lineWrapping?: boolean    // Enable line wrapping in editor
   editorWidth?: number      // Split percentage
   canvasTransform?: {       // Turtle canvas transform
     x: number
