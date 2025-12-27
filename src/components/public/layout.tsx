@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ChevronDown, ChevronRight, Menu, X, ChevronLeft, NotebookPen } from 'lucide-react'
@@ -104,6 +104,10 @@ export function PublicSiteLayout({
   // Storage keys for persistence
   const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.pageSlug}`
   const EXPANDED_SKRIPTS_KEY = `expanded-skripts-${teacher.pageSlug}`
+  const SIDEBAR_SCROLL_KEY = `sidebar-scroll-${teacher.pageSlug}`
+
+  // Ref for sidebar navigation scroll container
+  const sidebarNavRef = useRef<HTMLDivElement>(null)
 
   // Initialize with persistent state or defaults using lazy initializers
   // This reads from localStorage synchronously to prevent flash during hydration
@@ -122,14 +126,10 @@ export function PublicSiteLayout({
     return siteStructure.map(collection => collection.id)
   })
 
-  // Initialize as empty to match server render, populate after mount
-  const [expandedSkripts, setExpandedSkripts] = useState<string[]>([])
+  // Initialize expandedSkripts from localStorage synchronously to prevent animation flash
+  const [expandedSkripts, setExpandedSkripts] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
 
-  // Track if we've finished first render (for enabling animations after mount)
-  const [isInitialized, setIsInitialized] = useState(false)
-
-  // Initialize expandedSkripts from localStorage and currentPath after mount
-  useEffect(() => {
     const stored = localStorage.getItem(EXPANDED_SKRIPTS_KEY)
     let expandedFromStorage: string[] = []
 
@@ -141,8 +141,7 @@ export function PublicSiteLayout({
       }
     }
 
-    // Auto-expand skripts that contain the current page
-    const expandedFromCurrentPath: string[] = []
+    // Also auto-expand skripts that contain the current page
     if (currentPath) {
       siteStructure.forEach(collection => {
         collection.skripts.forEach(skript => {
@@ -150,16 +149,22 @@ export function PublicSiteLayout({
             currentPath === `/${collection.slug}/${skript.slug}/${page.slug}`
           )
           if (hasCurrentPage && !expandedFromStorage.includes(skript.id)) {
-            expandedFromCurrentPath.push(skript.id)
+            expandedFromStorage.push(skript.id)
           }
         })
       })
     }
 
-    setExpandedSkripts([...expandedFromStorage, ...expandedFromCurrentPath])
+    return expandedFromStorage
+  })
+
+  // Track if we've finished first render (for enabling animations after mount)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Set initialized after first render
+  useEffect(() => {
     setIsInitialized(true)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run on mount
+  }, [])
 
   // Update expanded skripts when current path changes
   useEffect(() => {
@@ -197,6 +202,28 @@ export function PublicSiteLayout({
     if (!isInitialized) return
     localStorage.setItem(EXPANDED_SKRIPTS_KEY, JSON.stringify(expandedSkripts))
   }, [expandedSkripts, isInitialized, EXPANDED_SKRIPTS_KEY])
+
+  // Restore sidebar scroll position after mount
+  useEffect(() => {
+    if (!isInitialized || !sidebarNavRef.current) return
+    const savedScroll = sessionStorage.getItem(SIDEBAR_SCROLL_KEY)
+    if (savedScroll) {
+      sidebarNavRef.current.scrollTop = parseInt(savedScroll, 10)
+    }
+  }, [isInitialized, SIDEBAR_SCROLL_KEY])
+
+  // Save sidebar scroll position on scroll
+  useEffect(() => {
+    const nav = sidebarNavRef.current
+    if (!nav) return
+
+    const handleScroll = () => {
+      sessionStorage.setItem(SIDEBAR_SCROLL_KEY, nav.scrollTop.toString())
+    }
+
+    nav.addEventListener('scroll', handleScroll, { passive: true })
+    return () => nav.removeEventListener('scroll', handleScroll)
+  }, [SIDEBAR_SCROLL_KEY])
 
   // Apply paper scale for narrow viewports (< 1024px)
   // This scales the paper to fit viewport width while maintaining fixed internal dimensions
@@ -408,7 +435,10 @@ export function PublicSiteLayout({
           </div>
 
           {/* Navigation */}
-          <div className="flex-1 p-4 pr-2 flex flex-col overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&:hover::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+          <div
+            ref={sidebarNavRef}
+            className="flex-1 p-4 pr-2 flex flex-col overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&:hover::-webkit-scrollbar-thumb]:bg-muted-foreground/30"
+          >
             {isSidebarCollapsed ? (
               /* Collapsed navigation - empty, use header icon to go home */
               <nav className="space-y-2" />
