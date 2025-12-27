@@ -459,12 +459,6 @@ article.prose-theme > div > :first-child {
   transition: color 0.15s ease;
 }
 
-/* Inline code in h1 should blend with heading text (for rainbow shadow effect) */
-.prose-theme h1 code {
-  background: transparent !important;
-  padding: 0 !important;
-  font-family: var(--font-heading), sans-serif;
-}
 
 /* Add # suffix on hover for all headings except h1 (which has rainbow effect) */
 .prose-theme h2 a::after,
@@ -1255,6 +1249,78 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   100% {
     background-position: 300% center;
   }
+}
+
+/* JavaScript-based color title (handles inline code elements correctly)
+ * The CSS ::before approach doesn't work when h1 contains <code> elements
+ * because monospace fonts have different character widths than heading fonts.
+ * This uses a duplicated HTML structure so both layers align perfectly.
+ */
+.prose-theme h1.color-title-js {
+  position: relative;
+}
+
+/* Disable the CSS ::before for JS-based color titles */
+.prose-theme h1.color-title-js::before {
+  display: none;
+}
+
+/* Rainbow shadow layer - duplicates content structure for perfect alignment */
+.prose-theme h1.color-title-js .color-title-shadow {
+  position: absolute;
+  left: 2px;
+  right: 0;
+  top: 2px;
+  bottom: 0;
+  z-index: 0;
+  background-image: linear-gradient(to right,
+    #ff0000,
+    #ff8000,
+    #ffff00,
+    #80ff00,
+    #00ff00,
+    #00ff80,
+    #00ffff,
+    #0080ff,
+    #0000ff,
+    #8000ff,
+    #ff00ff,
+    #ff0000);
+  background-size: 300% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-text-flow 180s linear infinite;
+  pointer-events: none;
+  /* Inherit all text metrics from parent */
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  word-spacing: inherit;
+  text-align: inherit;
+}
+
+/* Shadow code box - rainbow background showing as offset shadow */
+.prose-theme h1.color-title-js .color-title-shadow code {
+  background-image: linear-gradient(to right,
+    #ff0000,
+    #ff8000,
+    #ffff00,
+    #80ff00,
+    #00ff00,
+    #00ff80,
+    #00ffff,
+    #0080ff,
+    #0000ff,
+    #8000ff,
+    #ff00ff,
+    #ff0000) !important;
+  background-size: 300% auto;
+  animation: rainbow-text-flow 180s linear infinite;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
 /* ===== Layer Badge Styles ===== */

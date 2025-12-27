@@ -23,6 +23,7 @@ import { DemoEditor } from '@/components/demo/demo-editor'
 import { ColorSliders } from '@/components/markdown/color-sliders'
 import { StickMe } from '@/components/markdown/stick-me'
 import { DijkstraVisualizer } from '@/components/markdown/dijkstra-visualizer'
+import { ColorTitleHeading } from '@/components/markdown/color-title-heading'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -100,6 +101,11 @@ function CodeComponent({ children, className, ...props }: React.HTMLAttributes<H
 function createHeading(level: 1 | 2 | 3 | 4 | 5 | 6) {
   const Tag = `h${level}` as const
   return function HeadingComponent({ children, id, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+    // Use ColorTitleHeading for h1 to handle inline code elements correctly
+    if (level === 1) {
+      return <ColorTitleHeading id={id}>{children}</ColorTitleHeading>
+    }
+
     return (
       <Tag id={id} {...props}>
         {id ? (
