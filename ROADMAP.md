@@ -11,7 +11,12 @@
 - [ ] Delta updates for strokes (see `docs/`)?
 
 ## Add claude to backend?
-- to use to create, edit, add, update pages inside a skript. (not multiple skripts at once, so context can be contained)
+- since we're having issues with the reponse time, would this be a way of doing it? that the AI reponds in several answers? 
+
+first it announces how many files will be altered
+then it just delivers each file (in order) in a separate response
+
+we can display "Generating..." as "Generating 1/5..." and once it's done display the first file and switch to "generating 2/5...."
 
 ## Prepare open source publication of repo
 - search for security vulnerabilities in git history

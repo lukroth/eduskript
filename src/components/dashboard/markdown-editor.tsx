@@ -26,6 +26,7 @@ interface MarkdownEditorProps {
   fileListLoading?: boolean
   onFileUpload?: () => void
   onExcalidrawEdit?: (filename: string, fileId: string) => void
+  onAIEdit?: () => void
 }
 
 // Create a client-only version using dynamic import

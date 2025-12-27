@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { AIChatModal } from '@/components/ai'
+import { AIEditModal } from '@/components/ai'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { ArrowLeft, FileText, Home, Sparkles } from 'lucide-react'
+import { ArrowLeft, FileText, Home, Wand2 } from 'lucide-react'
 import { SortablePages } from './sortable-pages'
 import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
@@ -36,7 +36,7 @@ interface SkriptEditorProps {
 export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions, currentUserId }: SkriptEditorProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
   const alert = useAlertDialog()
 
   const handleSkriptUpdated = (newSlug?: string) => {
@@ -120,10 +120,10 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
                   variant="outline"
                   size="sm"
                   className="gap-2"
-                  onClick={() => setAiModalOpen(true)}
+                  onClick={() => setAiEditModalOpen(true)}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  AI Assistant
+                  <Wand2 className="w-4 h-4" />
+                  AI Edit
                 </Button>
                 <EditModal
                   type="skript"
@@ -211,11 +211,13 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
         message={alert.message}
       />
 
-      <AIChatModal
-        open={aiModalOpen}
-        onOpenChange={setAiModalOpen}
+
+      <AIEditModal
+        open={aiEditModalOpen}
+        onOpenChange={setAiEditModalOpen}
         skriptId={skript.id}
         skriptTitle={skript.title}
+        onEditsApplied={() => router.refresh()} // No focused page at skript level
       />
     </div>
   )

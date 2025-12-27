@@ -1,3 +1,7 @@
 export { AIChatModal } from './ai-chat-modal'
 export { AIChatMessages } from './ai-chat-messages'
 export { AIChatInput } from './ai-chat-input'
+export { AIEditModal } from './ai-edit-modal'
+export { DiffViewer } from './diff-viewer'
+export { MergeEditor, SimpleEditor } from './merge-editor'
+export { EditProposalReview } from './edit-proposal-review'

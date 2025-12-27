@@ -14,8 +14,8 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, Sparkles } from 'lucide-react'
-import { AIChatModal } from '@/components/ai'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2 } from 'lucide-react'
+import { AIEditModal } from '@/components/ai'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -88,7 +88,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const [unlockedClassIds, setUnlockedClassIds] = useState<string[]>([])
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
 
   // Shared file list state - updated for new file system
   const [fileList, setFileList] = useState<Array<{
@@ -558,6 +558,22 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
 
         {/* Column 3 Row 1: Action buttons */}
         <div className="flex gap-2 items-center">
+          {/* Page Type selector */}
+          <Select
+            value={pageType}
+            onValueChange={(value) => {
+              setPageType(value)
+              setHasUnsavedChanges(true)
+            }}
+          >
+            <SelectTrigger className="w-[90px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="exam">Exam</SelectItem>
+            </SelectContent>
+          </Select>
           <PublishToggle
             type="page"
             itemId={page.id}
@@ -596,14 +612,6 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setAiModalOpen(true)}
-            title="AI Assistant"
-          >
-            <Sparkles className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'}
           >
@@ -636,32 +644,9 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         />
       </div>
 
-      {/* Page Type & Exam Settings */}
-      <div className={`flex items-start gap-4 p-4 border rounded-lg bg-muted/30 ${isFullscreen ? 'hidden' : ''}`}>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="page-type" className="text-sm font-medium whitespace-nowrap">
-            Page Type
-          </Label>
-          <Select
-            value={pageType}
-            onValueChange={(value) => {
-              setPageType(value)
-              setHasUnsavedChanges(true)
-            }}
-          >
-            <SelectTrigger id="page-type" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="normal">Normal</SelectItem>
-              <SelectItem value="exam">Exam</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Exam Settings - shown when page type is exam */}
-        {pageType === 'exam' && (
-          <div className="flex-1 flex flex-wrap items-start gap-6 pl-4 border-l">
+      {/* Exam Settings - only shown when page type is exam */}
+      {pageType === 'exam' && !isFullscreen && (
+        <div className="flex flex-wrap items-start gap-6 p-4 border rounded-lg bg-muted/30">
             {/* Require SEB */}
             <div className="flex items-center gap-2">
               <Checkbox
@@ -723,14 +708,13 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               </div>
             )}
 
-            {teacherClasses.length === 0 && (
-              <span className="text-sm text-muted-foreground italic">
-                No classes yet. Create a class to unlock exams for students.
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+          {teacherClasses.length === 0 && (
+            <span className="text-sm text-muted-foreground italic">
+              No classes yet. Create a class to unlock exams for students.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Skript Files - Collapsible Drawer (hidden in fullscreen) */}
       {!isFullscreen && (
@@ -794,6 +778,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
             fileList={fileList}
             fileListLoading={fileListLoading}
             onFileUpload={refreshFileList}
+            onAIEdit={() => setAiEditModalOpen(true)}
           />
         </CardContent>
       </Card>
@@ -927,13 +912,24 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         message={alert.message}
       />
 
-      <AIChatModal
-        open={aiModalOpen}
-        onOpenChange={setAiModalOpen}
+      <AIEditModal
+        open={aiEditModalOpen}
+        onOpenChange={setAiEditModalOpen}
         skriptId={skript.id}
         skriptTitle={skript.title}
         pageId={page.id}
         pageTitle={page.title}
+        currentContent={content}
+        onEditsApplied={(newContent) => {
+          if (newContent !== undefined) {
+            // Update the editor with the new content
+            setContent(newContent)
+            setHasUnsavedChanges(false)
+            setLastSaved(new Date())
+          }
+          // Refresh to update version history
+          loadVersions()
+        }}
       />
     </div>
   )

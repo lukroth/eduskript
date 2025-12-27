@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, List, ListOrdered, Link, Palette, Highlighter, Circle } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +38,7 @@ interface CodeMirrorEditorProps {
     isDirectory?: boolean
   }, position: number, screenX: number, screenY: number) => void
   onExcalidrawEdit?: (filename: string, fileId: string) => void
+  onAIEdit?: () => void
 }
 
 const CodeMirrorEditor = function CodeMirrorEditor({
@@ -49,7 +50,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   fileList,
   onFileUpload,
   onFileDrop,
-  onExcalidrawEdit: onExcalidrawEditProp
+  onExcalidrawEdit: onExcalidrawEditProp,
+  onAIEdit
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -983,6 +985,18 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       {/* Toolbar */}
       <div className="border-b border-border p-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {/* AI Edit button - leftmost */}
+          {onAIEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAIEdit}
+              title="AI Edit"
+              className="px-2"
+            >
+              <Wand2 className="w-4 h-4" />
+            </Button>
+          )}
           {/* Formatting buttons */}
           {!useSimpleEditor && (
             <>

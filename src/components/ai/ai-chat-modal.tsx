@@ -1,3 +1,11 @@
+/**
+ * AI Chat Modal Component
+ *
+ * STATUS: INACTIVE - This component is currently not used in the UI.
+ * The AI Edit feature (ai-edit-modal.tsx) is the active AI integration.
+ * Keeping this component for potential future use as a conversational AI assistant.
+ */
+
 'use client'
 
 import {

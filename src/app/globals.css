@@ -1437,3 +1437,177 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
     background-position: bottom left, 300% var(--rainbow-y-offset);
   }
 }
+
+/* CodeMirror Merge View Styles */
+.cm-merge-view {
+  display: flex;
+  height: 100%;
+}
+
+.cm-merge-a,
+.cm-merge-b {
+  flex: 1;
+  overflow: hidden;
+}
+
+.cm-merge-gap {
+  flex-shrink: 0;
+  width: 8px;
+  background: hsl(var(--border));
+}
+
+/* Deletion highlighting (in original) */
+.cm-deletedChunk {
+  background-color: rgb(239 68 68 / 0.15);
+}
+
+.cm-changedLine.cm-deletedChunk {
+  background-color: rgb(239 68 68 / 0.2);
+}
+
+.cm-deletedText {
+  background-color: rgb(239 68 68 / 0.3);
+  text-decoration: line-through;
+  text-decoration-color: rgb(239 68 68 / 0.5);
+}
+
+/* Insertion highlighting (in modified) */
+.cm-insertedChunk {
+  background-color: rgb(34 197 94 / 0.15);
+}
+
+.cm-changedLine.cm-insertedChunk {
+  background-color: rgb(34 197 94 / 0.2);
+}
+
+.cm-insertedText {
+  background-color: rgb(34 197 94 / 0.3);
+}
+
+/* Change highlighting (modified lines) */
+.cm-changedChunk {
+  background-color: rgb(59 130 246 / 0.1);
+}
+
+.cm-changedText {
+  background-color: rgb(59 130 246 / 0.2);
+}
+
+/* Dark mode adjustments */
+.dark .cm-deletedChunk {
+  background-color: rgb(239 68 68 / 0.2);
+}
+
+.dark .cm-deletedText {
+  background-color: rgb(239 68 68 / 0.35);
+}
+
+.dark .cm-insertedChunk {
+  background-color: rgb(34 197 94 / 0.2);
+}
+
+.dark .cm-insertedText {
+  background-color: rgb(34 197 94 / 0.35);
+}
+
+.dark .cm-changedChunk {
+  background-color: rgb(59 130 246 / 0.15);
+}
+
+.dark .cm-changedText {
+  background-color: rgb(59 130 246 / 0.25);
+}
+
+/* CodeMirror Unified Merge View Controls */
+.cm-mergeView {
+  height: 100%;
+}
+
+.cm-mergeViewEditor {
+  height: 100%;
+}
+
+/* Merge chunk styling */
+.cm-merge-revert {
+  cursor: pointer;
+  padding: 2px 6px;
+  margin: 2px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+/* Accept button */
+.cm-merge-revert[data-type="accept"] {
+  background-color: rgb(34 197 94 / 0.15);
+  color: rgb(22 163 74);
+}
+
+.cm-merge-revert[data-type="accept"]:hover {
+  background-color: rgb(34 197 94 / 0.3);
+}
+
+.dark .cm-merge-revert[data-type="accept"] {
+  background-color: rgb(34 197 94 / 0.2);
+  color: rgb(134 239 172);
+}
+
+.dark .cm-merge-revert[data-type="accept"]:hover {
+  background-color: rgb(34 197 94 / 0.35);
+}
+
+/* Reject button */
+.cm-merge-revert[data-type="reject"] {
+  background-color: rgb(239 68 68 / 0.15);
+  color: rgb(220 38 38);
+}
+
+.cm-merge-revert[data-type="reject"]:hover {
+  background-color: rgb(239 68 68 / 0.3);
+}
+
+.dark .cm-merge-revert[data-type="reject"] {
+  background-color: rgb(239 68 68 / 0.2);
+  color: rgb(252 165 165);
+}
+
+.dark .cm-merge-revert[data-type="reject"]:hover {
+  background-color: rgb(239 68 68 / 0.35);
+}
+
+/* Deleted lines in unified view */
+.cm-deletedLine {
+  background-color: rgb(239 68 68 / 0.1);
+  text-decoration: line-through;
+  text-decoration-color: rgb(239 68 68 / 0.5);
+}
+
+.dark .cm-deletedLine {
+  background-color: rgb(239 68 68 / 0.15);
+}
+
+/* Inserted lines in unified view */
+.cm-insertedLine {
+  background-color: rgb(34 197 94 / 0.1);
+}
+
+.dark .cm-insertedLine {
+  background-color: rgb(34 197 94 / 0.15);
+}
+
+/* Chunk gutter markers */
+.cm-changeGutter .cm-gutterElement {
+  padding: 0 4px;
+}
+
+/* Make the merge controls more visible */
+.cm-merge-controls {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  background: hsl(var(--muted) / 0.5);
+  border-radius: 4px;
+  margin: 2px 0;
+}

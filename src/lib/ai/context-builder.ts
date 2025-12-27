@@ -28,7 +28,7 @@ export function formatSkriptContext(context: SkriptContext): string {
     lines.push(
       '',
       `### ${page.order + 1}. ${page.title}${focusMarker}`,
-      `Slug: ${page.slug} | Status: ${publishedStatus}`,
+      `ID: ${page.id} | Slug: ${page.slug} | Status: ${publishedStatus}`,
       '',
       '```markdown',
       page.content,
