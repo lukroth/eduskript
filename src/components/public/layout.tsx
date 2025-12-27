@@ -310,7 +310,7 @@ export function PublicSiteLayout({
         <AdminToolbox pageId={pageId} />
         <FontSizeControls />
         <PublicThemeToggle />
-        <AuthButton pageId={pageId} />
+        <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
       </div>
 
       {/* Mobile menu button */}
@@ -375,7 +375,7 @@ export function PublicSiteLayout({
                   <ChevronRight className="w-5 h-5" />
                 </Button>
                 <AdminToolbox pageId={pageId} />
-                <AuthButton pageId={pageId} />
+                <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
                 <PublicThemeToggle />
                 <FontSizeControls orientation="vertical" />
               </div>
@@ -433,7 +433,7 @@ export function PublicSiteLayout({
                     <AdminToolbox pageId={pageId} />
                     <FontSizeControls />
                     <PublicThemeToggle />
-                    <AuthButton pageId={pageId} />
+                    <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
                   </div>
                   <Button
                     variant="ghost"

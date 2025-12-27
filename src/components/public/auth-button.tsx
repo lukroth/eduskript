@@ -10,9 +10,10 @@ import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
 interface AuthButtonProps {
   pageId?: string // Page ID to check edit permissions (lazy loaded)
+  teacherPageSlug?: string // Teacher's pageSlug for custom domain auth redirect
 }
 
-export function AuthButton({ pageId }: AuthButtonProps) {
+export function AuthButton({ pageId, teacherPageSlug }: AuthButtonProps) {
   const pathname = usePathname() ?? '/'
   const { data: session, status } = useSession()
   const [editUrl, setEditUrl] = useState<string | null>(null)
@@ -20,7 +21,8 @@ export function AuthButton({ pageId }: AuthButtonProps) {
 
   // Extract pageSlug from pathname (first segment after /)
   // e.g., /chris/collection/skript/page -> "chris"
-  const pageSlug = pathname.split('/')[1] || undefined
+  // On custom domains, use the passed teacherPageSlug instead
+  const pageSlug = teacherPageSlug || pathname.split('/')[1] || undefined
 
   // Fetch edit permissions client-side (only when logged in and pageId is provided)
   useEffect(() => {
@@ -51,9 +53,28 @@ export function AuthButton({ pageId }: AuthButtonProps) {
 
   // Build sign-in URL with context
   // If on a teacher's page, include 'from' param for student context
-  const signInUrl = pageSlug && !['auth', 'dashboard', 'api'].includes(pageSlug)
-    ? `/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(pathname)}`
-    : `/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`
+  // On custom domains, redirect to main site for auth (OAuth callbacks only work there)
+  const [signInUrl, setSignInUrl] = useState(() => {
+    const baseSignIn = pageSlug && !['auth', 'dashboard', 'api'].includes(pageSlug)
+      ? `/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(pathname)}`
+      : `/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`
+    return baseSignIn
+  })
+
+  useEffect(() => {
+    // On custom domains, auth must happen on main site (cookies don't transfer across domains)
+    const hostname = window.location.hostname
+    const isCustomDomain = !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
+
+    if (isCustomDomain && pageSlug) {
+      // Redirect to main site for auth, with callback to eduskript.org equivalent URL
+      // Custom domain path: /grundjahr/... -> main site path: /ig/grundjahr/...
+      const mainSiteCallback = `https://eduskript.org/${pageSlug}${pathname}`
+      const baseSignIn = `https://eduskript.org/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(mainSiteCallback)}`
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Required: domain detection only possible after mount
+      setSignInUrl(baseSignIn)
+    }
+  }, [pathname, pageSlug])
 
   if (!session) {
     // Not logged in - show login button
