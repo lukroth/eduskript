@@ -77,9 +77,21 @@ export function PublicSiteLayout({
   pageId,
   routePrefix
 }: PublicSiteLayoutProps) {
-  // Compute the base URL prefix for navigation
-  const basePrefix = routePrefix ?? `/${teacher.pageSlug}`
   const router = useRouter()
+
+  // Detect if we're on a custom domain (not eduskript.org or localhost)
+  // On custom domains, use root-relative URLs (no pageSlug prefix)
+  // Uses lazy initializer to avoid hydration mismatch and setState in effect
+  const [isCustomDomain] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const hostname = window.location.hostname
+    return !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
+  })
+
+  // Compute the base URL prefix for navigation
+  // On custom domains: use root-relative URLs (e.g., /collection/skript/page)
+  // On main site: use pageSlug prefix (e.g., /ig/collection/skript/page)
+  const basePrefix = isCustomDomain ? '' : (routePrefix ?? `/${teacher.pageSlug}`)
   const { data: session } = useSession()
   const { setSidebarCollapsed: setSidebarCollapsedInContext, sidebarWidth } = useLayout()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
