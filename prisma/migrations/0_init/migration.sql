@@ -1,3 +1,8 @@
+Loaded Prisma config from prisma.config.ts.
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "accounts" (
     "id" TEXT NOT NULL,
@@ -63,6 +68,7 @@ CREATE TABLE "users" (
     "lastSeenAt" TIMESTAMP(3),
     "oauthProvider" TEXT,
     "oauthProviderId" TEXT,
+    "billing_plan" TEXT NOT NULL DEFAULT 'free',
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -74,6 +80,7 @@ CREATE TABLE "collections" (
     "description" TEXT,
     "slug" TEXT NOT NULL,
     "isPublished" BOOLEAN NOT NULL DEFAULT false,
+    "accentColor" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -110,6 +117,7 @@ CREATE TABLE "skripts" (
     "description" TEXT,
     "slug" TEXT NOT NULL,
     "isPublished" BOOLEAN NOT NULL DEFAULT false,
+    "skript_type" TEXT NOT NULL DEFAULT 'normal',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -135,6 +143,8 @@ CREATE TABLE "pages" (
     "content" TEXT NOT NULL,
     "order" INTEGER NOT NULL,
     "isPublished" BOOLEAN NOT NULL DEFAULT false,
+    "page_type" TEXT NOT NULL DEFAULT 'normal',
+    "exam_settings" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "skriptId" TEXT NOT NULL,
@@ -241,6 +251,28 @@ CREATE TABLE "page_layout_items" (
 );
 
 -- CreateTable
+CREATE TABLE "org_page_layouts" (
+    "id" TEXT NOT NULL,
+    "organization_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "org_page_layouts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "org_page_layout_items" (
+    "id" TEXT NOT NULL,
+    "org_page_layout_id" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "content_id" TEXT NOT NULL,
+    "order" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "org_page_layout_items_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "student_progress" (
     "id" TEXT NOT NULL,
     "student_id" TEXT NOT NULL,
@@ -304,6 +336,18 @@ CREATE TABLE "pre_authorized_students" (
 );
 
 -- CreateTable
+CREATE TABLE "page_unlocks" (
+    "id" TEXT NOT NULL,
+    "page_id" TEXT NOT NULL,
+    "class_id" TEXT,
+    "student_id" TEXT,
+    "unlocked_by" TEXT NOT NULL,
+    "unlocked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "page_unlocks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "user_data" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
@@ -313,6 +357,8 @@ CREATE TABLE "user_data" (
     "version" INTEGER NOT NULL DEFAULT 1,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "target_type" TEXT,
+    "target_id" TEXT,
 
     CONSTRAINT "user_data_pkey" PRIMARY KEY ("id")
 );
@@ -326,6 +372,8 @@ CREATE TABLE "front_pages" (
     "updated_at" TIMESTAMP(3) NOT NULL,
     "user_id" TEXT,
     "skript_id" TEXT,
+    "organization_id" TEXT,
+    "file_skript_id" TEXT,
 
     CONSTRAINT "front_pages_pkey" PRIMARY KEY ("id")
 );
@@ -361,6 +409,132 @@ CREATE TABLE "import_jobs" (
     "completed_at" TIMESTAMP(3),
 
     CONSTRAINT "import_jobs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "organizations" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "show_icon" BOOLEAN NOT NULL DEFAULT true,
+    "icon_url" TEXT,
+    "allow_member_pages" BOOLEAN NOT NULL DEFAULT true,
+    "allow_teacher_custom_domains" BOOLEAN NOT NULL DEFAULT false,
+    "require_email_domain" TEXT,
+    "sidebar_behavior" TEXT DEFAULT 'contextual',
+    "billing_plan" TEXT NOT NULL DEFAULT 'free',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "organization_members" (
+    "id" TEXT NOT NULL,
+    "organization_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'member',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "organization_members_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "custom_domains" (
+    "id" TEXT NOT NULL,
+    "domain" TEXT NOT NULL,
+    "organization_id" TEXT NOT NULL,
+    "is_primary" BOOLEAN NOT NULL DEFAULT false,
+    "is_verified" BOOLEAN NOT NULL DEFAULT false,
+    "verification_token" TEXT,
+    "verified_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "custom_domains_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "teacher_custom_domains" (
+    "id" TEXT NOT NULL,
+    "domain" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "is_primary" BOOLEAN NOT NULL DEFAULT false,
+    "is_verified" BOOLEAN NOT NULL DEFAULT false,
+    "verification_token" TEXT,
+    "verified_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "teacher_custom_domains_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_tokens" (
+    "id" TEXT NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "page_id" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "used_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "exam_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_sessions" (
+    "id" TEXT NOT NULL,
+    "session_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "page_id" TEXT NOT NULL,
+    "skript_id" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "exam_sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_states" (
+    "id" TEXT NOT NULL,
+    "page_id" TEXT NOT NULL,
+    "class_id" TEXT NOT NULL,
+    "state" TEXT NOT NULL DEFAULT 'closed',
+    "opened_at" TIMESTAMP(3),
+    "closed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "exam_states_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_submissions" (
+    "id" TEXT NOT NULL,
+    "page_id" TEXT NOT NULL,
+    "student_id" TEXT NOT NULL,
+    "submitted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "score" DOUBLE PRECISION,
+    "graded_by" TEXT,
+    "graded_at" TIMESTAMP(3),
+
+    CONSTRAINT "exam_submissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "cross_domain_tokens" (
+    "id" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "domain" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "used_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "cross_domain_tokens_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -453,6 +627,12 @@ CREATE UNIQUE INDEX "page_layouts_user_id_key" ON "page_layouts"("user_id");
 CREATE UNIQUE INDEX "page_layout_items_page_layout_id_content_id_type_key" ON "page_layout_items"("page_layout_id", "content_id", "type");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "org_page_layouts_organization_id_key" ON "org_page_layouts"("organization_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "org_page_layout_items_org_page_layout_id_content_id_type_key" ON "org_page_layout_items"("org_page_layout_id", "content_id", "type");
+
+-- CreateIndex
 CREATE INDEX "student_progress_student_id_idx" ON "student_progress"("student_id");
 
 -- CreateIndex
@@ -498,6 +678,21 @@ CREATE INDEX "pre_authorized_students_class_id_idx" ON "pre_authorized_students"
 CREATE UNIQUE INDEX "pre_authorized_students_class_id_pseudonym_key" ON "pre_authorized_students"("class_id", "pseudonym");
 
 -- CreateIndex
+CREATE INDEX "page_unlocks_class_id_idx" ON "page_unlocks"("class_id");
+
+-- CreateIndex
+CREATE INDEX "page_unlocks_student_id_idx" ON "page_unlocks"("student_id");
+
+-- CreateIndex
+CREATE INDEX "page_unlocks_page_id_idx" ON "page_unlocks"("page_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "page_unlocks_page_id_class_id_key" ON "page_unlocks"("page_id", "class_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "page_unlocks_page_id_student_id_key" ON "page_unlocks"("page_id", "student_id");
+
+-- CreateIndex
 CREATE INDEX "user_data_user_id_idx" ON "user_data"("user_id");
 
 -- CreateIndex
@@ -507,13 +702,22 @@ CREATE INDEX "user_data_user_id_adapter_idx" ON "user_data"("user_id", "adapter"
 CREATE INDEX "user_data_updated_at_idx" ON "user_data"("updated_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_data_user_id_adapter_item_id_key" ON "user_data"("user_id", "adapter", "item_id");
+CREATE INDEX "user_data_target_type_target_id_adapter_item_id_idx" ON "user_data"("target_type", "target_id", "adapter", "item_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_data_user_id_adapter_item_id_target_type_target_id_key" ON "user_data"("user_id", "adapter", "item_id", "target_type", "target_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "front_pages_user_id_key" ON "front_pages"("user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "front_pages_skript_id_key" ON "front_pages"("skript_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "front_pages_organization_id_key" ON "front_pages"("organization_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "front_pages_file_skript_id_key" ON "front_pages"("file_skript_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "front_page_versions_front_page_id_version_key" ON "front_page_versions"("front_page_id", "version");
@@ -526,6 +730,87 @@ CREATE INDEX "import_jobs_user_id_status_idx" ON "import_jobs"("user_id", "statu
 
 -- CreateIndex
 CREATE INDEX "import_jobs_status_idx" ON "import_jobs"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations"("slug");
+
+-- CreateIndex
+CREATE INDEX "organization_members_organization_id_idx" ON "organization_members"("organization_id");
+
+-- CreateIndex
+CREATE INDEX "organization_members_user_id_idx" ON "organization_members"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "organization_members_organization_id_user_id_key" ON "organization_members"("organization_id", "user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "custom_domains_domain_key" ON "custom_domains"("domain");
+
+-- CreateIndex
+CREATE INDEX "custom_domains_domain_idx" ON "custom_domains"("domain");
+
+-- CreateIndex
+CREATE INDEX "custom_domains_organization_id_idx" ON "custom_domains"("organization_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "teacher_custom_domains_domain_key" ON "teacher_custom_domains"("domain");
+
+-- CreateIndex
+CREATE INDEX "teacher_custom_domains_domain_idx" ON "teacher_custom_domains"("domain");
+
+-- CreateIndex
+CREATE INDEX "teacher_custom_domains_user_id_idx" ON "teacher_custom_domains"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "exam_tokens_token_hash_key" ON "exam_tokens"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "exam_tokens_token_hash_idx" ON "exam_tokens"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "exam_tokens_user_id_idx" ON "exam_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "exam_tokens_page_id_idx" ON "exam_tokens"("page_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "exam_sessions_session_id_key" ON "exam_sessions"("session_id");
+
+-- CreateIndex
+CREATE INDEX "exam_sessions_session_id_idx" ON "exam_sessions"("session_id");
+
+-- CreateIndex
+CREATE INDEX "exam_sessions_user_id_idx" ON "exam_sessions"("user_id");
+
+-- CreateIndex
+CREATE INDEX "exam_sessions_skript_id_idx" ON "exam_sessions"("skript_id");
+
+-- CreateIndex
+CREATE INDEX "exam_states_page_id_idx" ON "exam_states"("page_id");
+
+-- CreateIndex
+CREATE INDEX "exam_states_class_id_idx" ON "exam_states"("class_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "exam_states_page_id_class_id_key" ON "exam_states"("page_id", "class_id");
+
+-- CreateIndex
+CREATE INDEX "exam_submissions_page_id_idx" ON "exam_submissions"("page_id");
+
+-- CreateIndex
+CREATE INDEX "exam_submissions_student_id_idx" ON "exam_submissions"("student_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "exam_submissions_page_id_student_id_key" ON "exam_submissions"("page_id", "student_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "cross_domain_tokens_token_key" ON "cross_domain_tokens"("token");
+
+-- CreateIndex
+CREATE INDEX "cross_domain_tokens_token_idx" ON "cross_domain_tokens"("token");
+
+-- CreateIndex
+CREATE INDEX "cross_domain_tokens_expires_at_idx" ON "cross_domain_tokens"("expires_at");
 
 -- CreateIndex
 CREATE INDEX "_SkriptVideos_B_index" ON "_SkriptVideos"("B");
@@ -600,6 +885,12 @@ ALTER TABLE "page_layouts" ADD CONSTRAINT "page_layouts_user_id_fkey" FOREIGN KE
 ALTER TABLE "page_layout_items" ADD CONSTRAINT "page_layout_items_page_layout_id_fkey" FOREIGN KEY ("page_layout_id") REFERENCES "page_layouts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "org_page_layouts" ADD CONSTRAINT "org_page_layouts_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "org_page_layout_items" ADD CONSTRAINT "org_page_layout_items_org_page_layout_id_fkey" FOREIGN KEY ("org_page_layout_id") REFERENCES "org_page_layouts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "student_progress" ADD CONSTRAINT "student_progress_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -624,6 +915,18 @@ ALTER TABLE "class_memberships" ADD CONSTRAINT "class_memberships_student_id_fke
 ALTER TABLE "pre_authorized_students" ADD CONSTRAINT "pre_authorized_students_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "page_unlocks" ADD CONSTRAINT "page_unlocks_page_id_fkey" FOREIGN KEY ("page_id") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "page_unlocks" ADD CONSTRAINT "page_unlocks_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "page_unlocks" ADD CONSTRAINT "page_unlocks_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "page_unlocks" ADD CONSTRAINT "page_unlocks_unlocked_by_fkey" FOREIGN KEY ("unlocked_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "user_data" ADD CONSTRAINT "user_data_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -633,6 +936,12 @@ ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_user_id_fkey" FOREIGN KEY 
 ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_skript_id_fkey" FOREIGN KEY ("skript_id") REFERENCES "skripts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_file_skript_id_fkey" FOREIGN KEY ("file_skript_id") REFERENCES "skripts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "front_page_versions" ADD CONSTRAINT "front_page_versions_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -640,6 +949,51 @@ ALTER TABLE "front_page_versions" ADD CONSTRAINT "front_page_versions_front_page
 
 -- AddForeignKey
 ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "organization_members" ADD CONSTRAINT "organization_members_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "organization_members" ADD CONSTRAINT "organization_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "custom_domains" ADD CONSTRAINT "custom_domains_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "teacher_custom_domains" ADD CONSTRAINT "teacher_custom_domains_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_tokens" ADD CONSTRAINT "exam_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_tokens" ADD CONSTRAINT "exam_tokens_page_id_fkey" FOREIGN KEY ("page_id") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_page_id_fkey" FOREIGN KEY ("page_id") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_skript_id_fkey" FOREIGN KEY ("skript_id") REFERENCES "skripts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_states" ADD CONSTRAINT "exam_states_page_id_fkey" FOREIGN KEY ("page_id") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_states" ADD CONSTRAINT "exam_states_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_submissions" ADD CONSTRAINT "exam_submissions_page_id_fkey" FOREIGN KEY ("page_id") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_submissions" ADD CONSTRAINT "exam_submissions_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_submissions" ADD CONSTRAINT "exam_submissions_graded_by_fkey" FOREIGN KEY ("graded_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cross_domain_tokens" ADD CONSTRAINT "cross_domain_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_SkriptVideos" ADD CONSTRAINT "_SkriptVideos_A_fkey" FOREIGN KEY ("A") REFERENCES "skripts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
