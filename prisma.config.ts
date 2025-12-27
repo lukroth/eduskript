@@ -9,5 +9,7 @@ export default defineConfig({
   },
   datasource: {
     url: env('DATABASE_URL'),
+    // Shadow DB used for migration diff - optional, set in test env
+    ...(process.env.SHADOW_DATABASE_URL && { shadowDatabaseUrl: env('SHADOW_DATABASE_URL') }),
   },
 })
