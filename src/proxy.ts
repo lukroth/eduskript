@@ -16,6 +16,18 @@ const NEGATIVE_CACHE_TTL = 30 * 1000 // 30 seconds for "not found" results
 // Default organization slug - all unknown domains fall back to this org
 const DEFAULT_ORG_SLUG = process.env.DEFAULT_ORG_SLUG || 'eduskript'
 
+// Known domains that map directly to org slugs (no DB lookup needed)
+const KNOWN_ORG_DOMAINS: Record<string, string> = {
+  'eduskript.org': 'eduskript',
+  'www.eduskript.org': 'eduskript',
+}
+
+// Known domains that map directly to teacher pageSlugs (no DB lookup needed)
+const KNOWN_TEACHER_DOMAINS: Record<string, string> = {
+  'informatikgarten.ch': 'ig',
+  'www.informatikgarten.ch': 'ig',
+}
+
 export async function proxy(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const { pathname } = request.nextUrl
@@ -39,6 +51,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Check known domains first (no DB/API lookup needed)
+  if (KNOWN_TEACHER_DOMAINS[domain]) {
+    return rewriteToTeacher(request, KNOWN_TEACHER_DOMAINS[domain])
+  }
+  if (KNOWN_ORG_DOMAINS[domain]) {
+    return rewriteToOrg(request, KNOWN_ORG_DOMAINS[domain])
+  }
+
+  // For localhost, check if it's a teacher pageSlug or fall back to default org
+  if (domain === 'localhost') {
+    return rewriteToOrg(request, DEFAULT_ORG_SLUG)
+  }
+
   // Check cache first
   const cached = domainCache.get(domain)
   if (cached !== undefined) {
@@ -59,8 +84,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // Look up domain in database via internal API
+  // Use HTTP for internal calls to avoid SSL issues on container platforms
   try {
-    const resolveUrl = new URL('/api/internal/resolve-domain', request.nextUrl.origin)
+    const port = process.env.PORT || '3000'
+    const resolveUrl = new URL(`http://localhost:${port}/api/internal/resolve-domain`)
     resolveUrl.searchParams.set('domain', domain)
 
     const response = await fetch(resolveUrl.toString(), {

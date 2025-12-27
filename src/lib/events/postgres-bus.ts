@@ -33,6 +33,20 @@ function sanitizeChannel(channel: string): string {
   return sanitized
 }
 
+// Parse SSL config from DATABASE_URL or environment
+function getSSLConfig(): boolean | { rejectUnauthorized: boolean } {
+  const url = process.env.DATABASE_URL || ''
+  // If sslmode is specified in URL, let pg handle it
+  if (url.includes('sslmode=')) {
+    return false // Let connection string handle SSL
+  }
+  // Enable SSL for production (non-localhost databases)
+  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return { rejectUnauthorized: false } // Accept self-signed certs
+  }
+  return false
+}
+
 class PostgresEventBus implements EventBus {
   private pool: pg.Pool
   private listenerClient: pg.Client | null = null
@@ -41,10 +55,12 @@ class PostgresEventBus implements EventBus {
   private connectionPromise: Promise<void> | null = null
 
   constructor() {
+    const sslConfig = getSSLConfig()
     // Create a pool for publishing (uses connection pooling)
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 3, // Small pool just for NOTIFY commands
+      ...(sslConfig && { ssl: sslConfig }),
     })
 
     // Start listening connection
@@ -73,8 +89,10 @@ class PostgresEventBus implements EventBus {
 
   private async createListenerConnection(): Promise<void> {
     try {
+      const sslConfig = getSSLConfig()
       this.listenerClient = new Client({
         connectionString: process.env.DATABASE_URL,
+        ...(sslConfig && { ssl: sslConfig }),
       })
 
       await this.listenerClient.connect()

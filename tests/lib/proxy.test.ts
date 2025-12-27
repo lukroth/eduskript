@@ -103,10 +103,49 @@ describe('proxy routing', () => {
     })
   })
 
-  describe('default org fallback', () => {
-    it('should rewrite root path to default org', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false })
+  describe('known domains (no DB lookup)', () => {
+    it('should rewrite informatikgarten.ch to /ig', async () => {
+      const { proxy } = await import('@/proxy')
+      const { NextResponse } = await import('next/server')
 
+      const request = createMockRequest('informatikgarten.ch', '/')
+      await proxy(request as any)
+
+      expect(NextResponse.rewrite).toHaveBeenCalled()
+      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
+      expect(rewriteCall.pathname).toBe('/ig')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('should rewrite www.informatikgarten.ch to /ig', async () => {
+      const { proxy } = await import('@/proxy')
+      const { NextResponse } = await import('next/server')
+
+      const request = createMockRequest('www.informatikgarten.ch', '/grundjahr')
+      await proxy(request as any)
+
+      expect(NextResponse.rewrite).toHaveBeenCalled()
+      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
+      expect(rewriteCall.pathname).toBe('/ig/grundjahr')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('should rewrite eduskript.org to /org/eduskript', async () => {
+      const { proxy } = await import('@/proxy')
+      const { NextResponse } = await import('next/server')
+
+      const request = createMockRequest('eduskript.org', '/')
+      await proxy(request as any)
+
+      expect(NextResponse.rewrite).toHaveBeenCalled()
+      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
+      expect(rewriteCall.pathname).toBe('/org/eduskript')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('localhost handling', () => {
+    it('should rewrite localhost root to default org without fetch', async () => {
       const { proxy } = await import('@/proxy')
       const { NextResponse } = await import('next/server')
 
@@ -116,59 +155,27 @@ describe('proxy routing', () => {
       expect(NextResponse.rewrite).toHaveBeenCalled()
       const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
       expect(rewriteCall.pathname).toBe('/org/eduskript')
+      expect(mockFetch).not.toHaveBeenCalled()
     })
 
-    it('should rewrite teacher path to default org', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false })
-
+    it('should rewrite localhost paths to default org', async () => {
       const { proxy } = await import('@/proxy')
       const { NextResponse } = await import('next/server')
 
-      const request = createMockRequest('localhost:3000', '/teachername')
+      const request = createMockRequest('localhost:3000', '/somepath')
       await proxy(request as any)
 
       expect(NextResponse.rewrite).toHaveBeenCalled()
       const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/eduskript/teachername')
-    })
-
-    it('should rewrite collection path to default org with /c/ prefix', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false })
-
-      const { proxy } = await import('@/proxy')
-      const { NextResponse } = await import('next/server')
-
-      const request = createMockRequest('localhost:3000', '/c/algebra')
-      await proxy(request as any)
-
-      expect(NextResponse.rewrite).toHaveBeenCalled()
-      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/eduskript/c/algebra')
-    })
-
-    it('should use DEFAULT_ORG_SLUG env var when set', async () => {
-      process.env.DEFAULT_ORG_SLUG = 'myorg'
-      mockFetch.mockResolvedValueOnce({ ok: false })
-
-      // Need to re-import to pick up new env var
-      vi.resetModules()
-      const { proxy } = await import('@/proxy')
-      const { NextResponse } = await import('next/server')
-
-      const request = createMockRequest('localhost:3000', '/')
-      await proxy(request as any)
-
-      expect(NextResponse.rewrite).toHaveBeenCalled()
-      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/myorg')
+      expect(rewriteCall.pathname).toBe('/org/eduskript/somepath')
     })
   })
 
-  describe('custom domain resolution', () => {
-    it('should rewrite to resolved org for custom domain', async () => {
+  describe('custom domain resolution via API', () => {
+    it('should rewrite to resolved org for unknown custom domain', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ orgSlug: 'school1' }),
+        json: async () => ({ type: 'org', orgSlug: 'school1' }),
       })
 
       const { proxy } = await import('@/proxy')
@@ -182,21 +189,21 @@ describe('proxy routing', () => {
       expect(rewriteCall.pathname).toBe('/org/school1')
     })
 
-    it('should include path when rewriting custom domain', async () => {
+    it('should rewrite to teacher page for teacher custom domain', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ orgSlug: 'school1' }),
+        json: async () => ({ type: 'teacher', pageSlug: 'teacherpage' }),
       })
 
       const { proxy } = await import('@/proxy')
       const { NextResponse } = await import('next/server')
 
-      const request = createMockRequest('school.edu', '/teacher1')
+      const request = createMockRequest('teacher.example.com', '/')
       await proxy(request as any)
 
       expect(NextResponse.rewrite).toHaveBeenCalled()
       const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/school1/teacher1')
+      expect(rewriteCall.pathname).toBe('/teacherpage')
     })
 
     it('should fall back to default org when custom domain not found', async () => {
@@ -214,33 +221,21 @@ describe('proxy routing', () => {
     })
   })
 
-  describe('localhost handling (no special case)', () => {
-    it('should treat localhost same as any other domain - fall back to default org', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false })
+  describe('DEFAULT_ORG_SLUG env var', () => {
+    it('should use DEFAULT_ORG_SLUG env var when set', async () => {
+      process.env.DEFAULT_ORG_SLUG = 'myorg'
 
+      // Need to re-import to pick up new env var
+      vi.resetModules()
       const { proxy } = await import('@/proxy')
       const { NextResponse } = await import('next/server')
 
-      const request = createMockRequest('localhost:3000', '/somepath')
+      const request = createMockRequest('localhost:3000', '/')
       await proxy(request as any)
 
       expect(NextResponse.rewrite).toHaveBeenCalled()
       const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/eduskript/somepath')
-    })
-
-    it('should treat 127.0.0.1 same as any other domain', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false })
-
-      const { proxy } = await import('@/proxy')
-      const { NextResponse } = await import('next/server')
-
-      const request = createMockRequest('127.0.0.1:3000', '/')
-      await proxy(request as any)
-
-      expect(NextResponse.rewrite).toHaveBeenCalled()
-      const rewriteCall = (NextResponse.rewrite as any).mock.calls[0][0]
-      expect(rewriteCall.pathname).toBe('/org/eduskript')
+      expect(rewriteCall.pathname).toBe('/org/myorg')
     })
   })
 })
