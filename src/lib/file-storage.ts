@@ -78,8 +78,8 @@ import {
 } from './s3'
 
 // File storage configuration - exported for pre-validation in upload handlers
-export const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB default
-export const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw,db,sqlite').split(',')
+export const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '20971520') // 20MB default
+export const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,odt,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw,db,sqlite,ig').split(',')
 
 /**
  * Characters that are dangerous in filenames (path traversal, null bytes, control chars).
