@@ -31,6 +31,14 @@ const mockPrisma = {
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  // Required for autoJoinOrgByEmailDomain
+  organization: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
+  organizationMember: {
+    findUnique: vi.fn(),
+    create: vi.fn(),
+  },
 } as unknown as PrismaClient
 
 // Mock the base PrismaAdapter
