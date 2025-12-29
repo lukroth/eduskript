@@ -72,6 +72,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     appState?: unknown
     files?: Record<string, unknown>  // Embedded images
   } | undefined>(undefined)
+  const [isEditingExistingExcalidraw, setIsEditingExistingExcalidraw] = useState(false)
   const [showTextColorPicker, setShowTextColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const { resolvedTheme } = useTheme()
@@ -772,25 +773,27 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         throw new Error('Failed to save drawing')
       }
 
-      // Insert reference to the drawing in the editor
-      const insertText = `![](${name}.excalidraw)\n`
+      // Only insert reference for NEW drawings, not when editing existing ones
+      if (!isEditingExistingExcalidraw) {
+        const insertText = `![](${name}.excalidraw)\n`
 
-      if (editorViewRef.current && !useSimpleEditor) {
-        const view = editorViewRef.current
-        const insertPos = view.state.selection.main.head
-        const transaction = view.state.update({
-          changes: { from: insertPos, insert: insertText },
-          selection: { anchor: insertPos + insertText.length }
-        })
-        view.dispatch(transaction)
-        onChange(view.state.doc.toString())
-      } else if (useSimpleEditor) {
-        const textarea = document.querySelector('textarea') as HTMLTextAreaElement
-        if (textarea) {
-          const start = textarea.selectionStart
-          const newContent = textareaContent.substring(0, start) + insertText + textareaContent.substring(start)
-          setTextareaContent(newContent)
-          onChange(newContent)
+        if (editorViewRef.current && !useSimpleEditor) {
+          const view = editorViewRef.current
+          const insertPos = view.state.selection.main.head
+          const transaction = view.state.update({
+            changes: { from: insertPos, insert: insertText },
+            selection: { anchor: insertPos + insertText.length }
+          })
+          view.dispatch(transaction)
+          onChange(view.state.doc.toString())
+        } else if (useSimpleEditor) {
+          const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+          if (textarea) {
+            const start = textarea.selectionStart
+            const newContent = textareaContent.substring(0, start) + insertText + textareaContent.substring(start)
+            setTextareaContent(newContent)
+            onChange(newContent)
+          }
         }
       }
 
@@ -820,13 +823,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
       const data = await response.json()
 
-      // Set initial data and open editor
+      // Set initial data and open editor (mark as editing existing file)
       setExcalidrawInitialData({
         name: data.name,
         elements: data.data.elements || [],
         appState: data.data.appState,
         files: data.data.files  // Include embedded images
       })
+      setIsEditingExistingExcalidraw(true)
       setExcalidrawOpen(true)
     } catch (error) {
       console.error('Error loading drawing:', error)
@@ -1291,7 +1295,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           open={excalidrawOpen}
           onClose={() => {
             setExcalidrawOpen(false)
-            setExcalidrawInitialData(undefined) // Clear initial data when closing
+            setExcalidrawInitialData(undefined)
+            setIsEditingExistingExcalidraw(false) // Reset flag when closing
           }}
           onSave={handleExcalidrawSave}
           skriptId={skriptId}

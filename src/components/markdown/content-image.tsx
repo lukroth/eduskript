@@ -92,7 +92,8 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
   const handleLayoutChange = useCallback((layout: { width: number; align: 'left' | 'center' | 'right'; wrap: boolean }) => {
     if (!onWidthChange) return
 
-    // Build <Image> component with props (use filename, not resolved URL)
+    // Build <image> component with props (use filename, not resolved URL)
+    // Use lowercase for consistency with other custom elements (code-editor, youtube-embed, etc.)
     let props = `src="${filename}" alt="${alt}" width="${Math.round(layout.width)}%"`
     if (layout.align !== 'center') {
       props += ` align="${layout.align}"`
@@ -101,7 +102,7 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
       props += ` wrap`
     }
 
-    onWidthChange(`<Image ${props} />`)
+    onWidthChange(`<image ${props} />`)
   }, [alt, filename, onWidthChange])
 
   // Build data attributes for source line tracking

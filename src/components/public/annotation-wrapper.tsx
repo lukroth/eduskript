@@ -35,7 +35,7 @@ interface AnnotationWrapperProps {
 
 /**
  * Client-side wrapper that adds annotation functionality to server-rendered content.
- * The children (MDX content) are rendered on the server, this component adds
+ * The children (markdown content) are rendered on the server, this component adds
  * the annotation layer on the client.
  *
  * TeacherBroadcastProvider is included here to deduplicate teacher broadcast API calls.

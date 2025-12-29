@@ -65,7 +65,7 @@ interface DemoEditorProps {
   className?: string
   /**
    * Raw markdown content to use as initial content.
-   * In MDX, use a template literal: content={`# Hello\n\nWorld`}
+   * Use a template literal: content={`# Hello\n\nWorld`}
    */
   content?: string
   /** @deprecated Use `content` prop instead */
@@ -81,7 +81,7 @@ interface DemoEditorProps {
  * Shows the full CodeMirror editor with live preview - no auth, no persistence.
  * Changes are local to the browser session only.
  *
- * Usage in MDX:
+ * Usage in markdown:
  * <DemoEditor />                                    // Uses default sample content
  * <DemoEditor content={`# Hello\n\nWorld`} />       // Custom content via prop
  * <DemoEditor content={`

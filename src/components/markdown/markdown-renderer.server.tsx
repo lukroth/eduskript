@@ -1,5 +1,5 @@
-import { compileMDX } from '@/lib/mdx-compiler'
-import { createMDXComponents } from '@/lib/mdx-components-factory'
+import { compileMarkdown } from '@/lib/markdown-compiler'
+import { createMarkdownComponents } from '@/lib/markdown-components'
 import { createEmptySkriptFiles } from '@/lib/skript-files'
 import { getSkriptFiles } from '@/lib/skript-files.server'
 
@@ -12,26 +12,34 @@ interface ServerMarkdownRendererProps {
 
 /**
  * Server-side markdown renderer for public pages.
- * Compiles MDX on the server, returns React elements for ISR caching.
+ * Compiles markdown on the server, returns React elements for ISR caching.
  * Interactive components (code editors, tabs, etc.) hydrate on the client.
  *
- * Uses the unified MDX pipeline:
+ * Uses the safe unified pipeline (no JavaScript execution):
  * 1. Get SkriptFiles from database (once, upfront)
- * 2. Compile MDX with pure transformer plugins
+ * 2. Compile markdown with remark/rehype plugins
  * 3. Create components with files prop bound
  */
 export async function ServerMarkdownRenderer({ content, skriptId, pageId, organizationSlug }: ServerMarkdownRendererProps) {
   // 1. Get all files for this skript upfront
   const files = skriptId ? await getSkriptFiles(skriptId) : createEmptySkriptFiles()
 
-  // 2. Compile MDX (plugins are pure transformers, no file resolution)
-  let MDXContent: React.ComponentType<{ components?: Record<string, React.ComponentType<unknown>> }>
+  // 2. Create components with files prop bound
+  const components = createMarkdownComponents(files, { pageId, organizationSlug })
+
+  // 3. Compile markdown (safe pipeline, no JS execution)
+  let rendered: React.ReactNode
+  let error: unknown
 
   try {
-    const mdxModule = await compileMDX(content)
-    MDXContent = mdxModule.default
-  } catch (error) {
-    console.error('Server MDX rendering error:', error)
+    rendered = await compileMarkdown(content, { components })
+  } catch (e) {
+    error = e
+    console.error('Server markdown rendering error:', e)
+  }
+
+  // Render result or error (JSX outside try/catch for lint compliance)
+  if (error) {
     return (
       <div className="text-destructive p-4 border border-destructive rounded-md">
         <p className="font-semibold">Markdown Rendering Error</p>
@@ -40,12 +48,9 @@ export async function ServerMarkdownRenderer({ content, skriptId, pageId, organi
     )
   }
 
-  // 3. Create components with files prop bound
-  const components = createMDXComponents(files, { pageId, organizationSlug })
-
   return (
     <div className="markdown-content prose dark:prose-invert max-w-none">
-      <MDXContent components={components} />
+      {rendered}
     </div>
   )
 }

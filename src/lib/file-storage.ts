@@ -412,6 +412,29 @@ export async function deleteFile(fileId: string, userId: string): Promise<void> 
         // Don't throw - database cleanup is more important
       }
     }
+
+    // If this is an Excalidraw file, also delete associated SVG variants
+    if (file.name.endsWith('.excalidraw')) {
+      const lightSvgName = `${file.name}.light.svg`
+      const darkSvgName = `${file.name}.dark.svg`
+
+      const svgFiles = await prisma.file.findMany({
+        where: {
+          skriptId: file.skriptId,
+          parentId: file.parentId,
+          name: { in: [lightSvgName, darkSvgName] }
+        }
+      })
+
+      for (const svgFile of svgFiles) {
+        // Recursively delete each SVG (handles S3 cleanup and deduplication)
+        try {
+          await deleteFile(svgFile.id, userId)
+        } catch {
+          // Continue even if SVG deletion fails
+        }
+      }
+    }
   }
 
   // Delete database record

@@ -12,7 +12,7 @@ interface TabsProps {
 }
 
 /**
- * Tabs component for MDX - supports Nextra-style syntax:
+ * Tabs component for markdown - supports Nextra-style syntax:
  * <Tabs items={['Tab 1', 'Tab 2']}>
  *   <Tabs.Tab>Content 1</Tabs.Tab>
  *   <Tabs.Tab>Content 2</Tabs.Tab>

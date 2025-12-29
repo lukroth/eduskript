@@ -47,8 +47,13 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
   const handleLayoutChange = useCallback((layout: { width: number; align: 'left' | 'center' | 'right'; wrap: boolean }) => {
     if (!onWidthChange) return
 
-    // Build <Image> component with props
-    let props = `src="${filename}" alt="${alt || ''}" width="${Math.round(layout.width)}%"`
+    // Use <excali> component - strip .excalidraw extension (component adds it back)
+    const baseName = filename.replace(/\.excalidraw$/, '')
+    let props = `src="${baseName}"`
+    if (alt) {
+      props += ` alt="${alt}"`
+    }
+    props += ` width="${Math.round(layout.width)}%"`
     if (layout.align !== 'center') {
       props += ` align="${layout.align}"`
     }
@@ -56,7 +61,7 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
       props += ` wrap`
     }
 
-    onWidthChange(`<Image ${props} />`)
+    onWidthChange(`<excali ${props} />`)
   }, [alt, filename, onWidthChange])
 
   // Early return if file can't be resolved

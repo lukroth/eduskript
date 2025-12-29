@@ -2,8 +2,8 @@
  * Markdown & Slug Utility Functions
  *
  * Text processing utilities for markdown content and URL-safe slug generation.
- * The full markdown rendering pipeline is in mdx-compiler.ts and the
- * markdown-renderer.tsx component.
+ * The full markdown rendering pipeline is in markdown-compiler.ts and the
+ * markdown-renderer components.
  *
  * ## Slug System
  *
@@ -20,8 +20,9 @@
  * Attempting to create a user, collection, or skript with a reserved
  * slug will be rejected. See RESERVED_SLUGS for the full list.
  *
- * @see src/lib/mdx-compiler.ts for full markdown compilation
- * @see src/components/markdown/markdown-renderer.tsx for React rendering
+ * @see src/lib/markdown-compiler.ts for full markdown compilation
+ * @see src/components/markdown/markdown-renderer.server.tsx for server rendering
+ * @see src/components/markdown/markdown-renderer.client.tsx for client rendering
  */
 
 /**

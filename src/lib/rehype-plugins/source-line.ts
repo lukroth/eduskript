@@ -9,7 +9,7 @@ import { visit } from 'unist-util-visit'
  */
 export function rehypeSourceLine() {
   return function transformer(tree: any) {
-    // Block-level HTML elements
+    // Block-level HTML elements to track source lines for
     const blockElements = new Set([
       'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'pre', 'blockquote', 'ul', 'ol', 'li',
@@ -17,36 +17,14 @@ export function rehypeSourceLine() {
       'code-editor', // Interactive code editor blocks
       'excalidraw-image', // Excalidraw drawings
       'muxvideo', // Video embeds
-      'img' // Images (in case they're not wrapped)
-    ])
-
-    // MDX component names to track
-    const mdxComponents = new Set([
-      'Image', // MDX Image component
-      'ExcalidrawImage',
-      'MuxVideo',
-      'CodeEditor'
+      'image', // Custom Image component
+      'img' // Native images
     ])
 
     // Process HTML elements
     visit(tree, 'element', (node: any) => {
       if (!blockElements.has(node.tagName)) return
-      addSourceLineAttributes(node)
-    })
 
-    // Process MDX JSX elements (for <Image>, etc.)
-    visit(tree, 'mdxJsxFlowElement', (node: any) => {
-      if (!mdxComponents.has(node.name)) return
-      addSourceLineAttributesToMdx(node)
-    })
-
-    // Also check mdxJsxTextElement for inline MDX
-    visit(tree, 'mdxJsxTextElement', (node: any) => {
-      if (!mdxComponents.has(node.name)) return
-      addSourceLineAttributesToMdx(node)
-    })
-
-    function addSourceLineAttributes(node: any) {
       // Try to get position from node itself
       let startLine = node.position?.start?.line
       let endLine = node.position?.end?.line
@@ -67,38 +45,6 @@ export function rehypeSourceLine() {
       node.properties = node.properties || {}
       node.properties['data-source-line-start'] = startLine
       node.properties['data-source-line-end'] = endLine
-    }
-
-    function addSourceLineAttributesToMdx(node: any) {
-      // Try to get position from node itself
-      let startLine = node.position?.start?.line
-      let endLine = node.position?.end?.line
-
-      // Skip if we don't have position info
-      if (!startLine || !endLine) return
-
-      // MDX JSX elements use 'attributes' array instead of 'properties'
-      node.attributes = node.attributes || []
-
-      // Check if attributes already exist
-      const hasStart = node.attributes.some((attr: any) => attr.name === 'data-source-line-start')
-      const hasEnd = node.attributes.some((attr: any) => attr.name === 'data-source-line-end')
-
-      if (!hasStart) {
-        node.attributes.push({
-          type: 'mdxJsxAttribute',
-          name: 'data-source-line-start',
-          value: String(startLine)
-        })
-      }
-      if (!hasEnd) {
-        node.attributes.push({
-          type: 'mdxJsxAttribute',
-          name: 'data-source-line-end',
-          value: String(endLine)
-        })
-      }
-
-    }
+    })
   }
 }

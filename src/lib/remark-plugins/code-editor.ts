@@ -50,23 +50,21 @@ export function remarkCodeEditor() {
           }
         })
 
-        // Convert to element node that rehypeReact can process
-        node.type = 'code-editor'
-        node.data = {
-          hName: 'code-editor',
-          hProperties: {
-            dataLanguage: attributes.language,
-            dataCode: attributes.code,
-            ...Object.fromEntries(
-              Object.entries(attributes)
-                .filter(([k]) => k !== 'language' && k !== 'code')
-                .map(([k, v]) => [`data${k.charAt(0).toUpperCase() + k.slice(1)}`, v])
-            )
-          }
-        }
+        // Build attributes string for the custom element
+        const attrPairs = [
+          `data-language="${attributes.language}"`,
+          `data-code="${attributes.code}"`,
+          ...Object.entries(attributes)
+            .filter(([k]) => k !== 'language' && k !== 'code')
+            .map(([k, v]) => `data-${k}="${v}"`)
+        ]
+
+        // Convert to raw HTML node so it gets parsed by rehype-raw
+        // This avoids the <pre> wrapper that remarkRehype adds to code nodes
+        node.type = 'html'
+        node.value = `<code-editor ${attrPairs.join(' ')}></code-editor>`
         delete node.lang
         delete node.meta
-        delete node.value
 
       }
     })

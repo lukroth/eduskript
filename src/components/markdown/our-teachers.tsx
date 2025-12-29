@@ -21,7 +21,7 @@ interface OurTeachersProps {
 }
 
 /**
- * OurTeachers MDX component - displays organization member teachers.
+ * OurTeachers component - displays organization member teachers.
  * Usage in markdown:
  *   <OurTeachers />
  *   <OurTeachers roles={['owner', 'admin']} limit={6} />

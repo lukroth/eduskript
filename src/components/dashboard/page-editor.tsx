@@ -293,7 +293,23 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       const response = await fetch(fileUrl)
 
       if (response.ok) {
-        const excalidrawData = await response.json()
+        const text = await response.text()
+        let excalidrawData
+
+        // Try parsing as pure JSON first
+        try {
+          excalidrawData = JSON.parse(text)
+        } catch {
+          // If not pure JSON, try extracting from Obsidian Excalidraw format
+          // Format: markdown with ```json { ... } ``` code block
+          const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+          if (jsonMatch) {
+            excalidrawData = JSON.parse(jsonMatch[1])
+          } else {
+            throw new Error('Could not parse Excalidraw data')
+          }
+        }
+
         setExcalidrawEditFile({
           ...file,
           excalidrawData

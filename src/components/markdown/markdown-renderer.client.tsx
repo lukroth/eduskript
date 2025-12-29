@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useDeferredValue, memo, useMemo } from 'react'
-import { compileMDX } from '@/lib/mdx-compiler'
-import { createMDXComponents } from '@/lib/mdx-components-factory'
+import React, { useState, useEffect, useLayoutEffect, useRef, useDeferredValue, memo, useMemo, type ReactNode } from 'react'
+import { compileMarkdown } from '@/lib/markdown-compiler'
+import { createMarkdownComponents } from '@/lib/markdown-components'
 import { createSkriptFiles, createEmptySkriptFiles, type SkriptFilesData } from '@/lib/skript-files'
 import type { VideoInfo } from '@/lib/skript-files'
 
@@ -59,24 +59,22 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
       try {
         setError(null)
 
-        // Compile MDX using unified compiler
-        const { default: MDXContent } = await compileMDX(deferredContent, {
-          baseUrl: window.location.href,
-        })
-
-        // Bail out if a newer generation started
-        if (currentGeneration !== processingRef.current) return
-
         // Create components with files and editor callbacks bound
-        const components = createMDXComponents(files, {
+        const components = createMarkdownComponents(files, {
           pageId,
           onContentChange,
           onExcalidrawEdit,
           content: deferredContent,
         })
 
-        // Render MDX content with our components
-        setRenderedContent(<MDXContent components={components} />)
+        // Compile markdown using safe unified pipeline (no JS execution)
+        const rendered = await compileMarkdown(deferredContent, { components })
+
+        // Bail out if a newer generation started
+        if (currentGeneration !== processingRef.current) return
+
+        // Set rendered content
+        setRenderedContent(rendered as ReactNode)
         setIsInitialLoad(false)
         hasRestoredScroll.current = false
       } catch (err) {

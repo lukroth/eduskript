@@ -15,6 +15,7 @@ export interface SkriptFile {
   id: string
   name: string
   url: string
+  updatedAt?: string | Date  // For cache busting
 }
 
 export interface VideoInfo {
@@ -66,13 +67,15 @@ export function resolveExcalidraw(files: SkriptFilesData, filename: string): { l
   if (lightFile && darkFile) {
     // Add proxy=true to serve through our API instead of redirecting to S3
     // This avoids CORS issues when capturing screenshots (html2canvas)
-    const addProxy = (url: string) => {
-      const separator = url.includes('?') ? '&' : '?'
-      return `${url}${separator}proxy=true`
+    // Also add cache-busting parameter based on updatedAt to ensure fresh content
+    const addProxyAndCacheBust = (file: SkriptFile) => {
+      const separator = file.url.includes('?') ? '&' : '?'
+      const cacheBust = file.updatedAt ? `&v=${new Date(file.updatedAt).getTime()}` : ''
+      return `${file.url}${separator}proxy=true${cacheBust}`
     }
     return {
-      lightUrl: addProxy(lightFile.url),
-      darkUrl: addProxy(darkFile.url),
+      lightUrl: addProxyAndCacheBust(lightFile),
+      darkUrl: addProxyAndCacheBust(darkFile),
     }
   }
 
@@ -95,7 +98,7 @@ export function resolveVideo(files: SkriptFilesData, filename: string): VideoInf
  * Used in the dashboard live preview where we have the file list from the browser.
  */
 export function createSkriptFiles(
-  fileList: Array<{ id: string; name: string; url?: string }>,
+  fileList: Array<{ id: string; name: string; url?: string; updatedAt?: string | Date }>,
   videoList?: VideoInfo[]
 ): SkriptFilesData {
   // Build files record
@@ -106,6 +109,7 @@ export function createSkriptFiles(
       id: file.id,
       name: file.name,
       url: file.url || `/api/files/${file.id}`,
+      updatedAt: file.updatedAt,
     }
   }
 

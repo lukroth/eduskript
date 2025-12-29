@@ -117,33 +117,39 @@ export function PublicSiteLayout({
   // Ref for sidebar navigation scroll container
   const sidebarNavRef = useRef<HTMLDivElement>(null)
 
-  // Initialize with persistent state or defaults using lazy initializers
-  // This reads from localStorage synchronously to prevent flash during hydration
-  const [expandedCollections, setExpandedCollections] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return siteStructure.map(collection => collection.id)
+  // Initialize with all collections expanded for SSR, then hydrate from localStorage
+  const [expandedCollections, setExpandedCollections] = useState<string[]>(
+    () => siteStructure.map(collection => collection.id)
+  )
 
-    const stored = localStorage.getItem(EXPANDED_SCRIPTS_KEY)
-    if (stored) {
+  // Initialize expandedSkripts as empty for SSR, then hydrate from localStorage
+  const [expandedSkripts, setExpandedSkripts] = useState<string[]>([])
+
+  // Track if we've finished first render (for enabling animations after mount)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Hydrate expanded state from localStorage after mount to avoid hydration mismatch
+  useEffect(() => {
+    // Hydrate expandedCollections
+    const storedCollections = localStorage.getItem(EXPANDED_SCRIPTS_KEY)
+    if (storedCollections) {
       try {
-        return JSON.parse(stored)
+        const parsed = JSON.parse(storedCollections)
+        if (Array.isArray(parsed)) {
+          setExpandedCollections(parsed)
+        }
       } catch {
-        return siteStructure.map(collection => collection.id)
+        // Keep default (all expanded)
       }
     }
-    // Default: all collections expanded
-    return siteStructure.map(collection => collection.id)
-  })
 
-  // Initialize expandedSkripts from localStorage synchronously to prevent animation flash
-  const [expandedSkripts, setExpandedSkripts] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return []
-
-    const stored = localStorage.getItem(EXPANDED_SKRIPTS_KEY)
+    // Hydrate expandedSkripts
+    const storedSkripts = localStorage.getItem(EXPANDED_SKRIPTS_KEY)
     let expandedFromStorage: string[] = []
 
-    if (stored) {
+    if (storedSkripts) {
       try {
-        expandedFromStorage = JSON.parse(stored)
+        expandedFromStorage = JSON.parse(storedSkripts)
       } catch {
         expandedFromStorage = []
       }
@@ -161,18 +167,25 @@ export function PublicSiteLayout({
           }
         })
       })
+      // Also check root skripts
+      rootSkripts.forEach(skript => {
+        const hasCurrentPage = skript.pages.some(page =>
+          currentPath === `/${skript.slug}/${page.slug}`
+        )
+        if (hasCurrentPage && !expandedFromStorage.includes(skript.id)) {
+          expandedFromStorage.push(skript.id)
+        }
+      })
     }
 
-    return expandedFromStorage
-  })
+    setExpandedSkripts(expandedFromStorage)
 
-  // Track if we've finished first render (for enabling animations after mount)
-  const [isInitialized, setIsInitialized] = useState(false)
-
-  // Set initialized after first render
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional hydration pattern
-    setIsInitialized(true)
+    // Delay enabling animations until after the state has been applied
+    // This prevents the collapse→expand flash on initial load
+    requestAnimationFrame(() => {
+      setIsInitialized(true)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on mount
   }, [])
 
   // Update expanded skripts when current path changes

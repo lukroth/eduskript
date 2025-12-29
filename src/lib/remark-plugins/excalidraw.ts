@@ -34,20 +34,14 @@ export function remarkExcalidraw() {
 
       const alt = node.alt || ''
 
-      // Transform to excalidraw-image custom element
-      // The component will handle file resolution
+      // Convert to raw HTML so it gets parsed by rehype-raw
+      // The ExcalidrawImage component will handle file resolution
       const mutableNode = node as Record<string, unknown>
-      mutableNode.type = 'excalidraw-image'
-      mutableNode.data = {
-        hName: 'excalidraw-image',
-        hProperties: {
-          src: url,  // Raw filename - component resolves it
-          alt: alt,
-          'data-original-src': url,
-        }
-      }
+      mutableNode.type = 'html'
+      mutableNode.value = `<excalidraw-image src="${url}" alt="${alt}"></excalidraw-image>`
       delete mutableNode.url
       delete mutableNode.alt
+      delete mutableNode.children
     })
   }
 }

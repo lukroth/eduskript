@@ -26,22 +26,16 @@ export function remarkMuxVideo() {
         return
       }
 
-      // Transform to muxvideo element with raw filename
+      // Convert to raw HTML so it gets parsed by rehype-raw
       // The MuxVideo component will handle file resolution and metadata fetching
       const alt = node.alt || ''
 
-      // Modify node in place (like code-editor plugin)
       const mutableNode = node as unknown as Record<string, unknown>
-      mutableNode.type = 'muxvideo'
-      mutableNode.data = {
-        hName: 'muxvideo',
-        hProperties: {
-          src: url, // Raw filename - component resolves it
-          alt: alt
-        }
-      }
+      mutableNode.type = 'html'
+      mutableNode.value = `<muxvideo src="${url}" alt="${alt}"></muxvideo>`
       delete mutableNode.url
       delete mutableNode.alt
+      delete mutableNode.children
     })
 
     return tree

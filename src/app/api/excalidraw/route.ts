@@ -140,8 +140,20 @@ export async function GET(request: NextRequest) {
     const fileBuffer = await downloadTeacherFile(s3Key)
     const fileContent = fileBuffer.toString('utf-8')
 
-    // Parse the Excalidraw JSON
-    const excalidrawData = JSON.parse(fileContent)
+    // Parse the Excalidraw data
+    // Handle both pure JSON and Obsidian Excalidraw format (markdown with embedded JSON)
+    let excalidrawData
+    try {
+      excalidrawData = JSON.parse(fileContent)
+    } catch {
+      // Try extracting from Obsidian Excalidraw format: ```json { ... } ```
+      const jsonMatch = fileContent.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonMatch) {
+        excalidrawData = JSON.parse(jsonMatch[1])
+      } else {
+        throw new Error('Could not parse Excalidraw data')
+      }
+    }
 
     return NextResponse.json({
       success: true,

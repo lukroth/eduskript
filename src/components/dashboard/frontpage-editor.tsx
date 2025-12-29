@@ -301,7 +301,21 @@ export function FrontPageEditor({
         throw new Error('Failed to fetch drawing data')
       }
 
-      const data = await response.json()
+      const text = await response.text()
+      let data
+
+      // Try parsing as pure JSON first
+      try {
+        data = JSON.parse(text)
+      } catch {
+        // Try extracting from Obsidian Excalidraw format: ```json { ... } ```
+        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[1])
+        } else {
+          throw new Error('Could not parse Excalidraw data')
+        }
+      }
 
       setExcalidrawInitialData({
         name: file.name,

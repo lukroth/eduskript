@@ -1,7 +1,7 @@
 /**
- * MDX Components Factory
+ * Markdown Components Factory
  *
- * Creates MDX components with SkriptFiles bound for file resolution.
+ * Creates React components for markdown rendering with SkriptFiles bound for file resolution.
  * This is the single source of truth for component definitions.
  */
 
@@ -151,7 +151,7 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
   )
 }
 
-interface CreateMDXComponentsOptions {
+interface CreateMarkdownComponentsOptions {
   pageId?: string
   onContentChange?: (newContent: string) => void
   content?: string  // For editor mode, to find/replace content
@@ -160,23 +160,23 @@ interface CreateMDXComponentsOptions {
 }
 
 /**
- * Create MDX components with SkriptFilesData bound for file resolution.
+ * Create markdown components with SkriptFilesData bound for file resolution.
  *
  * @param files - The SkriptFilesData object (serializable) for resolving file URLs
  * @param options - Optional settings like pageId for interactive components
  */
-export function createMDXComponents(
+export function createMarkdownComponents(
   files: SkriptFilesData,
-  options?: CreateMDXComponentsOptions
+  options?: CreateMarkdownComponentsOptions
 ): Record<string, ComponentType<any>> {
   const { pageId, onContentChange, content, organizationSlug, onExcalidrawEdit } = options ?? {}
 
-  // Image component - passes files through to child components
-  function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  // Img element handler - handles <img> elements from markdown with data-* attributes
+  function ImgElementComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
     const dataProps = props as Record<string, unknown>
 
     // Extract source line tracking for editor highlight sync
-    // Check both kebab-case (from HTML) and camelCase (from MDX) formats
+    // Check both kebab-case (from HTML) and camelCase formats
     const sourceLineStart = (dataProps['data-source-line-start'] as string) || (dataProps['dataSourceLineStart'] as string) || undefined
     const sourceLineEnd = (dataProps['data-source-line-end'] as string) || (dataProps['dataSourceLineEnd'] as string) || undefined
 
@@ -237,11 +237,19 @@ export function createMDXComponents(
     if (!onContentChange || !content || !srcForMatching) return
 
     const escapedSrc = srcForMatching.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const imageComponentPattern = new RegExp(`<Image[^>]*src="${escapedSrc}"[^>]*/?>`, 'g')
+    // Also match without .excalidraw extension for <excali> component
+    const baseName = srcForMatching.replace(/\.excalidraw$/, '')
+    const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+    // Match <image>, <Image> (legacy), and <excali> components
+    const imageComponentPattern = new RegExp(`<[Ii]mage[^>]*src="${escapedSrc}"[^>]*/?>`, 'g')
+    const excaliPattern = new RegExp(`<excali[^>]*src="${escapedBaseName}"[^>]*/?>`, 'g')
     const markdownPattern = new RegExp(`!\\[([^\\]]*)\\]\\(${escapedSrc}\\)(\\{[^}]*\\})?`, 'g')
 
     let newContent = content
-    if (imageComponentPattern.test(content)) {
+    if (excaliPattern.test(content)) {
+      newContent = content.replace(excaliPattern, newMarkdown)
+    } else if (imageComponentPattern.test(content)) {
       newContent = content.replace(imageComponentPattern, newMarkdown)
     } else {
       newContent = content.replace(markdownPattern, newMarkdown)
@@ -348,7 +356,7 @@ export function createMDXComponents(
     const alt = (props['alt'] as string) || ''
     const dataAlign = (props['data-align'] as string) || 'center'
     const dataWrap = (props['data-wrap'] as string)
-    // Check both kebab-case (from HTML) and camelCase (from MDX) formats
+    // Check both kebab-case (from HTML) and camelCase formats
     const sourceLineStart = (props['data-source-line-start'] as string) || (props['dataSourceLineStart'] as string) || undefined
     const sourceLineEnd = (props['data-source-line-end'] as string) || (props['dataSourceLineEnd'] as string) || undefined
 
@@ -383,7 +391,7 @@ export function createMDXComponents(
     )
   }
 
-  // Tabs container component - renders tabs UI directly from MDX children
+  // Tabs container component - renders tabs UI directly from HTML children
   // We can't use the Tabs component here because element.type comparison fails
   // between server and client bundles
   function TabsContainerComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
@@ -459,8 +467,8 @@ export function createMDXComponents(
     return <Option is={isValue as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
   }
 
-  // MDX Image component - for direct use in MDX as <Image src="..." />
-  interface MDXImageProps {
+  // Image component - for use as <Image src="..." /> in markdown
+  interface ImageComponentProps {
     src: string
     alt?: string
     width?: string
@@ -468,14 +476,14 @@ export function createMDXComponents(
     wrap?: boolean
     invert?: 'dark' | 'light' | 'always'
     saturate?: string
-    // Source line tracking (passed through from MDX)
+    // Source line tracking (passed through from HTML)
     'data-source-line-start'?: string
     'data-source-line-end'?: string
     dataSourceLineStart?: string
     dataSourceLineEnd?: string
   }
 
-  function MDXImageComponent(props: MDXImageProps) {
+  function ImageComponent(props: ImageComponentProps) {
     const { src, alt = '', width, align = 'center', wrap = false, invert, saturate } = props
 
     // Extract source line tracking (check both kebab-case and camelCase)
@@ -521,7 +529,7 @@ export function createMDXComponents(
     // HTML element overrides
     pre: PreComponent,
     code: CodeComponent,
-    img: ImageComponent,
+    img: ImgElementComponent,
     blockquote: BlockquoteComponent,
     h1: createHeading(1),
     h2: createHeading(2),
@@ -530,7 +538,7 @@ export function createMDXComponents(
     h5: createHeading(5),
     h6: createHeading(6),
 
-    // Custom elements from remark plugins
+    // Custom elements from remark plugins (lowercase for HTML parsing)
     'code-editor': CodeEditorComponent,
     'tabs-container': TabsContainerComponent,
     'tab-item': TabItem,
@@ -540,17 +548,43 @@ export function createMDXComponents(
     'question': QuizQuestionComponent,
     'quiz-option': QuizOptionComponent,
     'stickme': StickMe,
+    // <excali> component - shorthand for excalidraw drawings
+    // Usage: <excali src="my-drawing" /> (no .excalidraw extension needed)
+    'excali': function ExcaliComponent(props: {
+      src: string
+      alt?: string
+      width?: string
+      align?: 'left' | 'center' | 'right'
+      wrap?: boolean
+    }) {
+      const { src, alt = '', width, align = 'center', wrap = false } = props
+      // Ensure src has .excalidraw extension
+      const filename = src.endsWith('.excalidraw') ? src : `${src}.excalidraw`
 
-    // Direct MDX component access
+      return (
+        <ExcalidrawImage
+          src={filename}
+          alt={alt}
+          style={width ? { width } : undefined}
+          align={align}
+          wrap={wrap}
+          files={files}
+          onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(filename, markdown) : undefined}
+          onEdit={onExcalidrawEdit}
+        />
+      )
+    },
+    // <image> component for images with layout props (width, align, wrap, etc.)
+    'image': ImageComponent,
+
+    // Legacy PascalCase mappings for backwards compatibility
     CodeEditor: CodeEditorComponent,
-    // Tabs compound component - ensure .Tab is accessible for <Tabs.Tab> syntax
     Tabs: Object.assign(Tabs, { Tab: TabItem }),
     Youtube,
     MuxVideo: MuxVideoComponent,
-    // Question and Option use the wrapped versions that have pageId bound
     Question: QuizQuestionComponent,
     Option: QuizOptionComponent,
-    Image: MDXImageComponent,
+    Image: ImageComponent,
 
     // Organization components
     OurTeachers: function OurTeachersComponent(props: {
