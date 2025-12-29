@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { checkCollectionPermissions } from '@/lib/permissions'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 export async function PUT(
   request: NextRequest,
@@ -73,7 +75,16 @@ export async function PUT(
       }
     })
 
-    return NextResponse.json({ 
+    // Revalidate cache for this user's content
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { pageSlug: true }
+    })
+    if (user?.pageSlug) {
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+    }
+
+    return NextResponse.json({
       success: true,
       message: `Updated ${skripts?.length || 0} skripts in collection`
     })

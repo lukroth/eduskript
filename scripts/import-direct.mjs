@@ -117,8 +117,11 @@ async function main() {
     })
 
     if (!skript) {
-      const collectionSlug = manifest.collections.find(c => c.skripts.includes(skriptSlug))?.slug
+      const collection = manifest.collections.find(c => c.skripts.includes(skriptSlug))
+      const collectionSlug = collection?.slug
       const collectionId = collectionSlug ? collectionIdMap.get(collectionSlug) : null
+      // Get skript order from its position in the collection's skripts array
+      const skriptOrder = collection?.skripts.indexOf(skriptSlug) ?? 0
 
       skript = await prisma.skript.create({
         data: {
@@ -131,7 +134,7 @@ async function main() {
           },
           ...(collectionId && {
             collectionSkripts: {
-              create: { collectionId, order: 0 }
+              create: { collectionId, order: skriptOrder }
             }
           })
         }

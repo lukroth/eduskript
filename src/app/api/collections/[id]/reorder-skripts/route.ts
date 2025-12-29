@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 export async function PATCH(
   request: NextRequest,
@@ -75,6 +77,15 @@ export async function PATCH(
     })
 
     await prisma.$transaction(updates)
+
+    // Revalidate cache for this user's content
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { pageSlug: true }
+    })
+    if (user?.pageSlug) {
+      revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
