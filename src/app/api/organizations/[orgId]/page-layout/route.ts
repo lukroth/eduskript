@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { requireOrgAdmin } from '@/lib/org-auth'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 interface RouteParams {
   params: Promise<{ orgId: string }>
@@ -131,8 +133,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         items: {
           orderBy: { order: 'asc' },
         },
+        organization: {
+          select: { slug: true },
+        },
       },
     })
+
+    // Revalidate org content cache so sidebar updates
+    if (pageLayout.organization?.slug) {
+      revalidateTag(CACHE_TAGS.organization(pageLayout.organization.slug), 'default')
+      revalidateTag(CACHE_TAGS.orgContent(pageLayout.organization.slug), 'default')
+    }
 
     return NextResponse.json({ success: true, data: pageLayout })
   } catch (error) {
