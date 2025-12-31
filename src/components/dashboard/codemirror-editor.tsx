@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1123,8 +1123,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       onDrop={handleDrop}
     >
       {/* Toolbar */}
-      <div className="border-b border-border p-2 flex flex-wrap items-center justify-between gap-y-2">
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="border-b border-border p-2">
+        <div className="flex flex-wrap items-center gap-1 gap-y-2">
           {/* AI Edit button - leftmost */}
           {onAIEdit && (
             <Button
@@ -1141,241 +1141,260 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           {!useSimpleEditor && (
             <>
               <div className="h-4 w-px bg-border mx-1" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertBold}
-                title="Bold (Ctrl+B)"
-                className="w-8 h-8 p-0 border rounded-md"
-              >
-                <Bold className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertItalic}
-                title="Italic (Ctrl+I)"
-                className="w-8 h-8 p-0 border rounded-md"
-              >
-                <Italic className="w-4 h-4" />
-              </Button>
-              <DropdownMenu>
-                <div className="flex items-center border rounded-md h-8">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => insertHeading(2)}
-                    title="Heading 2"
-                    className="w-8 h-8 p-0 rounded-r-none border-0"
-                  >
-                    <Heading className="w-4 h-4" />
-                  </Button>
-                  <div className="h-4 w-px bg-border mx-1" />
+              {/* Text formatting group */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={insertBold}
+                  title="Bold (Ctrl+B)"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <Bold className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={insertItalic}
+                  title="Italic (Ctrl+I)"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <Italic className="w-4 h-4" />
+                </Button>
+                <DropdownMenu>
+                  <div className="flex items-center border rounded-md h-8">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => insertHeading(2)}
+                      title="Heading 2"
+                      className="w-8 h-8 p-0 rounded-r-none border-0"
+                    >
+                      <Heading className="w-4 h-4" />
+                    </Button>
+                    <div className="h-4 w-px bg-border" />
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-5 h-8 p-0 rounded-l-none border-0"
+                        title="Heading options"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </div>
+                  <DropdownMenuContent align="start" className="min-w-[120px]">
+                    <DropdownMenuItem onClick={() => insertHeading(1)} className="gap-2">
+                      <Heading1 className="w-4 h-4" />
+                      <span>Heading 1</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHeading(2)} className="gap-2">
+                      <Heading2 className="w-4 h-4" />
+                      <span>Heading 2</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHeading(3)} className="gap-2">
+                      <Heading3 className="w-4 h-4" />
+                      <span>Heading 3</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {/* Structure group */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={insertBulletList}
+                  title="Bullet List"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={insertNumberedList}
+                  title="Numbered List"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <ListOrdered className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={insertLink}
+                  title="Link"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <Link className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="h-4 w-px bg-border mx-1" />
+              {/* Colors group */}
+              <div className="flex items-center gap-1">
+                {/* Text Color Button */}
+                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-5 h-8 p-0 rounded-l-none border-0"
-                      title="Heading options"
+                      title="Text Color"
+                      className="w-8 h-8 p-0 border rounded-md"
                     >
-                      <ChevronDown className="w-3 h-3" />
+                      <Palette className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                </div>
-                <DropdownMenuContent align="start" className="min-w-[120px]">
-                  <DropdownMenuItem onClick={() => insertHeading(1)} className="gap-2">
-                    <Heading1 className="w-4 h-4" />
-                    <span>Heading 1</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHeading(2)} className="gap-2">
-                    <Heading2 className="w-4 h-4" />
-                    <span>Heading 2</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHeading(3)} className="gap-2">
-                    <Heading3 className="w-4 h-4" />
-                    <span>Heading 3</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertBulletList}
-                title="Bullet List"
-                className="w-8 h-8 p-0 border rounded-md"
-              >
-                <List className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertNumberedList}
-                title="Numbered List"
-                className="w-8 h-8 p-0 border rounded-md"
-              >
-                <ListOrdered className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertLink}
-                title="Link"
-                className="w-8 h-8 p-0 border rounded-md"
-              >
-                <Link className="w-4 h-4" />
-              </Button>
-              <div className="h-4 w-px bg-border mx-1" />
-              {/* Text Color Button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title="Text Color"
-                    className="w-8 h-8 p-0 border rounded-md"
-                  >
-                    <Palette className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => insertTextColor('#dc2626')}>
-                    <span className="w-4 h-4 rounded-full bg-red-600 mr-2" /> Red
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertTextColor('#2563eb')}>
-                    <span className="w-4 h-4 rounded-full bg-blue-600 mr-2" /> Blue
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertTextColor('#16a34a')}>
-                    <span className="w-4 h-4 rounded-full bg-green-600 mr-2" /> Green
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertTextColor('#9333ea')}>
-                    <span className="w-4 h-4 rounded-full bg-purple-600 mr-2" /> Purple
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertTextColor('#ea580c')}>
-                    <span className="w-4 h-4 rounded-full bg-orange-600 mr-2" /> Orange
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowTextColorPicker(true)}>
-                    Custom color...
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {/* Highlight Button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title="Highlight"
-                    className="w-8 h-8 p-0 border rounded-md"
-                  >
-                    <Highlighter className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => insertHighlight('#fef08a')}>
-                    <span className="w-4 h-4 rounded-full bg-yellow-200 mr-2" /> Yellow
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHighlight('#bbf7d0')}>
-                    <span className="w-4 h-4 rounded-full bg-green-200 mr-2" /> Green
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHighlight('#bfdbfe')}>
-                    <span className="w-4 h-4 rounded-full bg-blue-200 mr-2" /> Blue
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHighlight('#fbcfe8')}>
-                    <span className="w-4 h-4 rounded-full bg-pink-200 mr-2" /> Pink
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertHighlight('#fed7aa')}>
-                    <span className="w-4 h-4 rounded-full bg-orange-200 mr-2" /> Orange
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowHighlightPicker(true)}>
-                    Custom color...
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {/* Invert Button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title="Invert image colors (for dark mode diagrams)"
-                    className="w-8 h-8 p-0 border rounded-md"
-                  >
-                    <span className="w-4 h-4 rounded-full border border-current overflow-hidden flex">
-                      <span className="w-1/2 bg-current" />
-                      <span className="w-1/2" />
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => insertInvert('dark')}>
-                    <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
-                      <span className="w-1/2 bg-black" />
-                      <span className="w-1/2 bg-white" />
-                    </span>
-                    Invert in dark mode
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertInvert('light')}>
-                    <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
-                      <span className="w-1/2 bg-white" />
-                      <span className="w-1/2 bg-black" />
-                    </span>
-                    Invert in light mode
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertInvert('always')}>
-                    <span className="w-4 h-4 rounded-full mr-2 border bg-gray-400" />
-                    Always invert
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => insertTextColor('#dc2626')}>
+                      <span className="w-4 h-4 rounded-full bg-red-600 mr-2" /> Red
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertTextColor('#2563eb')}>
+                      <span className="w-4 h-4 rounded-full bg-blue-600 mr-2" /> Blue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertTextColor('#16a34a')}>
+                      <span className="w-4 h-4 rounded-full bg-green-600 mr-2" /> Green
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertTextColor('#9333ea')}>
+                      <span className="w-4 h-4 rounded-full bg-purple-600 mr-2" /> Purple
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertTextColor('#ea580c')}>
+                      <span className="w-4 h-4 rounded-full bg-orange-600 mr-2" /> Orange
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setShowTextColorPicker(true)}>
+                      Custom color...
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Highlight Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Highlight"
+                      className="w-8 h-8 p-0 border rounded-md"
+                    >
+                      <Highlighter className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => insertHighlight('#fef08a')}>
+                      <span className="w-4 h-4 rounded-full bg-yellow-200 mr-2" /> Yellow
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHighlight('#bbf7d0')}>
+                      <span className="w-4 h-4 rounded-full bg-green-200 mr-2" /> Green
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHighlight('#bfdbfe')}>
+                      <span className="w-4 h-4 rounded-full bg-blue-200 mr-2" /> Blue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHighlight('#fbcfe8')}>
+                      <span className="w-4 h-4 rounded-full bg-pink-200 mr-2" /> Pink
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertHighlight('#fed7aa')}>
+                      <span className="w-4 h-4 rounded-full bg-orange-200 mr-2" /> Orange
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setShowHighlightPicker(true)}>
+                      Custom color...
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Invert Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Invert image colors (for dark mode diagrams)"
+                      className="w-8 h-8 p-0 border rounded-md"
+                    >
+                      <span className="w-4 h-4 rounded-full border border-current overflow-hidden flex">
+                        <span className="w-1/2 bg-current" />
+                        <span className="w-1/2" />
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => insertInvert('dark')}>
+                      <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
+                        <span className="w-1/2 bg-black" />
+                        <span className="w-1/2 bg-white" />
+                      </span>
+                      Invert in dark mode
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertInvert('light')}>
+                      <span className="w-4 h-4 rounded-full mr-2 border overflow-hidden flex">
+                        <span className="w-1/2 bg-white" />
+                        <span className="w-1/2 bg-black" />
+                      </span>
+                      Invert in light mode
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => insertInvert('always')}>
+                      <span className="w-4 h-4 rounded-full mr-2 border bg-gray-400" />
+                      Always invert
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               <div className="h-4 w-px bg-border mx-1" />
             </>
           )}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={insertCodeEditor}
-            className="w-8 h-8 p-0 border rounded-md"
-            title="Add Code Editor"
-          >
-            <Code className="w-4 h-4" />
-          </Button>
-          {skriptId && (
+          {/* Insert group */}
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setExcalidrawOpen(true)}
+              onClick={insertCodeEditor}
               className="w-8 h-8 p-0 border rounded-md"
-              title="Add Excalidraw Drawing"
+              title="Add Code Editor"
             >
-              <Pencil className="w-4 h-4" />
+              <Code className="w-4 h-4" />
             </Button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {!showEditor && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditorWidth(50)}
-              className="flex items-center gap-2"
-            >
-              <Pencil className="w-4 h-4" />
-              Show Editor
-            </Button>
-          )}
-          {!showPreview && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditorWidth(50)}
-              className="flex items-center gap-2"
-            >
-              <Eye className="w-4 h-4" />
-              Show Preview
-            </Button>
+            {skriptId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExcalidrawOpen(true)}
+                className="w-8 h-8 p-0 border rounded-md"
+                title="Add Excalidraw Drawing"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Show collapsed panel buttons */}
+          {(!showEditor || !showPreview) && (
+            <>
+              <div className="h-4 w-px bg-border mx-1" />
+              <div className="flex items-center gap-1">
+                {!showEditor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditorWidth(50)}
+                    className="w-8 h-8 p-0 border rounded-md text-red-500 hover:text-foreground hover:!bg-blue-100 dark:hover:!bg-blue-900"
+                    title="Show Editor"
+                  >
+                    <FilePen className="w-4 h-4" />
+                  </Button>
+                )}
+                {!showPreview && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditorWidth(50)}
+                    className="w-8 h-8 p-0 border rounded-md text-red-500 hover:text-foreground hover:!bg-blue-100 dark:hover:!bg-blue-900"
+                    title="Show Preview"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>
