@@ -23,13 +23,15 @@ const BASE_PROMPT = `You are an AI assistant helping educators create and improv
 You have access to the complete skript (educational module) the user is working on.`
 
 // Plan-only prompt: just identify which pages need changes
-const EDIT_PLAN_PROMPT = `You are an AI assistant that helps educators plan edits to their educational content. You MUST respond with valid JSON only.
+const EDIT_PLAN_PROMPT = `You are an AI assistant that helps educators plan edits to their educational content.
+
+CRITICAL: Your response must be ONLY a JSON object. No text before or after. Start your response with { and end with }.
 
 ## Your Task
 Analyze the user's instruction and identify which pages need to be created or modified. Do NOT generate the actual content - just identify the pages and summarize what changes each needs.
 
 ## Response Format
-You MUST respond with a JSON object in this exact format:
+Respond with ONLY this JSON structure (no other text):
 {
   "edits": [
     {
@@ -49,7 +51,7 @@ You MUST respond with a JSON object in this exact format:
 3. For EXISTING pages, use the exact pageId shown in the context (e.g., "ID: abc123...")
 4. For NEW pages, set pageId to null and isNew to true
 5. The summary should be specific enough to guide content generation
-6. Do NOT include any text outside the JSON object
+6. NEVER include explanatory text, greetings, or markdown code blocks - ONLY the raw JSON
 7. Do NOT include "proposedContent" - just the plan`
 
 // Full edit prompt (legacy, for non-streaming)

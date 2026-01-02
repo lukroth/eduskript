@@ -23,24 +23,38 @@ export function generateSyntaxReference(): string {
 
   sections.push(`## Callouts (Obsidian-style)
 
-Syntax: \`> [!type] Title\` or \`> [!type]- Title\` (collapsible, closed) or \`> [!type]+ Title\` (collapsible, open)
+**CRITICAL SYNTAX:** The title MUST be on the SAME LINE as \`[!type]\`. Never put the title on a new line.
+
+Syntax: \`> [!type] Title text here\` (title on same line!)
+Collapsible: \`> [!type]- Title\` (closed) or \`> [!type]+ Title\` (open)
 
 **Base types:** ${baseTypes.join(', ')}
 
 **Aliases:** ${aliases.join(', ')}
 
-Example:
+**CORRECT examples:**
 \`\`\`markdown
 > [!tip] Pro Tip
 > This is helpful information.
 
-> [!warning]- Click to expand
-> Hidden content here.
+> [!warning] Wichtiger Hinweis
+> Be careful with this.
 
 > [!lernziele] Lernziele
 > - Objective 1
 > - Objective 2
-\`\`\``)
+
+> [!info]- Click to expand (starts collapsed)
+> Hidden content here.
+\`\`\`
+
+**WRONG - DO NOT DO THIS:**
+\`\`\`markdown
+> [!tip]
+> **Pro Tip**
+> Content here.
+\`\`\`
+The title "Pro Tip" must be on the \`[!tip]\` line, not below it!`)
 
   // Code Editors
   sections.push(`## Interactive Code Editors
@@ -106,20 +120,28 @@ Reference video files by name. The system looks up the corresponding \`.json\` m
   // Tabs
   sections.push(`## Tabs
 
-Create tabbed content sections:
+Create tabbed content using HTML elements (markdown inside tabs is supported):
 
 \`\`\`markdown
-:::tabs
-::tab[Python]
+<tabs-container data-items='["Python", "JavaScript"]'>
+<tab-item>
+
 \`\`\`python
 print("Hello")
 \`\`\`
-::tab[JavaScript]
+
+</tab-item>
+<tab-item>
+
 \`\`\`javascript
 console.log("Hello");
 \`\`\`
-:::
-\`\`\``)
+
+</tab-item>
+</tabs-container>
+\`\`\`
+
+**IMPORTANT:** Each tab's content goes inside \`<tab-item>\` tags. The \`data-items\` array defines tab labels in order. Leave blank lines around markdown content inside tabs.`)
 
   // Quiz
   sections.push(`## Quizzes
@@ -148,9 +170,11 @@ export function getCondensedSyntaxReference(): string {
 
   return `## Supported Markdown Syntax
 
-**Callouts:** \`> [!type]\` where type is: ${baseTypes.join(', ')}
-  - Aliases: lernziele→success, hint→tip, exercise→abstract, etc.
+**Callouts:** \`> [!type] Title on same line\` - CRITICAL: title MUST be on same line as [!type]
+  - Types: ${baseTypes.join(', ')}
+  - Aliases: lernziele→success, hint→tip, exercise→abstract
   - Collapsible: \`> [!type]-\` (closed) or \`> [!type]+\` (open)
+  - WRONG: \`> [!tip]\\n> **Title**\` - NEVER put title on new line!
 
 **Code Editors:** \`\`\`language editor [single] [id="x"] [db="file.db"]\`\`\`
   - Languages: python, javascript, sql, java, cpp, go, rust, etc.
@@ -159,7 +183,8 @@ export function getCondensedSyntaxReference(): string {
 
 **Images:** \`![alt](img.png){width=50%;align=center;wrap=true}\`
 
-**Tabs:** \`:::tabs\` with \`::tab[Name]\` sections
+**Tabs:** HTML syntax only:
+  \`<tabs-container data-items='["Tab1", "Tab2"]'><tab-item>Content1</tab-item><tab-item>Content2</tab-item></tabs-container>\`
 
 **Quiz:** \`:::quiz\` with \`- [ ]\` wrong and \`- [x]\` correct options`
 }

@@ -189,16 +189,28 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         try {
-          const jsonStr = planText
+          // Try to extract JSON even if AI included preamble text
+          let jsonStr = planText
             .replace(/^```json\s*/i, '')
             .replace(/^```\s*/i, '')
             .replace(/\s*```$/i, '')
             .trim()
+
+          // If it doesn't start with {, try to find JSON object in the text
+          if (!jsonStr.startsWith('{')) {
+            const jsonMatch = planText.match(/\{[\s\S]*"edits"[\s\S]*\}/)
+            if (jsonMatch) {
+              jsonStr = jsonMatch[0]
+              console.log('[AI Edit] Extracted JSON from preamble text')
+            }
+          }
+
           plan = JSON.parse(jsonStr)
-        } catch {
+        } catch (parseError) {
           // AI didn't return valid JSON - send the response as error
+          console.error('[AI Edit] Failed to parse plan JSON:', parseError)
           const truncated = planText.length > 500 ? planText.slice(0, 500) + '...' : planText
-          sendSSE(controller, 'error', { error: truncated })
+          sendSSE(controller, 'error', { error: `Failed to parse AI response: ${truncated}` })
           controller.close()
           return
         }
@@ -211,6 +223,12 @@ export async function POST(request: Request): Promise<Response> {
           controller.close()
           return
         }
+
+        // Log plan for debugging
+        console.log(`[AI Edit] Plan received: ${plan.edits.length} pages to generate`, {
+          skriptId,
+          pages: plan.edits.map(e => ({ title: e.pageTitle, isNew: e.isNew })),
+        })
 
         // Send the plan to client
         sendSSE(controller, 'plan', {
@@ -274,6 +292,7 @@ export async function POST(request: Request): Promise<Response> {
               .map((block) => block.text)
               .join('')
 
+            console.log(`[AI Edit] Sending new page ${i + 1}/${plan.edits.length}: ${plannedEdit.pageTitle}`)
             sendSSE(controller, 'edit', {
               index: i,
               pageId: null,
@@ -312,6 +331,7 @@ export async function POST(request: Request): Promise<Response> {
               .map((block) => block.text)
               .join('')
 
+            console.log(`[AI Edit] Sending edit ${i + 1}/${plan.edits.length}: ${originalPage?.title || plannedEdit.pageTitle}`)
             sendSSE(controller, 'edit', {
               index: i,
               pageId: actualPageId,
@@ -325,6 +345,7 @@ export async function POST(request: Request): Promise<Response> {
           }
         }
 
+        console.log(`[AI Edit] Complete: ${plan.edits.length} edits sent`)
         // All done
         sendSSE(controller, 'complete', { success: true })
         controller.close()
