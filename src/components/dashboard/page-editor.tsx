@@ -608,12 +608,12 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           />
           {sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
             <Link
-              href={`/${(session?.user as { pageSlug?: string })?.pageSlug}/${collection.slug}/${skript.slug}/${page.slug}`}
+              href={`/preview/${(session?.user as { pageSlug?: string })?.pageSlug}/${collection.slug}/${skript.slug}/${page.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               prefetch={false}
             >
-              <Button variant="ghost" size="sm" title="Preview page">
+              <Button variant="ghost" size="sm" title="Preview page (works for unpublished)">
                 <Eye className="w-4 h-4" />
               </Button>
             </Link>
