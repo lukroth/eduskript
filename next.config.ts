@@ -2,6 +2,8 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Enable source maps in production for easier debugging
+  productionBrowserSourceMaps: true,
   // Prevent aggressive caching in development (especially Safari)
   async headers() {
     if (process.env.NODE_ENV === 'development') {

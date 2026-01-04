@@ -1234,6 +1234,7 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   color: transparent;
   -webkit-text-fill-color: transparent;
   animation: rainbow-text-flow 180s linear infinite;
+  will-change: background-position; /* GPU accelerate to avoid full page repaints */
   font-weight: bold;
   font-size: inherit;
   line-height: inherit;
@@ -1292,6 +1293,7 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   color: transparent;
   -webkit-text-fill-color: transparent;
   animation: rainbow-text-flow 180s linear infinite;
+  will-change: background-position;
   pointer-events: none;
   /* Inherit all text metrics from parent */
   font-weight: inherit;
@@ -1319,6 +1321,7 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
     #ff0000) !important;
   background-size: 300% auto;
   animation: rainbow-text-flow 180s linear infinite;
+  will-change: background-position;
   color: transparent !important;
   -webkit-text-fill-color: transparent !important;
 }
@@ -1427,6 +1430,7 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   background-size: 100%, 300% 100%;
   background-position: bottom left, 0% var(--rainbow-y-offset);
   animation: rainbow-highlight-flow 180s linear infinite;
+  will-change: background-position;
 }
 
 @keyframes rainbow-highlight-flow {

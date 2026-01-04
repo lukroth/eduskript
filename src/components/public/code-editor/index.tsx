@@ -67,6 +67,99 @@ const highlightColorHex: Record<HighlightColor, string> = {
   red: '%23ef4444', yellow: '%23eab308', green: '%2322c55e', blue: '%233b82f6'
 }
 
+// Static preload functions (no component state, safe to call from IntersectionObserver)
+// These mirror ensurePyodideLoaded/ensureSkulptLoaded but without UI feedback
+
+/**
+ * Preload Pyodide runtime in background. Safe to call multiple times.
+ * Returns a promise that resolves when Pyodide is ready.
+ */
+function preloadPyodide(): Promise<unknown> {
+  if ((window as any).__pyodidePromise) {
+    return (window as any).__pyodidePromise
+  }
+
+  // Load script if not present
+  if (!document.querySelector('script[src*="pyodide.js"]')) {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js'
+    document.body.appendChild(script)
+
+    return new Promise((resolve, reject) => {
+      script.onload = () => {
+        // Initialize Pyodide after script loads
+        ;(window as any).__pyodidePromise = (window as any).loadPyodide({
+          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
+        })
+        ;(window as any).__pyodidePromise.then(resolve).catch(reject)
+      }
+      script.onerror = () => reject(new Error('Failed to load Pyodide'))
+    })
+  }
+
+  // Script exists but promise not set - initialize
+  if (!(window as any).__pyodidePromise && (window as any).loadPyodide) {
+    ;(window as any).__pyodidePromise = (window as any).loadPyodide({
+      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
+    })
+  }
+
+  return (window as any).__pyodidePromise || Promise.resolve()
+}
+
+/**
+ * Preload Skulpt runtime in background. Safe to call multiple times.
+ * Returns a promise that resolves when Skulpt is ready.
+ */
+function preloadSkulpt(): Promise<void> {
+  if (window.Sk) {
+    return Promise.resolve()
+  }
+
+  const scriptPromises = (window as any).__skulptPromises || {}
+  if (!(window as any).__skulptPromises) {
+    (window as any).__skulptPromises = scriptPromises
+  }
+
+  const loadScript = (src: string): Promise<void> => {
+    if (scriptPromises[src]) return scriptPromises[src]
+
+    scriptPromises[src] = new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`)
+      if (existing) {
+        setTimeout(() => resolve(), 10)
+        return
+      }
+
+      const script = document.createElement('script')
+      script.src = src
+      script.onload = () => resolve()
+      script.onerror = () => {
+        delete scriptPromises[src]
+        reject(new Error(`Failed to load ${src}`))
+      }
+      document.body.appendChild(script)
+    })
+
+    return scriptPromises[src]
+  }
+
+  return loadScript('/js/skulpt.min.js').then(() => loadScript('/js/skulpt-stdlib.js'))
+}
+
+/**
+ * Preload SQL.js and optionally a specific database.
+ * Returns a promise that resolves when SQL.js is ready.
+ */
+function preloadSqlJs(dbPath?: string): Promise<void> {
+  return import('@/lib/sql-executor.client').then(({ loadDatabase }) => {
+    if (dbPath) {
+      return loadDatabase(dbPath).then(() => {})
+    }
+    return Promise.resolve()
+  })
+}
+
 export const CodeEditor = memo(function CodeEditor({
   id = 'code-editor',
   pageId,
@@ -1156,6 +1249,21 @@ export const CodeEditor = memo(function CodeEditor({
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Preload runtime in background on mount (before user clicks Run)
+  // This runs asynchronously and doesn't block the UI
+  useEffect(() => {
+    if (language === 'python') {
+      // Check if code uses turtle module - same logic as runCode()
+      const hasTurtle = /import\s+turtle|from\s+turtle/.test(initialCode)
+      if (hasTurtle) {
+        preloadSkulpt().catch(() => {})
+      } else {
+        preloadPyodide().catch(() => {})
+      }
+    }
+    // SQL preloading is handled below with the database
+  }, [language, initialCode])
 
   // Load SQL database when in SQL mode
   useEffect(() => {
