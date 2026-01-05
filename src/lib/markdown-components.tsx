@@ -594,20 +594,31 @@ export function createMarkdownComponents(
     }) {
       return <OurTeachers orgSlug={organizationSlug} {...props} />
     },
+    'ourteachers': function OurTeachersComponent(props: {
+      roles?: ('owner' | 'admin' | 'member')[]
+      limit?: number
+      className?: string
+    }) {
+      return <OurTeachers orgSlug={organizationSlug} {...props} />
+    },
 
     // Demo/marketing components
     DemoEditor,
+    'demoeditor': DemoEditor,
 
     // Educational interactive components
     ColorSliders,
+    'colorsliders': ColorSliders,
     StickMe,
     DijkstraVisualizer,
     'dijkstravisualizer': DijkstraVisualizer,
 
     // YouTube timestamp links
     YT,
+    'yt': YT,
 
     // Math/crypto educational components
     ModCalc,
+    'modcalc': ModCalc,
   }
 }
