@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink, Globe } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink, Globe, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
@@ -221,7 +221,7 @@ export function DashboardSidebar() {
             </div>
           ))}
 
-          {/* Admin Panel Link (only visible to admins) */}
+          {/* Admin Section (only visible to admins) */}
           {session?.user?.isAdmin && (
             <div className="mt-6">
               <SectionHeader title="Admin" isCollapsed={isCollapsed} />
@@ -238,6 +238,20 @@ export function DashboardSidebar() {
               >
                 <Shield className="w-5 h-5" />
                 {!isCollapsed && <span>Admin Panel</span>}
+              </Link>
+              <Link
+                href="/dashboard/admin/metrics"
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
+                  pathname === '/dashboard/admin/metrics'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  isCollapsed ? 'justify-center px-2' : ''
+                )}
+                title={isCollapsed ? 'Metrics' : undefined}
+              >
+                <BarChart3 className="w-5 h-5" />
+                {!isCollapsed && <span>Metrics</span>}
               </Link>
             </div>
           )}
