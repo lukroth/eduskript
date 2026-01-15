@@ -14,8 +14,9 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookOpen, FileText } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookOpen, FileText, Plus } from 'lucide-react'
 import { AIEditModal } from '@/components/ai'
+import { CreatePageModal } from '@/components/dashboard/create-page-modal'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -751,9 +752,19 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         defaultOpen={true}
       >
         {/* Pages */}
-        {skript.pages && skript.pages.length > 0 && (
-          <div className="space-y-1 mb-4">
-            {skript.pages.map((p) => (
+        <div className="mb-4">
+          <div className="flex items-center justify-between px-2 mb-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <FileText className="w-4 h-4" />
+              <span>Pages</span>
+            </div>
+            <CreatePageModal
+              skriptId={skript.id}
+              onPageCreated={() => router.refresh()}
+            />
+          </div>
+          <div className="space-y-1">
+            {skript.pages && skript.pages.map((p) => (
               <Link
                 key={p.id}
                 href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
@@ -771,7 +782,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               </Link>
             ))}
           </div>
-        )}
+        </div>
 
         {/* Files section */}
         <div className="border-t pt-3">

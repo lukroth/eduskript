@@ -27,6 +27,7 @@ import { ColorTitleHeading } from '@/components/markdown/color-title-heading'
 import { YT } from '@/components/markdown/youtube'
 import { ModCalc } from '@/components/markdown/mod-calc'
 import { DataCubeVisualizer } from '@/components/markdown/data-cube-visualizer'
+import { Flex, FlexItem } from '@/components/markdown/flex'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -625,5 +626,11 @@ export function createMarkdownComponents(
     // Data visualization components
     DataCubeVisualizer,
     'datacubevisualizer': DataCubeVisualizer,
+
+    // Layout components
+    Flex,
+    'flex': Flex,
+    FlexItem,
+    'flex-item': FlexItem,
   }
 }

@@ -76,6 +76,8 @@ export const sanitizeSchema = {
     'modcalc',
     'image', // <image> custom component for images with layout props
     'excali', // <excali> shorthand for excalidraw drawings
+    'flex', // <flex> layout container
+    'flex-item', // <flex-item> child of flex
   ],
   attributes: {
     ...defaultSchema.attributes,
@@ -95,6 +97,8 @@ export const sanitizeSchema = {
     'quiz-option': ['correct', 'is', 'feedback'],
     'yt': ['time', 'videoid', 'label'],
     'ourteachers': ['roles', 'limit', 'className'],
+    'flex': ['gap', 'wrap', 'direction', 'justify', 'align', 'className'],
+    'flex-item': ['width', 'grow', 'className'],
     // Extended img attributes for our plugins (both camelCase and kebab-case)
     'img': [
       ...(defaultSchema.attributes?.['img'] || []),
