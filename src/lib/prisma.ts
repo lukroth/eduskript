@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
+import { recordDbQuery } from '@/lib/metrics/request-context'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -25,12 +26,28 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool
 // Create Prisma adapter
 const adapter = new PrismaPg(pool)
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+const basePrisma = globalForPrisma.prisma ?? new PrismaClient({
   adapter,
   log: ['error', 'warn'], // Removed 'query' to reduce console noise
 })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Export base client for NextAuth adapter (requires $on method)
+export const prismaBase = basePrisma
+
+// Add metrics tracking extension for general use
+export const prisma = basePrisma.$extends({
+  query: {
+    $allOperations({ operation, model, args, query }) {
+      const start = performance.now()
+      return query(args).finally(() => {
+        const duration = performance.now() - start
+        recordDbQuery(duration)
+      })
+    },
+  },
+})
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma
 
 // Graceful shutdown
 process.on('beforeExit', async () => {

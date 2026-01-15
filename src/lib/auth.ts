@@ -56,7 +56,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'
 import AzureADProvider from 'next-auth/providers/azure-ad'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import { prisma, prismaBase } from '@/lib/prisma'
 import { generatePseudonym, isStudentEmail } from '@/lib/privacy/pseudonym'
 import { PrivacyAdapter } from '@/lib/privacy-adapter'
 import { cookies } from 'next/headers'
@@ -68,7 +68,7 @@ export const authOptions: NextAuthOptions = {
   // NOTE: If you're logged in and sign in with OAuth, it will link to your current account
   adapter: (process.env.GITHUB_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID)
     ? PrivacyAdapter({
-        prisma,
+        prisma: prismaBase,
         isStudentSignup: async (email: string, context?: any) => {
           // Detect student signup by checking the OAuth callback URL.
           //

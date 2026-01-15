@@ -901,3 +901,20 @@ model CrossDomainToken {
   @@index([expiresAt])
   @@map("cross_domain_tokens")
 }
+
+// Generic metrics system for tracking site-wide statistics
+// Normalized: one row per metric per hour
+// In-memory buffer handles minute-level data, flushed hourly to DB
+model MetricPoint {
+  id        String   @id @default(cuid())
+  name      String   // e.g., "db_queries_per_request", "page_load_time_ms"
+  timestamp DateTime // Rounded to hour
+  avg       Float    // Average value for this hour
+  count     Int      // Number of samples (for weighted aggregation)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([name, timestamp])
+  @@index([name, timestamp])
+  @@index([timestamp])
+  @@map("metric_points")
+}
