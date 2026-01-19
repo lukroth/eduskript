@@ -78,6 +78,20 @@ export const sanitizeSchema = {
     'excali', // <excali> shorthand for excalidraw drawings
     'flex', // <flex> layout container
     'flex-item', // <flex-item> child of flex
+    // SVG elements
+    'svg', 'g', 'defs', 'symbol', 'use', 'title', 'desc',
+    'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'path',
+    'text', 'tspan', 'textPath',
+    // SVG animation elements
+    'animate', 'animateTransform', 'animateMotion', 'set', 'mpath',
+    // SVG gradients and filters
+    'linearGradient', 'radialGradient', 'stop', 'clipPath', 'mask', 'pattern',
+    'filter', 'feGaussianBlur', 'feOffset', 'feBlend', 'feFlood', 'feComposite',
+    'feMerge', 'feMergeNode', 'feColorMatrix', 'feDropShadow',
+    // SVG markers
+    'marker',
+    // foreignObject for embedding HTML in SVG
+    'foreignObject',
   ],
   attributes: {
     ...defaultSchema.attributes,
@@ -130,6 +144,53 @@ export const sanitizeSchema = {
     'span': ['className', 'style'],
     // Links
     'a': ['href', 'title', 'className'],
+    // SVG container attributes
+    'svg': ['viewBox', 'width', 'height', 'xmlns', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width', 'opacity', 'transform'],
+    // SVG shape attributes (shared)
+    'circle': ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width', 'opacity', 'transform'],
+    'ellipse': ['cx', 'cy', 'rx', 'ry', 'fill', 'stroke', 'stroke-width', 'opacity', 'transform'],
+    'rect': ['x', 'y', 'width', 'height', 'rx', 'ry', 'fill', 'stroke', 'stroke-width', 'opacity', 'transform'],
+    'line': ['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width', 'stroke-linecap', 'opacity', 'transform'],
+    'polyline': ['points', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'transform'],
+    'polygon': ['points', 'fill', 'stroke', 'stroke-width', 'opacity', 'transform'],
+    'path': ['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'transform', 'fill-rule', 'clip-rule'],
+    'g': ['fill', 'stroke', 'stroke-width', 'opacity', 'transform', 'clip-path', 'mask'],
+    'defs': [],
+    'symbol': ['id', 'viewBox', 'preserveAspectRatio'],
+    'use': ['href', 'xlink:href', 'x', 'y', 'width', 'height', 'fill', 'stroke', 'transform'],
+    // SVG text
+    'text': ['x', 'y', 'dx', 'dy', 'text-anchor', 'dominant-baseline', 'font-family', 'font-size', 'font-weight', 'fill', 'stroke', 'opacity', 'transform'],
+    'tspan': ['x', 'y', 'dx', 'dy', 'fill', 'stroke', 'font-size', 'font-weight'],
+    'textPath': ['href', 'xlink:href', 'startOffset', 'method', 'spacing'],
+    // SVG animation attributes
+    'animate': ['attributeName', 'values', 'from', 'to', 'by', 'dur', 'begin', 'end', 'repeatCount', 'repeatDur', 'fill', 'calcMode', 'keyTimes', 'keySplines', 'additive', 'accumulate'],
+    'animateTransform': ['attributeName', 'type', 'values', 'from', 'to', 'by', 'dur', 'begin', 'end', 'repeatCount', 'repeatDur', 'fill', 'calcMode', 'keyTimes', 'keySplines', 'additive', 'accumulate'],
+    'animateMotion': ['path', 'dur', 'begin', 'end', 'repeatCount', 'repeatDur', 'fill', 'calcMode', 'keyTimes', 'keySplines', 'keyPoints', 'rotate'],
+    'set': ['attributeName', 'to', 'begin', 'dur', 'end', 'fill'],
+    'mpath': ['href', 'xlink:href'],
+    // SVG gradients
+    'linearGradient': ['id', 'x1', 'y1', 'x2', 'y2', 'gradientUnits', 'gradientTransform', 'spreadMethod'],
+    'radialGradient': ['id', 'cx', 'cy', 'r', 'fx', 'fy', 'gradientUnits', 'gradientTransform', 'spreadMethod'],
+    'stop': ['offset', 'stop-color', 'stop-opacity'],
+    // SVG filters
+    'filter': ['id', 'x', 'y', 'width', 'height', 'filterUnits', 'primitiveUnits'],
+    'feGaussianBlur': ['in', 'stdDeviation', 'result'],
+    'feOffset': ['in', 'dx', 'dy', 'result'],
+    'feBlend': ['in', 'in2', 'mode', 'result'],
+    'feFlood': ['flood-color', 'flood-opacity', 'result'],
+    'feComposite': ['in', 'in2', 'operator', 'k1', 'k2', 'k3', 'k4', 'result'],
+    'feMerge': ['result'],
+    'feMergeNode': ['in'],
+    'feColorMatrix': ['in', 'type', 'values', 'result'],
+    'feDropShadow': ['dx', 'dy', 'stdDeviation', 'flood-color', 'flood-opacity'],
+    // SVG clipping and masking
+    'clipPath': ['id', 'clipPathUnits'],
+    'mask': ['id', 'x', 'y', 'width', 'height', 'maskUnits', 'maskContentUnits'],
+    'pattern': ['id', 'x', 'y', 'width', 'height', 'patternUnits', 'patternContentUnits', 'patternTransform', 'viewBox'],
+    // SVG markers
+    'marker': ['id', 'viewBox', 'refX', 'refY', 'markerWidth', 'markerHeight', 'orient', 'markerUnits'],
+    // foreignObject
+    'foreignObject': ['x', 'y', 'width', 'height'],
   },
   protocols: {
     ...defaultSchema.protocols,
