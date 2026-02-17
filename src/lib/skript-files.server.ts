@@ -6,6 +6,8 @@
  */
 
 import { prisma } from './prisma'
+import { getS3Key } from './file-storage'
+import { getTeacherFileUrl } from './s3'
 import type { SkriptFilesData, SkriptFile, VideoInfo } from './skript-files'
 
 /**
@@ -41,10 +43,17 @@ export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData>
   // Build files record
   const files: Record<string, SkriptFile> = {}
   for (const file of dbFiles) {
+    // Use S3 URL directly when hash is available (avoids 302 redirect
+    // through /api/files/, which breaks Next.js image optimization).
+    const ext = file.name.split('.').pop() || ''
+    const url = file.hash
+      ? getTeacherFileUrl(getS3Key(file.hash, ext))
+      : `/api/files/${file.id}`
+
     files[file.name] = {
       id: file.id,
       name: file.name,
-      url: `/api/files/${file.id}`,
+      url,
       width: file.width ?? undefined,
       height: file.height ?? undefined,
     }
