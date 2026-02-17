@@ -2,22 +2,26 @@
 
 **Note**: Completed features are to be documented in `docs/`
 - User manual goes into writing-content, components, organization
-- Dev docs go into getting-started, extending, internals, contributing, future-ideas
+- Dev docs go into getting-started, extending, internals, contributing, future-ideas. Only document major features, how we arrange smaller stuff document in code
 
-## Bug tracker
+## Needs testing
+images preload bad
+callouts with image bad
 
-**login** by students evidently created teacher accounts
-**snapshot** can seriously mess up website
-**metrics** don't work
+## Doing
 
+## To do
+**zooom** touchpad vs touchscreen
 **preview** buttons still often lead to wrong urls and thus produce 404s. e.g. in the page editor:
 https://www.informatikgarten.ch/dashboard/collections/grundjahr/skripts/computer-os/pages/betriebssystem/edit
 leads to: https://www.informatikgarten.ch/preview/ig/grundjahr/computer-os/betriebssystem (404, proper would be https://www.informatikgarten.ch/grundjahr/computer-os/betriebssystem
 )
 
-images preload bad
-callouts with image bad
-touchpad vs touchscreen
+## Backlog
+
+**snapshot** can seriously mess up website
+**metrics** don't work well at all - get rid of them?
+
 
 ## move back from mdx to markdown / remark
 didn't realize the security vulnerability mdx poses. we have to move back.
@@ -36,23 +40,10 @@ WRONG
 :::tabs
 ::tab[Brustgurt (EKG-basiert)]
 **Vorteile:**
-- Sehr genau (±1-2 bpm)
-- Misst elektrische Herzaktivität direkt
-- Kaum Bewegungsartefakte
-§**Nachteile:**
-- Unbequem zu tragen
-- Muss feucht sein für guten Kontakt
-- Nur Puls, keine anderen Werte
 
 ::tab[Smartwatch (PPG-basiert)]
 **Vorteile:**
-- Bequem und unauffällig
-- Misst zusätzlich SpO2, Stress, etc.
-- Permanentes Monitoring
 
-**Nachteile:**
-- Weniger genau
-- Störanfällig bei Bewegung
 - Abhängig von korrektem Sitz
 :::
 

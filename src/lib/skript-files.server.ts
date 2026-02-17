@@ -23,6 +23,8 @@ export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData>
       id: true,
       name: true,
       hash: true,
+      width: true,
+      height: true,
     },
   })
 
@@ -43,6 +45,8 @@ export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData>
       id: file.id,
       name: file.name,
       url: `/api/files/${file.id}`,
+      width: file.width ?? undefined,
+      height: file.height ?? undefined,
     }
   }
 

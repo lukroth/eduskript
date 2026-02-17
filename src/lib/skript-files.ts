@@ -16,6 +16,8 @@ export interface SkriptFile {
   name: string
   url: string
   updatedAt?: string | Date  // For cache busting
+  width?: number  // Image width in pixels
+  height?: number // Image height in pixels
 }
 
 export interface VideoInfo {
@@ -98,7 +100,7 @@ export function resolveVideo(files: SkriptFilesData, filename: string): VideoInf
  * Used in the dashboard live preview where we have the file list from the browser.
  */
 export function createSkriptFiles(
-  fileList: Array<{ id: string; name: string; url?: string; updatedAt?: string | Date }>,
+  fileList: Array<{ id: string; name: string; url?: string; updatedAt?: string | Date; width?: number; height?: number }>,
   videoList?: VideoInfo[]
 ): SkriptFilesData {
   // Build files record
@@ -110,6 +112,8 @@ export function createSkriptFiles(
       name: file.name,
       url: file.url || `/api/files/${file.id}`,
       updatedAt: file.updatedAt,
+      width: file.width,
+      height: file.height,
     }
   }
 

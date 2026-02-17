@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useCallback } from 'react'
 import { useTheme } from 'next-themes'
 import type { SkriptFilesData } from '@/lib/skript-files'
-import { resolveUrl } from '@/lib/skript-files'
+import { resolveFile, resolveUrl } from '@/lib/skript-files'
 import { ResizableWrapper } from './resizable-wrapper'
 
 /**
@@ -67,11 +67,16 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
   const filename = originalSrc || src
   const { resolvedTheme } = useTheme()
 
-  // Resolve the image URL
+  // Resolve the image URL and dimensions
   const isRelativePath = src && !src.startsWith('http') && !src.startsWith('/')
-  const resolvedSrc = isRelativePath && files ? resolveUrl(files, src) : undefined
+  const fileInfo = isRelativePath && files ? resolveFile(files, src) : undefined
+  const resolvedSrc = fileInfo?.url
   const imageSrc = resolvedSrc ?? src
   const isMissing = isRelativePath && !resolvedSrc
+
+  // Use stored dimensions if available, fall back to defaults
+  const imgWidth = fileInfo?.width ?? 800
+  const imgHeight = fileInfo?.height ?? 600
 
   // Calculate if we should apply invert filter
   const shouldInvert = invert === 'always' ||
@@ -147,8 +152,8 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
             src={imageSrc}
             alt={alt || ''}
             title={title}
-            width={800}
-            height={600}
+            width={imgWidth}
+            height={imgHeight}
             className="w-full h-auto rounded-md"
             style={invertFilter ? { filter: invertFilter } : undefined}
             unoptimized={imageSrc.startsWith('/api/')}

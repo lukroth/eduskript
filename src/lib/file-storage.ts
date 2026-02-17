@@ -181,7 +181,9 @@ export async function saveFile({
   userId,
   parentId = null,
   contentType,
-  overwrite = false
+  overwrite = false,
+  width,
+  height,
 }: {
   buffer: Buffer
   filename: string
@@ -190,6 +192,8 @@ export async function saveFile({
   parentId?: string | null
   contentType?: string
   overwrite?: boolean
+  width?: number
+  height?: number
 }): Promise<{ id: string; hash: string; url: string; size: number }> {
   // Check S3 configuration
   if (!isTeacherS3Configured()) {
@@ -243,6 +247,8 @@ export async function saveFile({
         ...(hashChanged && { hash }),
         contentType: mimeType,
         size: BigInt(buffer.length),
+        width: width ?? null,
+        height: height ?? null,
         updatedAt: new Date()
       }
     })
@@ -256,6 +262,8 @@ export async function saveFile({
         hash,
         contentType: mimeType,
         size: BigInt(buffer.length),
+        width: width ?? null,
+        height: height ?? null,
         createdBy: userId,
         isDirectory: false
       }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { saveFile, MAX_FILE_SIZE, validateFile, sanitizeFilename } from '@/lib/file-storage'
+import sharp from 'sharp'
 
 // Increase function timeout for large uploads
 export const maxDuration = 120 // 2 minutes
@@ -63,6 +64,21 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    // Extract image dimensions if this is an image file
+    let imageWidth: number | undefined
+    let imageHeight: number | undefined
+    if (file.type.startsWith('image/') && !file.type.includes('svg')) {
+      try {
+        const metadata = await sharp(buffer).metadata()
+        if (metadata.width && metadata.height) {
+          imageWidth = metadata.width
+          imageHeight = metadata.height
+        }
+      } catch {
+        // Non-fatal: dimensions are optional, proceed without them
+      }
+    }
+
     // Save file using new file storage system (with sanitized filename)
     const savedFile = await saveFile({
       buffer,
@@ -71,7 +87,9 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       parentId: parentId || null,
       contentType: file.type,
-      overwrite
+      overwrite,
+      width: imageWidth,
+      height: imageHeight,
     })
 
     // Return file info
@@ -159,6 +177,8 @@ export async function GET(request: NextRequest) {
       isDirectory: file.isDirectory,
       size: file.size ? Number(file.size) : undefined,
       contentType: file.contentType || undefined,
+      width: file.width ?? undefined,
+      height: file.height ?? undefined,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
       url: file.isDirectory ? undefined : `/api/files/${file.id}`

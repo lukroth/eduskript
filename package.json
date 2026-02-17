@@ -126,6 +126,7 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "sharp": "^0.34.5",
     "simplify-js": "^1.2.4",
     "slugify": "^1.6.6",
     "tailwind-merge": "^3.3.1",

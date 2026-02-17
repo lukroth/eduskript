@@ -351,6 +351,8 @@ model File {
   hash        String?
   contentType String? @map("content_type")
   size        BigInt?
+  width       Int?    // Image width in pixels (null for non-image files)
+  height      Int?    // Image height in pixels (null for non-image files)
   createdBy   String  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
