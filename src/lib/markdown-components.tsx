@@ -8,7 +8,7 @@
 import React, { type ComponentType, type ReactNode, Children, isValidElement } from 'react'
 import Image from 'next/image'
 import type { SkriptFilesData } from './skript-files'
-import { resolveFile, resolveExcalidraw } from './skript-files'
+import { resolveFile, resolveUrl, resolveExcalidraw } from './skript-files'
 import { CodeEditor } from '@/components/public/code-editor'
 import { Tabs, TabItem } from '@/components/markdown/tabs'
 import { Youtube } from '@/components/markdown/youtube'
@@ -527,11 +527,36 @@ export function createMarkdownComponents(
     )
   }
 
+  // Anchor component - resolves relative file links to /api/files/{id} URLs
+  function AnchorComponent({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & Record<string, unknown>) {
+    const originalHref = (props['data-original-href'] as string) || (props['dataOriginalHref'] as string)
+
+    if (originalHref) {
+      // This is a relative file link — resolve via SkriptFiles
+      const resolvedUrl = resolveUrl(files, originalHref)
+      if (resolvedUrl) {
+        // Use ?download=filename to trigger Content-Disposition: attachment on the API
+        const separator = resolvedUrl.includes('?') ? '&' : '?'
+        const downloadUrl = `${resolvedUrl}${separator}download=${encodeURIComponent(originalHref)}`
+        return (
+          <a href={downloadUrl} download={originalHref} {...props}>
+            {children}
+          </a>
+        )
+      }
+      // File not found in skript files — render as-is (broken link)
+    }
+
+    // Regular link — pass through
+    return <a href={href} {...props}>{children}</a>
+  }
+
   return {
     // HTML element overrides
     pre: PreComponent,
     code: CodeComponent,
     img: ImgElementComponent,
+    a: AnchorComponent,
     blockquote: BlockquoteComponent,
     h1: createHeading(1),
     h2: createHeading(2),

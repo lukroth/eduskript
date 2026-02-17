@@ -143,7 +143,7 @@ export const sanitizeSchema = {
     // Span for KaTeX
     'span': ['className', 'style'],
     // Links
-    'a': ['href', 'title', 'className'],
+    'a': ['href', 'title', 'className', 'dataOriginalHref', 'data-original-href', 'download'],
     // SVG container attributes
     'svg': ['viewBox', 'width', 'height', 'xmlns', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'transform'],
     // SVG shape attributes (shared)
