@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { requireOrgAdmin, requireOrgMember } from '@/lib/org-auth'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 // GET - Get organization's frontpage
 export async function GET(
@@ -141,7 +142,9 @@ export async function PATCH(
       contentChanged = true
     }
 
-    // Revalidate caches
+    // Revalidate caches — both the data cache (unstable_cache tags) and route cache
+    revalidateTag(CACHE_TAGS.organization(organization.slug), 'default')
+    revalidateTag(CACHE_TAGS.orgContent(organization.slug), 'default')
     revalidatePath(`/org/${organization.slug}`)
     revalidatePath('/dashboard')
 
