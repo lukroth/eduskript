@@ -30,15 +30,11 @@ export async function PATCH(
       )
     }
 
-    // Check if user is an author of this page
+    // Check if user is an author of this page (admins bypass author check)
     const existingPage = await prisma.page.findFirst({
       where: {
         id,
-        authors: {
-          some: {
-            userId: session.user.id
-          }
-        }
+        ...(session.user.isAdmin ? {} : { authors: { some: { userId: session.user.id } } }),
       },
       include: {
         skript: {
@@ -169,15 +165,11 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Check if page exists and user has access
+    // Check if page exists and user has access (admins bypass author check)
     const existingPage = await prisma.page.findFirst({
       where: {
         id,
-        authors: {
-          some: {
-            userId: session.user.id
-          }
-        }
+        ...(session.user.isAdmin ? {} : { authors: { some: { userId: session.user.id } } }),
       }
     })
 

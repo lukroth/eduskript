@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { checkSkriptPermissions } from '@/lib/permissions'
 import { assembleSystemPrompt } from '@/lib/ai/prompts'
 import type { ChatRequest, SkriptContext } from '@/lib/ai/types'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const userId = session.user.id
 
     // 2. Check API key is configured
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return Response.json(
         { error: 'AI service not configured' },
         { status: 503 }
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     // 6. Check permissions
-    const permissions = checkSkriptPermissions(userId, skript.authors)
+    const permissions = checkSkriptPermissions(userId, skript.authors, undefined, !!session.user.isAdmin)
     if (!permissions.canView) {
       return Response.json({ error: 'Access denied' }, { status: 403 })
     }
@@ -142,9 +142,11 @@ export async function POST(request: Request) {
       skriptContext,
     })
 
-    // 9. Initialize Anthropic client
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+    // 9. Initialize OpenRouter client
+    const openai = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: { 'HTTP-Referer': 'https://eduskript.org', 'X-Title': 'Eduskript' },
     })
 
     // 10. Create streaming response
@@ -152,28 +154,23 @@ export async function POST(request: Request) {
     const stream = new TransformStream()
     const writer = stream.writable.getWriter()
 
-    // Start Claude stream in background
+    // Start AI stream in background
     ;(async () => {
       try {
-        const messageStream = anthropic.messages.stream({
-          model: 'claude-sonnet-4-20250514',
+        const aiStream = await openai.chat.completions.create({
+          model: process.env.OPENROUTER_MODEL ?? 'z-ai/glm-5',
           max_tokens: 4096,
-          system: systemPrompt,
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          ],
+          stream: true,
         })
 
-        for await (const event of messageStream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
-            const data = JSON.stringify({
-              type: 'content',
-              content: event.delta.text,
-            })
+        for await (const chunk of aiStream) {
+          const text = chunk.choices[0]?.delta?.content ?? ''
+          if (text) {
+            const data = JSON.stringify({ type: 'content', content: text })
             await writer.write(encoder.encode(`data: ${data}\n\n`))
           }
         }
@@ -184,7 +181,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error'
-        console.error('Claude API error:', error)
+        console.error('OpenRouter API error:', error)
         const data = JSON.stringify({ type: 'error', error: errorMessage })
         await writer.write(encoder.encode(`data: ${data}\n\n`))
       } finally {

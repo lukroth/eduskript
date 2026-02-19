@@ -5,7 +5,7 @@ import { checkSkriptPermissions } from '@/lib/permissions'
 import { assembleEditPrompt, assembleSinglePageEditPrompt } from '@/lib/ai/prompts'
 import type { EditRequest, SkriptContext } from '@/lib/ai/types'
 import { parseJsonResponse, isValidEditPlan } from '@/lib/ai/parse-json-response'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
   const userId = session.user.id
 
   // 2. Check API key
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     return Response.json({ success: false, error: 'AI service not configured' }, { status: 503 })
   }
 
@@ -91,7 +91,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // 6. Check permissions
-  const permissions = checkSkriptPermissions(userId, skript.authors)
+  const permissions = checkSkriptPermissions(userId, skript.authors, undefined, !!session.user.isAdmin)
   if (!permissions.canEdit) {
     return Response.json({ success: false, error: 'Edit access denied' }, { status: 403 })
   }
@@ -161,8 +161,10 @@ export async function POST(request: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const anthropic = new Anthropic({
-          apiKey: process.env.ANTHROPIC_API_KEY,
+        const openai = new OpenAI({
+          apiKey: process.env.OPENROUTER_API_KEY,
+          baseURL: 'https://openrouter.ai/api/v1',
+          defaultHeaders: { 'HTTP-Referer': 'https://eduskript.org', 'X-Title': 'Eduskript' },
         })
 
         // Phase 1: Get the edit plan
@@ -172,17 +174,13 @@ export async function POST(request: Request): Promise<Response> {
           planOnly: true, // New flag to just get the plan
         })
 
-        const planMessage = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+        const planMessage = await openai.chat.completions.create({
+          model: process.env.OPENROUTER_MODEL ?? 'z-ai/glm-5',
           max_tokens: 2048,
-          system: planPrompt,
-          messages: [{ role: 'user', content: instruction }],
+          messages: [{ role: 'system', content: planPrompt }, { role: 'user', content: instruction }],
         })
 
-        const planText = planMessage.content
-          .filter((block) => block.type === 'text')
-          .map((block) => block.text)
-          .join('')
+        const planText = planMessage.choices[0]?.message?.content ?? ''
 
         // Debug: Log raw AI response
         console.log('[AI Edit] Raw plan response:', planText)
@@ -294,19 +292,15 @@ export async function POST(request: Request): Promise<Response> {
               instruction,
             })
 
-            console.log(`[AI Edit] Calling Anthropic API for new page...`)
-            const newPageMessage = await anthropic.messages.create({
-              model: 'claude-sonnet-4-20250514',
+            console.log(`[AI Edit] Calling OpenRouter API for new page...`)
+            const newPageMessage = await openai.chat.completions.create({
+              model: process.env.OPENROUTER_MODEL ?? 'z-ai/glm-5',
               max_tokens: 8192,
-              system: newPagePrompt,
-              messages: [{ role: 'user', content: `Create the content for the new page "${plannedEdit.pageTitle}". ${plannedEdit.summary}` }],
+              messages: [{ role: 'system', content: newPagePrompt }, { role: 'user', content: `Create the content for the new page "${plannedEdit.pageTitle}". ${plannedEdit.summary}` }],
             })
-            console.log(`[AI Edit] Anthropic API returned for new page, stop_reason: ${newPageMessage.stop_reason}`)
+            console.log(`[AI Edit] OpenRouter API returned for new page, finish_reason: ${newPageMessage.choices[0]?.finish_reason}`)
 
-            const newContent = newPageMessage.content
-              .filter((block) => block.type === 'text')
-              .map((block) => block.text)
-              .join('')
+            const newContent = newPageMessage.choices[0]?.message?.content ?? ''
 
             console.log(`[AI Edit] Sending new page ${i + 1}/${plan.edits.length}: ${plannedEdit.pageTitle}`)
             sendSSE(controller, 'edit', {
@@ -336,19 +330,15 @@ export async function POST(request: Request): Promise<Response> {
               instruction,
             })
 
-            console.log(`[AI Edit] Calling Anthropic API for existing page edit...`)
-            const editMessage = await anthropic.messages.create({
-              model: 'claude-sonnet-4-20250514',
+            console.log(`[AI Edit] Calling OpenRouter API for existing page edit...`)
+            const editMessage = await openai.chat.completions.create({
+              model: process.env.OPENROUTER_MODEL ?? 'z-ai/glm-5',
               max_tokens: 8192,
-              system: editPrompt,
-              messages: [{ role: 'user', content: `Apply the following change to the page "${originalPage?.title || plannedEdit.pageTitle}": ${plannedEdit.summary}` }],
+              messages: [{ role: 'system', content: editPrompt }, { role: 'user', content: `Apply the following change to the page "${originalPage?.title || plannedEdit.pageTitle}": ${plannedEdit.summary}` }],
             })
-            console.log(`[AI Edit] Anthropic API returned for edit, stop_reason: ${editMessage.stop_reason}`)
+            console.log(`[AI Edit] OpenRouter API returned for edit, finish_reason: ${editMessage.choices[0]?.finish_reason}`)
 
-            const proposedContent = editMessage.content
-              .filter((block) => block.type === 'text')
-              .map((block) => block.text)
-              .join('')
+            const proposedContent = editMessage.choices[0]?.message?.content ?? ''
 
             console.log(`[AI Edit] Sending edit ${i + 1}/${plan.edits.length}: ${originalPage?.title || plannedEdit.pageTitle}`)
             sendSSE(controller, 'edit', {

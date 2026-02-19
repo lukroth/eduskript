@@ -210,8 +210,8 @@ export async function PATCH(
       )
     }
 
-    // Can't change your own role
-    if (session?.user?.id === userId) {
+    // Can't change your own role (platform admins are exempt — they manage their own org membership)
+    if (!session?.user?.isAdmin && session?.user?.id === userId) {
       return NextResponse.json(
         { error: 'Cannot change your own role' },
         { status: 400 }

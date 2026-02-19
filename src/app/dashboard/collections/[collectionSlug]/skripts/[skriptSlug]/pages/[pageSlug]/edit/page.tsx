@@ -10,15 +10,11 @@ interface PageParams {
   pageSlug: string
 }
 
-async function getPageData(collectionSlug: string, skriptSlug: string, pageSlug: string, userId: string) {
+async function getPageData(collectionSlug: string, skriptSlug: string, pageSlug: string, userId: string, isAdmin: boolean) {
   const collection = await prisma.collection.findFirst({
     where: {
       slug: collectionSlug,
-      authors: {
-        some: {
-          userId: userId
-        }
-      }
+      ...(isAdmin ? {} : { authors: { some: { userId } } }),
     }
   })
 
@@ -78,7 +74,7 @@ export default async function PageEditPage({
   }
 
   const { collectionSlug, skriptSlug, pageSlug } = await params
-  const data = await getPageData(collectionSlug, skriptSlug, pageSlug, session.user.id)
+  const data = await getPageData(collectionSlug, skriptSlug, pageSlug, session.user.id, !!session.user.isAdmin)
 
   if (!data) {
     return notFound()

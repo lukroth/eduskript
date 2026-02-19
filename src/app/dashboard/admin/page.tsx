@@ -11,7 +11,28 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Pencil, Trash2, RotateCw, Search } from 'lucide-react'
+import { Pencil, Trash2, RotateCw, Search, ChevronDown, Plus, Users } from 'lucide-react'
+
+interface OrgMember {
+  id: string
+  role: string
+  user: {
+    id: string
+    name: string
+    email: string | null
+    pageSlug: string | null
+    accountType: string
+    studentPseudonym: string | null
+  }
+}
+
+interface OrgItem {
+  id: string
+  name: string
+  slug: string
+  createdAt: string
+  _count: { members: number }
+}
 
 interface OAuthAccount {
   id: string
@@ -48,11 +69,17 @@ export default function AdminPanelPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [seeding, setSeeding] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState<'teachers' | 'students'>('teachers')
+  const [activeTab, setActiveTab] = useState<'teachers' | 'students' | 'organizations'>('teachers')
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   const [orgFormData, setOrgFormData] = useState({ name: '', slug: '' })
   const [creatingOrg, setCreatingOrg] = useState(false)
   const [createdOrg, setCreatedOrg] = useState<{ id: string; slug: string } | null>(null)
+  const [orgs, setOrgs] = useState<OrgItem[]>([])
+  const [orgsLoading, setOrgsLoading] = useState(false)
+  const [expandedOrg, setExpandedOrg] = useState<string | null>(null)
+  const [orgMembers, setOrgMembers] = useState<Record<string, OrgMember[]>>({})
+  const [orgMembersLoading, setOrgMembersLoading] = useState<Record<string, boolean>>({})
+  const [addMemberForms, setAddMemberForms] = useState<Record<string, string>>({})
 
   // Form states
   const [formData, setFormData] = useState({
@@ -99,9 +126,114 @@ export default function AdminPanelPage() {
     }
   }
 
+  const fetchOrgs = async () => {
+    setOrgsLoading(true)
+    try {
+      const res = await fetch('/api/admin/organizations')
+      const data = await res.json()
+      if (res.ok) setOrgs(data.organizations)
+      else setError(data.error || 'Failed to fetch organizations')
+    } catch {
+      setError('Failed to fetch organizations')
+    } finally {
+      setOrgsLoading(false)
+    }
+  }
+
+  const fetchOrgMembers = async (orgId: string) => {
+    setOrgMembersLoading(prev => ({ ...prev, [orgId]: true }))
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/members`)
+      const data = await res.json()
+      if (res.ok) setOrgMembers(prev => ({ ...prev, [orgId]: data.members }))
+      else setError(data.error || 'Failed to fetch members')
+    } catch {
+      setError('Failed to fetch members')
+    } finally {
+      setOrgMembersLoading(prev => ({ ...prev, [orgId]: false }))
+    }
+  }
+
+  const handleDeleteOrg = async (orgId: string, orgName: string) => {
+    if (!confirm(`Delete organization "${orgName}"? This cannot be undone.`)) return
+    setError('')
+    setSuccess('')
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to delete organization')
+      setSuccess(`Organization "${orgName}" deleted`)
+      if (expandedOrg === orgId) setExpandedOrg(null)
+      fetchOrgs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }
+
+  const toggleExpandOrg = (orgId: string) => {
+    if (expandedOrg === orgId) {
+      setExpandedOrg(null)
+    } else {
+      setExpandedOrg(orgId)
+      if (!orgMembers[orgId]) fetchOrgMembers(orgId)
+    }
+  }
+
+  const handleToggleOrgAdmin = async (orgId: string, userId: string, currentRole: string) => {
+    const newRole = currentRole === 'admin' ? 'member' : 'admin'
+    setError('')
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/members`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update role')
+      fetchOrgMembers(orgId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }
+
+  const handleRemoveOrgMember = async (orgId: string, userId: string) => {
+    if (!confirm('Remove this member from the organization?')) return
+    setError('')
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/members?userId=${userId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to remove member')
+      fetchOrgMembers(orgId)
+      fetchOrgs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }
+
+  const handleAddOrgMember = async (orgId: string) => {
+    const email = addMemberForms[orgId]?.trim()
+    if (!email) return
+    setError('')
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to add member')
+      setAddMemberForms(prev => ({ ...prev, [orgId]: '' }))
+      fetchOrgMembers(orgId)
+      fetchOrgs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }
+
   useEffect(() => {
     if (session?.user.isAdmin) {
       fetchUsers()
+      fetchOrgs()
     }
   }, [session])
 
@@ -393,6 +525,7 @@ export default function AdminPanelPage() {
 
   const teacherCount = users.filter(u => u.accountType === 'teacher').length
   const studentCount = users.filter(u => u.accountType === 'student').length
+  const orgCount = orgs.length
 
   if (!session?.user.isAdmin) {
     return (
@@ -409,9 +542,6 @@ export default function AdminPanelPage() {
         <div className="flex gap-2">
           <Button onClick={handleSeedData} disabled={seeding} variant="outline">
             {seeding ? 'Seeding...' : 'Insert Example Data'}
-          </Button>
-          <Button onClick={() => { setCreatedOrg(null); setShowCreateOrgDialog(true) }} variant="outline">
-            Create Organization
           </Button>
           <Button onClick={() => setShowCreateDialog(true)}>
             Create User
@@ -450,13 +580,16 @@ export default function AdminPanelPage() {
         {loading ? (
           <p>Loading users...</p>
         ) : (
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'teachers' | 'students')}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'teachers' | 'students' | 'organizations')}>
             <TabsList className="mb-4">
               <TabsTrigger value="teachers">
                 Teachers ({teacherCount})
               </TabsTrigger>
               <TabsTrigger value="students">
                 Students ({studentCount})
+              </TabsTrigger>
+              <TabsTrigger value="organizations">
+                Organizations ({orgCount})
               </TabsTrigger>
             </TabsList>
 
@@ -632,6 +765,105 @@ export default function AdminPanelPage() {
                 </div>
               </div>
             ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="organizations" className="space-y-3">
+              <div className="flex justify-end mb-2">
+                <Button size="sm" onClick={() => { setCreatedOrg(null); setShowCreateOrgDialog(true) }}>
+                  <Plus className="h-4 w-4 mr-1" /> Create Organization
+                </Button>
+              </div>
+              {orgsLoading ? (
+                <p className="text-muted-foreground text-sm">Loading organizations...</p>
+              ) : orgs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No organizations yet</p>
+              ) : (
+                orgs.map(org => (
+                  <div key={org.id} className="border rounded-md overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <button
+                        className="flex items-center gap-2 text-left flex-1 min-w-0"
+                        onClick={() => toggleExpandOrg(org.id)}
+                      >
+                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${expandedOrg === org.id ? '' : '-rotate-90'}`} />
+                        <span className="font-medium truncate">{org.name}</span>
+                        <Badge variant="outline" className="font-mono text-xs shrink-0">{org.slug}</Badge>
+                        <Badge variant="secondary" className="text-xs shrink-0 flex items-center gap-1">
+                          <Users className="h-3 w-3" />{org._count.members}
+                        </Badge>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteOrg(org.id, org.name)}
+                        title="Delete organization"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {expandedOrg === org.id && (
+                      <div className="border-t bg-muted/30 p-3 space-y-3">
+                        {orgMembersLoading[org.id] ? (
+                          <p className="text-sm text-muted-foreground">Loading members...</p>
+                        ) : (orgMembers[org.id] || []).length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No members</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {(orgMembers[org.id] || []).map(member => (
+                              <div key={member.id} className="flex items-center justify-between text-sm">
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-medium">{member.user.name}</span>
+                                  {member.user.email && (
+                                    <span className="text-muted-foreground ml-2 text-xs">{member.user.email}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'}>
+                                    {member.role}
+                                  </Badge>
+                                  {member.role !== 'owner' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() => handleToggleOrgAdmin(org.id, member.user.id, member.role)}
+                                    >
+                                      {member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => handleRemoveOrgMember(org.id, member.user.id)}
+                                    disabled={member.role === 'owner' && (orgMembers[org.id] || []).filter(m => m.role === 'owner').length <= 1}
+                                    title="Remove member"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2 pt-2 border-t">
+                          <Input
+                            placeholder="Add member by email..."
+                            value={addMemberForms[org.id] || ''}
+                            onChange={e => setAddMemberForms(prev => ({ ...prev, [org.id]: e.target.value }))}
+                            className="h-8 text-sm"
+                            onKeyDown={e => { if (e.key === 'Enter') handleAddOrgMember(org.id) }}
+                          />
+                          <Button size="sm" className="h-8" onClick={() => handleAddOrgMember(org.id)}>
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </TabsContent>
           </Tabs>
