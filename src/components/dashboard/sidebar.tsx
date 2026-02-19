@@ -108,14 +108,22 @@ export function DashboardSidebar() {
       isCollapsed ? "w-16 min-w-16" : "w-64"
     )}>
       <div className="p-4 flex-1 flex flex-col">
-        {/* Top bar: back link (students) on the left, collapse toggle on the right */}
-        <div className="flex justify-between items-center mb-4">
+        {/* Top bar: back link (students) + collapse toggle.
+            Expanded: row with back link left, chevron right.
+            Collapsed (with back link): column with chevron on top, back icon below. */}
+        <div className={cn(
+          "mb-4 flex items-center",
+          isCollapsed && isStudent && lastTeacherPage
+            ? "flex-col gap-2"
+            : "justify-between"
+        )}>
           {isStudent && lastTeacherPage ? (
             <Link
               href={lastTeacherPage.href || `/${lastTeacherPage.slug}`}
               className={cn(
-                'flex items-center gap-3 px-2 py-1 text-sm rounded-lg transition-colors',
+                'flex items-center px-2 py-1 text-sm rounded-lg transition-colors',
                 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                isCollapsed ? 'justify-center order-last' : 'gap-3'
               )}
               title={`Back to ${lastTeacherPage.name}`}
             >
@@ -129,7 +137,10 @@ export function DashboardSidebar() {
             variant="ghost"
             size="sm"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2"
+            className={cn(
+              "p-2",
+              isCollapsed && isStudent && lastTeacherPage ? "order-first" : ""
+            )}
           >
             {isCollapsed ? (
               <ChevronRight className="w-5 h-5" />
