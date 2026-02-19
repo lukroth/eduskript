@@ -87,7 +87,11 @@ export function PublicSiteLayout({
   const getBasePrefix = () => {
     if (typeof window === 'undefined') return routePrefix ?? `/${teacher.pageSlug}`
     const hostname = window.location.hostname
-    const isCustom = !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
+    // Tunnel/dev domains (ngrok, localhost.run, etc.) behave like eduskript.org:
+    // the proxy rewrites their paths to /org/[orgSlug]/[teacherPageSlug]/... so
+    // we must include the teacher pageSlug in the base prefix.
+    const isTunnelDomain = hostname.endsWith('.ngrok-free.dev') || hostname.endsWith('.ngrok-free.app') || hostname.endsWith('.ngrok.io')
+    const isCustom = !isTunnelDomain && !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
     return isCustom ? '' : (routePrefix ?? `/${teacher.pageSlug}`)
   }
   const { data: session } = useSession()
