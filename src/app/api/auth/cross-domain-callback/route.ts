@@ -21,7 +21,11 @@ export async function GET(request: NextRequest) {
   if (jwtParam) {
     const isProduction = process.env.NODE_ENV === 'production'
     const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
-    const redirectUrl = returnPath.startsWith('http') ? returnPath : new URL(returnPath, request.url)
+    // Use the Host header directly — request.url mixes X-Forwarded-Proto (https)
+    // with the internal hostname (localhost:3000), producing https://localhost:3000
+    const host = request.headers.get('host') || 'localhost:3000'
+    const protocol = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https'
+    const redirectUrl = returnPath.startsWith('http') ? returnPath : `${protocol}://${host}${returnPath}`
     const response = NextResponse.redirect(redirectUrl)
     response.cookies.set(cookieName, jwtParam, {
       httpOnly: true,
