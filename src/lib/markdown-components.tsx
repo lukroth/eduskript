@@ -288,10 +288,10 @@ export function createMarkdownComponents(
       // Try to find file with this name (with or without extension)
       const dbBasename = db.replace(/\.(sqlite|db)$/i, '')
       const dbFile = resolveFile(files, db) || resolveFile(files, `${dbBasename}.db`) || resolveFile(files, `${dbBasename}.sqlite`)
-      // Add proxy=true to avoid CORS issues (S3 redirect fails cross-origin fetch)
-      if (dbFile?.url) {
-        const separator = dbFile.url.includes('?') ? '&' : '?'
-        dbUrl = `${dbFile.url}${separator}proxy=true`
+      // Always route through /api/files/:id?proxy=true so the server fetches from S3.
+      // Using the direct S3 URL causes a CORS error because S3 doesn't allow browser fetches.
+      if (dbFile?.id) {
+        dbUrl = `/api/files/${dbFile.id}?proxy=true`
       }
 
       // Auto-detect schema image (Excalidraw with light/dark variants)
