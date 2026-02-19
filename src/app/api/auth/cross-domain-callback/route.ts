@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (jwtParam) {
     const isProduction = process.env.NODE_ENV === 'production'
     const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
-    const redirectUrl = returnPath.startsWith('http') ? returnPath : `${request.nextUrl.origin}${returnPath}`
+    const redirectUrl = returnPath.startsWith('http') ? returnPath : new URL(returnPath, request.url)
     const response = NextResponse.redirect(redirectUrl)
     response.cookies.set(cookieName, jwtParam, {
       httpOnly: true,
