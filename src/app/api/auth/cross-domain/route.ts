@@ -35,8 +35,11 @@ export async function GET(request: NextRequest) {
   // Strip www. prefix for lookup
   const domainWithoutWww = returnDomain.replace(/^www\./, '')
 
+  // Dev tunnel domains (ngrok etc.) are always allowed — they're not in the DB
+  const isTunnelDomain = domainWithoutWww.endsWith('.ngrok-free.dev') || domainWithoutWww.endsWith('.ngrok-free.app') || domainWithoutWww.endsWith('.ngrok.io')
+
   // Validate return domain is a registered custom domain
-  const customDomain = await prisma.teacherCustomDomain.findFirst({
+  const customDomain = isTunnelDomain ? { domain: returnDomain, userId: null } : await prisma.teacherCustomDomain.findFirst({
     where: {
       OR: [
         { domain: returnDomain },
