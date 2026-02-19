@@ -10,8 +10,7 @@ import { getOrgMembership } from '@/lib/org-auth'
 import { getOrgWithLayout, getOrgHomepageContent, getOrgFullSiteStructure } from '@/lib/cached-queries'
 import { prisma } from '@/lib/prisma'
 
-// Enable ISR - pages are cached until explicitly invalidated
-export const revalidate = false
+export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
 interface OrgPageProps {

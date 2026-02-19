@@ -11,8 +11,7 @@ import { authOptions } from '@/lib/auth'
 import { getOrgMembership } from '@/lib/org-auth'
 import { getOrgFullSiteStructure } from '@/lib/cached-queries'
 
-// Enable ISR - pages are cached until explicitly invalidated
-export const revalidate = false
+export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
 interface SkriptPageProps {

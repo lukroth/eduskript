@@ -5,8 +5,7 @@ import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getOrgMembership } from '@/lib/org-auth'
 
-// Enable ISR - pages are cached until explicitly invalidated
-export const revalidate = false
+export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
 interface CollectionPageProps {

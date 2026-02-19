@@ -24,15 +24,13 @@ export async function PATCH(
       )
     }
 
-    // Check if skript exists and belongs to user
+    // Check if skript exists and belongs to user (admins bypass author check)
     const skript = await prisma.skript.findFirst({
       where: {
         id,
-        authors: {
-          some: {
-            userId: session.user.id
-          }
-        }
+        ...(session.user.isAdmin ? {} : {
+          authors: { some: { userId: session.user.id } }
+        }),
       },
       include: {
         pages: true

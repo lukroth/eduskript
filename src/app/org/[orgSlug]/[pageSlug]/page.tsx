@@ -9,8 +9,7 @@ import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import { prisma } from '@/lib/prisma'
 import { getFullSiteStructure } from '@/lib/cached-queries'
 
-// Enable ISR - pages are cached until explicitly invalidated
-export const revalidate = false
+export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
 interface OrgTeacherPageProps {

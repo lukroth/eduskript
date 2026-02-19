@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookOpen, FileText, Plus } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookOpen, FileText, Plus, GripVertical } from 'lucide-react'
 import { AIEditModal } from '@/components/ai'
 import { CreatePageModal } from '@/components/dashboard/create-page-modal'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -99,6 +99,16 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
+
+  // Pages list with local reordering
+  const [pages, setPages] = useState<SkriptPage[]>(skript.pages || [])
+  const dragIdxRef = useRef<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+
+  // Keep pages in sync when skript.pages changes (e.g. after creating a new page)
+  useEffect(() => {
+    setPages(skript.pages || [])
+  }, [skript.pages])
 
   // Shared file list state - updated for new file system
   const [fileList, setFileList] = useState<Array<{
@@ -279,6 +289,21 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     if (updatedContent !== content) {
       setContent(updatedContent)
       setHasUnsavedChanges(true)
+    }
+  }
+
+  const handlePageReorder = async (newPages: SkriptPage[]) => {
+    const oldPages = pages
+    setPages(newPages)
+    try {
+      const response = await fetch(`/api/skripts/${skript.id}/reorder-pages`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageIds: newPages.map((p) => p.id) }),
+      })
+      if (!response.ok) setPages(oldPages)
+    } catch {
+      setPages(oldPages)
     }
   }
 
@@ -763,24 +788,57 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               onPageCreated={() => router.refresh()}
             />
           </div>
-          <div className="space-y-1">
-            {skript.pages && skript.pages.map((p) => (
-              <Link
-                key={p.id}
-                href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
-                  p.id === page.id
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <FileText className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">{p.title}</span>
-                {!p.isPublished && (
-                  <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
-                )}
-              </Link>
+          <div>
+            {pages.map((p, idx) => (
+              <Fragment key={p.id}>
+                {/* Insertion line above this item */}
+                <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === idx ? 'bg-primary' : 'bg-transparent'}`} />
+                <div
+                  draggable
+                  onDragStart={() => { dragIdxRef.current = idx }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setDragOverIdx(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1)
+                  }}
+                  onDragLeave={() => setDragOverIdx(null)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const fromIdx = dragIdxRef.current
+                    const toIdx = dragOverIdx
+                    dragIdxRef.current = null
+                    setDragOverIdx(null)
+                    if (fromIdx === null || toIdx === null || toIdx === fromIdx || toIdx === fromIdx + 1) return
+                    const newPages = [...pages]
+                    const [moved] = newPages.splice(fromIdx, 1)
+                    newPages.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, moved)
+                    handlePageReorder(newPages)
+                  }}
+                  onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null) }}
+                  className={`flex items-center gap-1 rounded-md text-sm transition-colors ${
+                    p.id === page.id ? 'bg-primary/10' : 'hover:bg-muted'
+                  }`}
+                >
+                  <GripVertical className="w-4 h-4 flex-shrink-0 text-muted-foreground opacity-40 hover:opacity-80 cursor-grab ml-1" />
+                  <Link
+                    href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
+                    className={`flex items-center gap-2 flex-1 min-w-0 px-1 py-1.5 ${
+                      p.id === page.id
+                        ? 'text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{p.title}</span>
+                    {!p.isPublished && (
+                      <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
+                    )}
+                  </Link>
+                </div>
+              </Fragment>
             ))}
+            {/* Insertion line after the last item */}
+            <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === pages.length ? 'bg-primary' : 'bg-transparent'}`} />
           </div>
         </div>
 
