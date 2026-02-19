@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink, Globe, BarChart3 } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, CornerUpLeft, Globe, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
@@ -61,10 +61,10 @@ export function DashboardSidebar() {
   const isStudent = session?.user?.accountType === 'student'
   const isTeacher = session?.user?.accountType === 'teacher'
 
-  // Load last visited teacher page from localStorage (students only)
+  // Read localStorage immediately on mount — don't wait for session.
+  // The render condition still gates on isStudent, but this way the data
+  // is ready as soon as the session confirms the user is a student.
   useEffect(() => {
-    if (!isStudent) return
-
     try {
       const stored = localStorage.getItem('lastTeacherPage')
       if (stored) {
@@ -74,7 +74,7 @@ export function DashboardSidebar() {
     } catch {
       // Ignore parse errors
     }
-  }, [isStudent])
+  }, [])
 
   // Fetch organizations where user is admin/owner (teachers only)
   useEffect(() => {
@@ -104,12 +104,27 @@ export function DashboardSidebar() {
 
   return (
     <div className={cn(
-      "bg-card border-r border-border min-h-screen transition-all duration-300 flex flex-col",
+      "bg-card border-r border-border h-full transition-all duration-300 flex flex-col",
       isCollapsed ? "w-16 min-w-16" : "w-64"
     )}>
       <div className="p-4 flex-1 flex flex-col">
-        {/* Toggle Button */}
-        <div className="flex justify-end mb-4">
+        {/* Top bar: back link (students) on the left, collapse toggle on the right */}
+        <div className="flex justify-between items-center mb-4">
+          {isStudent && lastTeacherPage ? (
+            <Link
+              href={lastTeacherPage.href || `/${lastTeacherPage.slug}`}
+              className={cn(
+                'flex items-center gap-3 px-2 py-1 text-sm rounded-lg transition-colors',
+                'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+              title={`Back to ${lastTeacherPage.name}`}
+            >
+              <CornerUpLeft className="w-4 h-4 flex-shrink-0" />
+              {!isCollapsed && <span className="truncate max-w-36">Back to {lastTeacherPage.name}</span>}
+            </Link>
+          ) : (
+            <div />
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -257,23 +272,6 @@ export function DashboardSidebar() {
           )}
         </nav>
 
-        {/* Back to last lesson link (students only, requires having visited a teacher page) */}
-        {isStudent && lastTeacherPage && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <Link
-              href={lastTeacherPage.href || `/${lastTeacherPage.slug}`}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
-                'text-muted-foreground hover:bg-muted hover:text-foreground',
-                isCollapsed ? 'justify-center px-2' : ''
-              )}
-              title={isCollapsed ? `Back to ${lastTeacherPage.name}` : undefined}
-            >
-              <ExternalLink className="w-5 h-5" />
-              {!isCollapsed && <span>Back to {lastTeacherPage.name}</span>}
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   )
