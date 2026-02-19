@@ -35,6 +35,9 @@ export function remarkCodeEditor() {
 
         const metaParts = node.meta.split(' ')
 
+        // Re-join to handle quoted values containing spaces (e.g. solution="SELECT a, b")
+        const metaString = node.meta
+
         metaParts.forEach((part: string) => {
           if (part === 'editor') return // Skip the "editor" keyword itself
 
@@ -44,11 +47,20 @@ export function remarkCodeEditor() {
             return
           }
 
-          const [key, value] = part.split('=')
-          if (key && value) {
-            attributes[key] = value.replace(/['"]/g, '') // Remove quotes
+          const eqIdx = part.indexOf('=')
+          if (eqIdx !== -1) {
+            const key = part.slice(0, eqIdx)
+            const rawVal = part.slice(eqIdx + 1).replace(/^["']|["']$/g, '') // Remove surrounding quotes
+            attributes[key] = rawVal
           }
         })
+
+        // solution may contain spaces — re-parse it from the raw meta string
+        // Escape HTML entities so the value is safe in a data-* attribute
+        const solutionMatch = metaString.match(/solution="([^"]*)"/)
+        if (solutionMatch) {
+          attributes['solution'] = escapeHtml(solutionMatch[1])
+        }
 
         // Build attributes string for the custom element
         const attrPairs = [

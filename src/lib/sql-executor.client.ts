@@ -147,9 +147,10 @@ export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
 }
 
 /**
- * Execute a SQL query against a specific database
+ * Execute a SQL query against a specific database.
+ * Set applyLimit=false to skip the automatic LIMIT 100 (needed for verification).
  */
-export async function executeSqlQuery(query: string, dbPath: string): Promise<SqlExecutionResult> {
+export async function executeSqlQuery(query: string, dbPath: string, { applyLimit = true }: { applyLimit?: boolean } = {}): Promise<SqlExecutionResult> {
   const startTime = performance.now()
 
   try {
@@ -159,8 +160,8 @@ export async function executeSqlQuery(query: string, dbPath: string): Promise<Sq
       throw new Error('No database loaded. Please select a database first.')
     }
 
-    // Apply default limit to prevent overwhelming results
-    const queryWithLimit = applyDefaultLimit(query)
+    // Apply default limit to prevent overwhelming results (skip for verification)
+    const queryWithLimit = applyLimit ? applyDefaultLimit(query) : query
 
     // Execute the query
     const results = database.exec(queryWithLimit)

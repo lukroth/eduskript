@@ -60,6 +60,15 @@ export interface CodeEditorData {
 }
 
 /**
+ * SQL exercise verification result — latest attempt wins.
+ * Students can re-run as many times as they want.
+ */
+export interface SqlVerificationData {
+  isCorrect: boolean    // result of the last run
+  hasAttempted: boolean // true once they ran at least one verification
+}
+
+/**
  * Quiz question-specific data structure
  */
 export interface QuizData {

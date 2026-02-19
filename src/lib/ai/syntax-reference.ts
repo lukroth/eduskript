@@ -67,6 +67,7 @@ Syntax: \`\`\`language editor [options]\`\`\`
 - \`single\` - Hide file tabs for simple examples
 - \`id="unique-id"\` - Persistent state across page loads
 - \`db="database.db"\` - For SQL: specify database file
+- \`solution="SELECT ..."\` - For SQL: expected solution query. Enables automatic pass/fail verification after each run. Multi-line solutions use \`\\n\` literals: \`solution="SELECT a, b\\nFROM t"\`
 
 Examples:
 \`\`\`markdown
@@ -76,6 +77,10 @@ print("Hello, World!")
 
 \`\`\`sql editor db="netflix.db"
 SELECT * FROM movies LIMIT 10;
+\`\`\`
+
+\`\`\`sql editor db="chinook.db" solution="SELECT Name FROM Track"
+-- Schreib deine Abfrage hier
 \`\`\`
 
 \`\`\`javascript editor single
@@ -176,8 +181,9 @@ export function getCondensedSyntaxReference(): string {
   - Collapsible: \`> [!type]-\` (closed) or \`> [!type]+\` (open)
   - WRONG: \`> [!tip]\\n> **Title**\` - NEVER put title on new line!
 
-**Code Editors:** \`\`\`language editor [single] [id="x"] [db="file.db"]\`\`\`
+**Code Editors:** \`\`\`language editor [single] [id="x"] [db="file.db"] [solution="SELECT ..."]\`\`\`
   - Languages: python, javascript, sql, java, cpp, go, rust, etc.
+  - \`solution="SELECT ..."\`: SQL only — shows pass/fail after each run. Multi-line: use \`\\n\` literals inside the quotes.
 
 **Math:** \`$inline$\` and \`$$display$$\` (KaTeX)
 

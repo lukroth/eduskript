@@ -22,7 +22,7 @@ import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/pr
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
 import { useSession } from 'next-auth/react'
-import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment } from '@/lib/userdata/types'
+import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment, SqlVerificationData } from '@/lib/userdata/types'
 
 /** Data structure for broadcast highlights (separate from personal code data) */
 interface BroadcastHighlightsData {
@@ -46,6 +46,7 @@ import {
   SkulptConfig,
   SqlResultSet
 } from './types'
+import { SqlProgressBar } from './sql-progress-bar'
 
 interface CodeEditorProps {
   id?: string
@@ -57,6 +58,7 @@ interface CodeEditorProps {
   schemaImage?: string // Optional schema image for SQL (light theme)
   schemaImageDark?: string // Optional schema image for SQL (dark theme)
   singleFile?: boolean // Hide file tabs for simple single-file examples
+  solution?: string // Expected SQL solution for automatic pass/fail verification
 }
 
 // Custom annotation to mark programmatic changes (defined once outside component)
@@ -160,6 +162,26 @@ function preloadSqlJs(dbPath?: string): Promise<void> {
   })
 }
 
+/**
+ * Compare two SQL result sets for equality.
+ * Row-order sensitive, string-coerced values.
+ */
+function compareResultSets(a: SqlResultSet[], b: SqlResultSet[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].columns.length !== b[i].columns.length) return false
+    if (a[i].columns.some((col, j) => col !== b[i].columns[j])) return false
+    if (a[i].values.length !== b[i].values.length) return false
+    for (let j = 0; j < a[i].values.length; j++) {
+      const aRow = a[i].values[j].map(String)
+      const bRow = b[i].values[j].map(String)
+      if (aRow.length !== bRow.length) return false
+      if (aRow.some((v, k) => v !== bRow[k])) return false
+    }
+  }
+  return true
+}
+
 export const CodeEditor = memo(function CodeEditor({
   id = 'code-editor',
   pageId,
@@ -169,7 +191,8 @@ export const CodeEditor = memo(function CodeEditor({
   db = '/sql/netflixdb.sqlite',
   schemaImage,
   schemaImageDark,
-  singleFile = false
+  singleFile = false,
+  solution,
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
   const { data: session } = useSession()
@@ -177,14 +200,24 @@ export const CodeEditor = memo(function CodeEditor({
   const [mounted, setMounted] = useState(false)
   const [runState, setRunState] = useState<RunState>(RunState.STOPPED)
   const [output, setOutput] = useState<OutputEntry[]>([])
+  const [verificationResult, setVerificationResult] = useState<{ isCorrect: boolean; showSolution: boolean } | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
 
   // User data persistence - only if pageId is provided
   const componentId = `code-editor-${id}`
   const highlightsComponentId = `code-highlights-${id}` // Separate adapter for broadcast highlights
+  const verificationComponentId = `sql-verification-${id}`
   const { data: savedData, updateData: savePersistentData, isLoading } = useUserData<CodeEditorData>(
     pageId || 'no-page', // Fallback if no pageId
     componentId,
+    null
+  )
+
+  // Persist SQL verification result so teachers can see class progress.
+  // Only active when this editor has a solution and a pageId to key the record.
+  const { updateData: saveVerification } = useSyncedUserData<SqlVerificationData>(
+    pageId && solution ? pageId : '',
+    verificationComponentId,
     null
   )
 
@@ -1851,6 +1884,7 @@ export const CodeEditor = memo(function CodeEditor({
   const runSqlQuery = async (query: string) => {
     setRunState(RunState.RUNNING)
     setOutput([]) // Clear previous output
+    setVerificationResult(null) // Reset verification on each run
 
     try {
       // Ensure database is configured
@@ -1866,6 +1900,7 @@ export const CodeEditor = memo(function CodeEditor({
       // Ensure database is loaded before executing query
       await loadDatabase(db)
 
+      // Run student query (with limit for display, without limit for verification)
       const result = await executeSqlQuery(query, db)
 
       if (result.success && result.results) {
@@ -1893,6 +1928,21 @@ export const CodeEditor = memo(function CodeEditor({
         // Show output panel
         setPanelVisible(true)
         setActivePanel('output')
+
+        // Verification: compare student result against solution (both without limit)
+        if (solution) {
+          const studentFull = await executeSqlQuery(query, db, { applyLimit: false })
+          const solutionFull = await executeSqlQuery(solution, db, { applyLimit: false })
+          const isCorrect =
+            studentFull.success &&
+            solutionFull.success &&
+            compareResultSets(studentFull.results ?? [], solutionFull.results ?? [])
+          setVerificationResult({ isCorrect, showSolution: false })
+          // Persist so teacher can see class progress
+          if (pageId) {
+            saveVerification({ isCorrect, hasAttempted: true }, { immediate: true })
+          }
+        }
       } else {
         addOutput(result.error || 'Unknown error occurred', OutputLevel.ERROR)
       }
@@ -2348,6 +2398,7 @@ plots
   }
 
   return (
+    <>
     <div
       ref={wrapperRef}
       className="flex flex-col w-full border rounded-lg overflow-hidden bg-background relative z-0"
@@ -2770,6 +2821,27 @@ plots
         {/* Panel Content */}
         {activePanel === 'output' ? (
           <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm" style={{ overscrollBehaviorY: 'contain' }}>
+            {/* SQL verification feedback banner */}
+            {verificationResult !== null && (
+              <div className={`mb-2 rounded px-3 py-2 text-sm font-sans ${verificationResult.isCorrect ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'}`}>
+                {verificationResult.isCorrect ? (
+                  <span>&#10003; Korrekt!</span>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <span>&#10007; Die Ergebnisse stimmen nicht überein.</span>
+                    <button
+                      className="underline text-left text-xs opacity-80 hover:opacity-100"
+                      onClick={() => setVerificationResult(prev => prev ? { ...prev, showSolution: !prev.showSolution } : prev)}
+                    >
+                      {verificationResult.showSolution ? 'Lösung verbergen' : 'Lösung anzeigen'}
+                    </button>
+                    {verificationResult.showSolution && solution && (
+                      <pre className="mt-1 bg-black/10 dark:bg-white/10 rounded px-2 py-1 text-xs overflow-x-auto">{solution}</pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {output.map((entry, index) => (
                 <div key={index} className="mb-2">
                   {/* Text message */}
@@ -3176,5 +3248,16 @@ plots
         document.body
       )}
     </div>
+
+    {/* Teacher class progress for SQL verification exercises */}
+    {solution && pageId && isTeacher && selectedClass && (
+      <SqlProgressBar
+        classId={selectedClass.id}
+        className={selectedClass.name}
+        pageId={pageId}
+        componentId={verificationComponentId}
+      />
+    )}
+    </>
   )
 })
