@@ -3,6 +3,7 @@ import { AdminPageBuilderPlaceholder } from '@/components/dashboard/admin-page-b
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
 
 export default async function PageBuilderPage() {
   const session = await getServerSession(authOptions)
@@ -12,14 +13,20 @@ export default async function PageBuilderPage() {
     redirect('/dashboard/my-classes')
   }
 
-  // Platform admins don't have personal pages
-  if (session?.user?.isAdmin) {
+  // Show placeholder only for the default eduadmin account, not all admins
+  if (session?.user?.pageSlug === 'eduadmin') {
+    const [userCount, orgCount] = await Promise.all([
+      prisma.user.count({ where: { NOT: { pageSlug: 'eduadmin' } } }),
+      prisma.organization.count(),
+    ])
+    const canSeed = userCount === 0 && orgCount === 0
+
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Page Builder</h1>
         </div>
-        <AdminPageBuilderPlaceholder />
+        <AdminPageBuilderPlaceholder canSeed={canSeed} />
       </div>
     )
   }

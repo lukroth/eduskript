@@ -4,7 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
-export function AdminPageBuilderPlaceholder() {
+interface Props {
+  canSeed: boolean
+}
+
+export function AdminPageBuilderPlaceholder({ canSeed }: Props) {
   const [seeding, setSeeding] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<{ orgId: string; orgSlug: string } | null>(null)
@@ -34,10 +38,10 @@ export function AdminPageBuilderPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center space-y-6 max-w-lg mx-auto">
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">You&apos;re a super admin</h2>
+        <h2 className="text-xl font-semibold">You&apos;re logged in as eduadmin</h2>
         <p className="text-muted-foreground">
-          Super admins don&apos;t have personal pages, but you can create an organization and
-          teachers who can.
+          Eduadmin is the default super admin and doesn&apos;t have a personal page. You can create
+          an organization and users who can be super admins.
         </p>
       </div>
 
@@ -60,9 +64,11 @@ export function AdminPageBuilderPlaceholder() {
         </div>
       ) : (
         <div className="flex gap-3">
-          <Button onClick={handleSeed} disabled={seeding} variant="default">
-            {seeding ? 'Seeding...' : 'Seed Sample Data'}
-          </Button>
+          {canSeed && (
+            <Button onClick={handleSeed} disabled={seeding} variant="default">
+              {seeding ? 'Seeding...' : 'Seed Sample Data'}
+            </Button>
+          )}
           <Button asChild variant="outline">
             <Link href="/dashboard/admin">Go to Admin Panel →</Link>
           </Button>

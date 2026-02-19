@@ -160,8 +160,8 @@ export function DashboardSidebar() {
             </>
           )}
 
-          {/* Teacher Navigation - Personal Section (hidden for platform admins) */}
-          {isTeacher && !session?.user?.isAdmin && (
+          {/* Teacher Navigation - Personal Section (hidden for eduadmin default account) */}
+          {isTeacher && session?.user?.pageSlug !== 'eduadmin' && (
             <>
               <SectionHeader title={userName} isCollapsed={isCollapsed} />
               {personalNavigation.map((item) => {
