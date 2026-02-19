@@ -1120,6 +1120,11 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const [penActive, setPenActive] = useState(false)
   // Use refs for zoom to avoid re-renders on every gesture
   const zoomRef = useRef(1.0)
+  // Tracks the zoom level actually rendered in the DOM (updated only inside RAF, after DOM write).
+  // Needed because zoomRef is updated immediately on each wheel event for accumulation, but
+  // the RAF may be cancelled before it applies the transform. Using zoomRef as oldZoom for scroll
+  // calculations would reference a never-rendered zoom, causing the focal point to drift top-left.
+  const renderedZoomRef = useRef(1.0)
   const rafIdRef = useRef<number | null>(null)
   const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
   const initialPinchDistanceRef = useRef<number | null>(null)
@@ -2394,7 +2399,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   // Helper function to apply zoom transform using RAF (no re-renders)
   // With native scroll, we only need to handle zoom - scroll is handled by browser
   const applyZoom = useCallback((newZoom: number, focalX?: number, focalY?: number) => {
-    const oldZoom = zoomRef.current
+    // Use renderedZoomRef (actual DOM state) not zoomRef (which may already be ahead of the DOM
+    // due to rapid wheel events cancelling each other's RAFs before they execute).
+    const oldZoom = renderedZoomRef.current
     zoomRef.current = newZoom
 
     // Cancel any pending RAF
@@ -2406,6 +2413,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     rafIdRef.current = requestAnimationFrame(() => {
       if (mainRef.current) {
         mainRef.current.style.transform = `scale(${newZoom})`
+        renderedZoomRef.current = newZoom
       }
 
       // Adjust scroll position to keep focal point stationary
@@ -2517,6 +2525,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       // Apply transform and scroll synchronously (no RAF) for smooth gesture handling
       zoomRef.current = newZoom
+      renderedZoomRef.current = newZoom
       if (mainRef.current) {
         mainRef.current.style.transform = `scale(${newZoom})`
       }

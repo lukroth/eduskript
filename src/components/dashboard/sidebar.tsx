@@ -54,7 +54,7 @@ export function DashboardSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { data: session } = useSession()
   const hasPendingInvitations = usePendingInvitations()
-  const [lastTeacherPage, setLastTeacherPage] = useState<{ slug: string; name: string } | null>(null)
+  const [lastTeacherPage, setLastTeacherPage] = useState<{ slug: string; name: string; pageIcon?: string | null; href?: string } | null>(null)
   const [adminOrgs, setAdminOrgs] = useState<OrgWithRole[]>([])
 
   // Determine which navigation to show based on account type
@@ -257,20 +257,20 @@ export function DashboardSidebar() {
           )}
         </nav>
 
-        {/* Back to Teacher Page link (students only) */}
-        {isStudent && (lastTeacherPage || session?.user?.signedUpFromPageSlug) && (
+        {/* Back to last lesson link (students only, requires having visited a teacher page) */}
+        {isStudent && lastTeacherPage && (
           <div className="mt-4 pt-4 border-t border-border">
             <Link
-              href={`/${lastTeacherPage?.slug || session?.user?.signedUpFromPageSlug}`}
+              href={lastTeacherPage.href || `/${lastTeacherPage.slug}`}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
                 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 isCollapsed ? 'justify-center px-2' : ''
               )}
-              title={isCollapsed ? `Back to ${lastTeacherPage?.name || session?.user?.signedUpFromPageSlug}` : undefined}
+              title={isCollapsed ? `Back to ${lastTeacherPage.name}` : undefined}
             >
               <ExternalLink className="w-5 h-5" />
-              {!isCollapsed && <span>Back to {lastTeacherPage?.name || session?.user?.signedUpFromPageSlug}</span>}
+              {!isCollapsed && <span>Back to {lastTeacherPage.name}</span>}
             </Link>
           </div>
         )}

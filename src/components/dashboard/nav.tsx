@@ -1,44 +1,80 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
+import { NotebookPen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from './theme-toggle'
 
+interface TeacherPageInfo {
+  slug: string
+  name: string
+  pageIcon?: string | null
+}
+
 export function DashboardNav() {
   const { data: session } = useSession()
+  const isStudent = session?.user?.accountType === 'student'
+  const [teacherPage, setTeacherPage] = useState<TeacherPageInfo | null>(null)
 
-  // For students, redirect to last visited teacher page (from localStorage or session fallback)
-  // For teachers, redirect to homepage
-  const getSignOutUrl = () => {
-    if (session?.user?.accountType !== 'student') return '/'
+  // For students, load teacher page info from localStorage (set when visiting a teacher's public site)
+  useEffect(() => {
+    if (!isStudent) return
 
-    // Try localStorage first (last visited teacher page)
     try {
       const stored = localStorage.getItem('lastTeacherPage')
       if (stored) {
-        const { slug } = JSON.parse(stored)
-        if (slug) return `/${slug}`
+        setTeacherPage(JSON.parse(stored))
+        return
       }
     } catch {
       // Ignore parse errors
     }
 
-    // Fallback to session (signed up from page)
+    // Fallback: session has the slug they signed up from but no icon/name
     if (session?.user?.signedUpFromPageSlug) {
-      return `/${session.user.signedUpFromPageSlug}`
+      setTeacherPage({ slug: session.user.signedUpFromPageSlug, name: session.user.signedUpFromPageSlug })
     }
+  }, [isStudent, session?.user?.signedUpFromPageSlug])
 
-    return '/'
+  const getSignOutUrl = () => {
+    if (!isStudent) return '/'
+    return teacherPage ? `/${teacherPage.slug}` : '/'
   }
 
   return (
     <nav className="border-b border-border bg-card px-6 py-4">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-xl font-bold text-foreground">
-            Eduskript
-          </Link>
+          {/* For students: show teacher's logo + page name, linking to their root page */}
+          {isStudent && teacherPage ? (
+            <Link href={`/${teacherPage.slug}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              {teacherPage.pageIcon === 'default' ? (
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                  <NotebookPen className="w-5 h-5 text-muted-foreground" />
+                </div>
+              ) : teacherPage.pageIcon ? (
+                <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-background">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={teacherPage.pageIcon} alt="Page icon" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                  <span className="text-muted-foreground font-bold text-sm">
+                    {(teacherPage.name || 'P').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <span className="text-xl font-bold text-foreground font-heading">
+                {teacherPage.name}
+              </span>
+            </Link>
+          ) : (
+            <Link href="/dashboard" className="text-xl font-bold text-foreground">
+              Eduskript
+            </Link>
+          )}
           <div className="text-sm text-muted-foreground">
             Welcome back, {session?.user?.name}
           </div>

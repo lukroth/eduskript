@@ -95,16 +95,19 @@ export function PublicSiteLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
-  // Track last visited teacher page for students (used for "Back to" link and signout redirect)
+  // Track last visited teacher page for students (used for "Back to" link, signout redirect, and nav logo)
+  // Runs on every page navigation (currentPath dep) so href always reflects the exact current lesson
   useEffect(() => {
     if (session?.user?.accountType === 'student' && teacher.pageSlug) {
       const lastTeacherPage = {
         slug: teacher.pageSlug,
-        name: teacher.pageName || teacher.name || teacher.pageSlug
+        name: teacher.pageName || teacher.name || teacher.pageSlug,
+        pageIcon: teacher.pageIcon ?? null,
+        href: window.location.href,
       }
       localStorage.setItem('lastTeacherPage', JSON.stringify(lastTeacherPage))
     }
-  }, [session?.user?.accountType, teacher.pageSlug, teacher.pageName, teacher.name])
+  }, [session?.user?.accountType, teacher.pageSlug, teacher.pageName, teacher.name, teacher.pageIcon, currentPath])
 
   // Sync local sidebar collapse state with global context
   useEffect(() => {
