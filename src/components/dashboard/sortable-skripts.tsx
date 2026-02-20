@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { GripVertical, Trash2, Eye, Edit, Globe, ExternalLink, Loader2 } from 'lucide-react'
+import { usePublicUrl } from '@/hooks/use-public-url'
 
 interface Skript {
   id: string
@@ -70,6 +71,7 @@ function SortableSkriptItem({
     skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
   const isViewOnly = !canEditSkript
   const alert = useAlertDialog()
+  const { buildViewUrl } = usePublicUrl(username)
   const [isPublishingAll, setIsPublishingAll] = useState(false)
 
   const handlePublishAll = async () => {
@@ -96,10 +98,8 @@ function SortableSkriptItem({
   const handlePreview = () => {
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
-      // Use /preview/ route for unpublished content
       const isFullyPublished = skript.isPublished && firstPage.isPublished
-      const basePath = isFullyPublished ? '' : '/preview'
-      window.open(`${basePath}/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+      window.open(buildViewUrl(collectionSlug, skript.slug, firstPage.slug, isFullyPublished), '_blank')
     }
   }
 
@@ -303,6 +303,7 @@ function StaticSkriptItem({
     skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
   const isViewOnly = !canEditSkript
   const alert = useAlertDialog()
+  const { buildViewUrl } = usePublicUrl(username)
   const [isPublishingAll, setIsPublishingAll] = useState(false)
 
   const handlePublishAll = async () => {
@@ -329,10 +330,8 @@ function StaticSkriptItem({
   const handlePreview = () => {
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
-      // Use /preview/ route for unpublished content
       const isFullyPublished = skript.isPublished && firstPage.isPublished
-      const basePath = isFullyPublished ? '' : '/preview'
-      window.open(`${basePath}/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+      window.open(buildViewUrl(collectionSlug, skript.slug, firstPage.slug, isFullyPublished), '_blank')
     }
   }
 

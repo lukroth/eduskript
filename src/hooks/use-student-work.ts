@@ -110,7 +110,8 @@ export function useStudentWork({
 
   useEffect(() => {
     fetchStudentWork()
-  }, [classId, studentId, pageId, adaptersKey]) // Don't include fetchStudentWork to avoid loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchStudentWork has `data` in its deps, including it here would cause infinite refetch
+  }, [classId, studentId, pageId, adaptersKey])
 
   // Subscribe to real-time student work updates via SSE
   // When the student we're viewing saves their work, automatically refetch

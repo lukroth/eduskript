@@ -217,7 +217,7 @@ export function PublicSiteLayout({
     })
 
     if (hasChanges) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setExpandedSkripts(newExpandedSkripts)
     }
   }, [currentPath, isInitialized, expandedSkripts, siteStructure])

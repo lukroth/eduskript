@@ -14,6 +14,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { ArrowLeft, Save, History, Eye, Files } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { usePublicUrl } from '@/hooks/use-public-url'
 
 interface FrontPageVersion {
   id: string
@@ -74,6 +75,19 @@ export function FrontPageEditor({
   const contentRef = useRef(content)
   const router = useRouter()
   const { data: session } = useSession()
+  const pageSlug = (session?.user as { pageSlug?: string })?.pageSlug
+  const { isCustomDomain } = usePublicUrl(pageSlug)
+
+  // On custom domains, the proxy prepends the pageSlug, so strip it from previewUrl
+  const resolvedPreviewUrl = (() => {
+    if (!previewUrl || !isCustomDomain || !pageSlug) return previewUrl
+    // Strip leading /{pageSlug} — proxy will add it back
+    const prefix = `/${pageSlug}`
+    if (previewUrl.startsWith(prefix)) {
+      return previewUrl.slice(prefix.length) || '/'
+    }
+    return previewUrl
+  })()
   const alert = useAlertDialog()
 
   // File list state for file browser
@@ -491,7 +505,7 @@ export function FrontPageEditor({
   // Load version history on mount and when frontPageId changes
   useEffect(() => {
     if (frontPageId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch is acceptable
+       
       loadVersions()
     }
   }, [frontPageId, loadVersions])
@@ -536,9 +550,9 @@ export function FrontPageEditor({
               {isPublished ? 'Published' : 'Draft'}
             </Button>
 
-            {previewUrl && (
+            {resolvedPreviewUrl && (
               <Link
-                href={previewUrl}
+                href={resolvedPreviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 prefetch={false}
@@ -580,9 +594,9 @@ export function FrontPageEditor({
               {isPublished ? 'Published' : 'Draft'}
             </Button>
 
-            {previewUrl && (
+            {resolvedPreviewUrl && (
               <Link
-                href={previewUrl}
+                href={resolvedPreviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 prefetch={false}

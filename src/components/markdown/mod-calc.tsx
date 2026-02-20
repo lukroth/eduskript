@@ -23,14 +23,14 @@ export function ModCalc() {
         const res = b ** e % m
         // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from inputs
         setResult(Number(res))
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setNonsense(false)
       } catch {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setNonsense(true)
       }
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setNonsense(true)
     }
   }, [base, exponent, modulus])

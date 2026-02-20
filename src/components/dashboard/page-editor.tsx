@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSession } from 'next-auth/react'
+import { usePublicUrl } from '@/hooks/use-public-url'
 import type { VideoInfo } from '@/lib/skript-files'
 
 interface PageVersion {
@@ -87,6 +88,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const contentRef = useRef(content)
   const router = useRouter()
   const { data: session, status: sessionStatus } = useSession()
+  const { buildPreviewUrl } = usePublicUrl((session?.user as { pageSlug?: string })?.pageSlug)
   const alert = useAlertDialog()
 
   // Exam settings state
@@ -637,7 +639,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           />
           {sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
             <Link
-              href={`/preview/${(session?.user as { pageSlug?: string })?.pageSlug}/${collection.slug}/${skript.slug}/${page.slug}`}
+              href={buildPreviewUrl(collection.slug, skript.slug, page.slug)}
               target="_blank"
               rel="noopener noreferrer"
               prefetch={false}

@@ -816,7 +816,7 @@ const SnapItem = memo(function SnapItem({
 
     window.addEventListener('pointermove', handlePointerMoveRef.current)
     window.addEventListener('pointerup', handlePointerUpRef.current)
-  }, [snap.id, snap.top, snap.left, snap.width, snap.height])
+  }, [snap.top, snap.left, snap.width, snap.height])
 
   // Start potential drag from image area (click vs drag detection)
   const handleImagePointerDown = useCallback((e: React.PointerEvent) => {
@@ -1041,7 +1041,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
     })
 
     if (newIds.size > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: triggers animation for new snaps, cleaned up with timeout
+       
       setNewSnapIds(newIds)
       const timer = setTimeout(() => setNewSnapIds(new Set()), 150)
       prevSnapIdsRef.current = currentIds

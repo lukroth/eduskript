@@ -63,6 +63,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/auth') ||
     pathname.startsWith('/org/') ||
     pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/preview') ||
     pathname.startsWith('/exam-complete')
   ) {
     return NextResponse.next()

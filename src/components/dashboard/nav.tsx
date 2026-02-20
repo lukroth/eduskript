@@ -35,7 +35,7 @@ export function DashboardNav() {
 
     // Fallback: session has the slug they signed up from but no icon/name
     if (session?.user?.signedUpFromPageSlug) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setTeacherPage({ slug: session.user.signedUpFromPageSlug, name: session.user.signedUpFromPageSlug })
     }
   }, [isStudent, session?.user?.signedUpFromPageSlug])
