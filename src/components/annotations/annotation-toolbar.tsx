@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe, Layers } from 'lucide-react'
+import { Pen, Eraser, Trash2, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe, Layers, Camera } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/contexts/layout-context'
@@ -1083,6 +1083,28 @@ export function AnnotationToolbar({
           >
             <Eraser className="w-4 h-4" />
           </button>
+
+          {/* Snap Camera - tooltip hint for paste-to-snap workflow */}
+          <div className="relative group">
+            <button
+              className="p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent"
+              aria-label="Snap: take a screenshot and paste it here"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block pointer-events-none z-50">
+              <div className="bg-popover text-popover-foreground text-sm rounded-md shadow-lg border border-border px-3 py-2 flex items-baseline gap-1.5 whitespace-nowrap">
+                <span>Paste a screenshot with</span>
+                <span className="inline-flex items-baseline gap-0.5">
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono border border-border shadow-sm leading-none">Ctrl</kbd>
+                  <span className="text-muted-foreground">/</span>
+                  <kbd className="px-1.5 pt-0.5 bg-muted rounded text-lg border border-border shadow-sm leading-none translate-y-[2px]">⌘</kbd>
+                </span>
+                <span className="text-muted-foreground">+</span>
+                <kbd className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono border border-border shadow-sm leading-none">V</kbd>
+              </div>
+            </div>
+          </div>
 
         </ToolbarSection>
       </div>
