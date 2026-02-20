@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isCustomDomainServer } from '@/lib/custom-domain'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { ServerMarkdownRenderer } from '@/components/markdown/markdown-renderer.server'
 import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
@@ -121,7 +123,12 @@ export default async function PreviewPage({ params }: PageProps) {
 
   // If everything is published, redirect to the public URL
   if (!isPreviewMode) {
-    redirect(`/${domain}/${collectionSlug}/${skriptSlug}/${pageSlug}`)
+    const host = (await headers()).get('host') || ''
+    // On custom domains the proxy prepends the pageSlug, so omit it
+    const publicPath = isCustomDomainServer(host)
+      ? `/${collectionSlug}/${skriptSlug}/${pageSlug}`
+      : `/${domain}/${collectionSlug}/${skriptSlug}/${pageSlug}`
+    redirect(publicPath)
   }
 
   // Build site structure for navigation (show all pages for author)

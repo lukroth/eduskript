@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-
-const MAIN_DOMAINS = ['localhost', 'eduskript.org', 'www.eduskript.org']
+import { isCustomDomainServer } from '@/lib/custom-domain'
 
 /**
  * Builds public-facing URLs, accounting for custom domains.
@@ -14,7 +13,7 @@ const MAIN_DOMAINS = ['localhost', 'eduskript.org', 'www.eduskript.org']
 export function usePublicUrl(pageSlug: string | undefined) {
   const isCustomDomain = useMemo(() => {
     if (typeof window === 'undefined') return false
-    return !MAIN_DOMAINS.includes(window.location.hostname)
+    return isCustomDomainServer(window.location.hostname)
   }, [])
 
   /** Build a public page URL: /{collection}/{skript}/{page} */
