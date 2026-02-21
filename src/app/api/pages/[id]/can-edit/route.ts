@@ -63,13 +63,7 @@ export async function GET(
       return NextResponse.json({ canEdit: false })
     }
 
-    // Build edit URL from path info
-    const collectionSkript = page.skript.collectionSkripts[0]
-    if (!collectionSkript?.collection) {
-      return NextResponse.json({ canEdit: false })
-    }
-
-    const editUrl = `/dashboard/collections/${collectionSkript.collection.slug}/skripts/${page.skript.slug}/pages/${page.slug}/edit`
+    const editUrl = `/dashboard/skripts/${page.skript.slug}/pages/${page.slug}/edit`
 
     return NextResponse.json({ canEdit: true, editUrl })
   } catch (error) {

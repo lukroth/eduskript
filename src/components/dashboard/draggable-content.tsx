@@ -32,7 +32,6 @@ interface DraggableSkriptProps extends BaseContentProps {
   authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
   currentUserId: string
   slug?: string
-  collectionSlug?: string
 }
 
 export function DraggableCollection({ 
@@ -71,18 +70,7 @@ export function DraggableCollection({
           )}
         >
           <CardContent className="p-4 relative">
-            {!isViewOnly && slug && (
-              <Link href={`/dashboard/collections/${slug}`} className="absolute top-2 right-2 z-10">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-              </Link>
-            )}
+            {/* Collections are managed via page builder - no standalone edit page */}
             <div className="flex items-start gap-3">
               {/* Drag Handle */}
               <div 
@@ -141,8 +129,7 @@ export function DraggableSkript({
   isViewOnly = false,
   className,
   index = 0,
-  slug,
-  collectionSlug
+  slug
 }: DraggableSkriptProps) {
   // Separate authors by permission
   const editableBy = authors.filter(author => 
@@ -171,8 +158,8 @@ export function DraggableSkript({
           )}
         >
           <CardContent className="p-4 relative">
-            {!isViewOnly && slug && collectionSlug && (
-              <Link href={`/dashboard/collections/${collectionSlug}/skripts/${slug}`} className="absolute top-2 right-2 z-10">
+            {!isViewOnly && slug && (
+              <Link href={`/dashboard/skripts/${slug}`} className="absolute top-2 right-2 z-10">
                 <Button
                   size="sm"
                   variant="ghost"

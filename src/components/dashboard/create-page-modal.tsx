@@ -13,13 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { Plus } from 'lucide-react'
+import { Plus, FileText } from 'lucide-react'
 
 interface CreatePageModalProps {
   skriptId: string
@@ -85,20 +79,14 @@ export function CreatePageModal({ skriptId, onPageCreated }: CreatePageModalProp
   }
 
   return (
-    <TooltipProvider>
       <Dialog open={open} onOpenChange={setOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </DialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Add Page</p>
-          </TooltipContent>
-        </Tooltip>
+        <DialogTrigger asChild>
+          <button className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+            <Plus className="w-4 h-4 flex-shrink-0" />
+            <FileText className="w-4 h-4 flex-shrink-0" />
+            <span>Add page</span>
+          </button>
+        </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Page</DialogTitle>
@@ -152,6 +140,5 @@ export function CreatePageModal({ skriptId, onPageCreated }: CreatePageModalProp
         </form>
       </DialogContent>
       </Dialog>
-    </TooltipProvider>
   )
 }

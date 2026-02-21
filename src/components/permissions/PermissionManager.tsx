@@ -23,8 +23,8 @@ interface UserPermission {
 }
 
 interface PermissionManagerProps {
-  title: string
-  description: string
+  title?: string
+  description?: string
   contentId: string
   contentType: 'collection' | 'skript'
   currentUserId: string
@@ -33,6 +33,8 @@ interface PermissionManagerProps {
   onRemoveUser: (userId: string) => Promise<void>
   canManageAccess?: boolean
   onShareClick?: () => void
+  /** When true, renders without Card wrapper for embedding in other containers */
+  compact?: boolean
 }
 
 function UserCard({ 
@@ -153,7 +155,8 @@ export function PermissionManager({
   onPermissionChange,
   onRemoveUser,
   canManageAccess,
-  onShareClick
+  onShareClick,
+  compact = false
 }: PermissionManagerProps) {
   const [localPermissions, setLocalPermissions] = useState<UserPermission[]>(permissions)
 
@@ -249,31 +252,31 @@ export function PermissionManager({
     }
   }
 
-  return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              <CardTitle>{title}</CardTitle>
-            </div>
-            {canManageAccess && onShareClick && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onShareClick}
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="w-4 h-4" />
-                <Users className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
+  const shareButton = canManageAccess && onShareClick && (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onShareClick}
+      className="h-7 gap-1 px-2 text-muted-foreground hover:text-foreground"
+      title="Share with collaborator"
+    >
+      <Plus className="w-3.5 h-3.5" />
+      <Users className="w-3.5 h-3.5" />
+    </Button>
+  )
 
-        <CardContent>
+  const addCollaboratorEntry = canManageAccess && onShareClick && (
+    <button
+      onClick={onShareClick}
+      className="flex items-center gap-2 w-full p-3 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+    >
+      <Plus className="w-4 h-4 flex-shrink-0" />
+      <Users className="w-4 h-4 flex-shrink-0" />
+      <span>Add collaborator</span>
+    </button>
+  )
+
+  const content = (
           <div className="space-y-6">
             {/* Can Read and Write */}
             <div>
@@ -324,6 +327,7 @@ export function PermissionManager({
                   </div>
                 )}
               </Droppable>
+              {addCollaboratorEntry}
             </div>
 
             {/* Can Only Read */}
@@ -374,8 +378,41 @@ export function PermissionManager({
                   </div>
                 )}
               </Droppable>
+              {addCollaboratorEntry}
             </div>
           </div>
+  )
+
+  if (compact) {
+    return (
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="p-3">
+          {content}
+        </div>
+      </DragDropContext>
+    )
+  }
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <Card className="w-full">
+        {title && (
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                <CardTitle>{title}</CardTitle>
+              </div>
+              {shareButton}
+            </div>
+            {description && <CardDescription>{description}</CardDescription>}
+          </CardHeader>
+        )}
+        <CardContent>
+          {!title && shareButton && (
+            <div className="flex justify-end mb-2">{shareButton}</div>
+          )}
+          {content}
         </CardContent>
       </Card>
     </DragDropContext>

@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
@@ -14,9 +14,11 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookOpen, FileText, Plus, GripVertical } from 'lucide-react'
-import { AIEditModal } from '@/components/ai'
+import { EditModal } from '@/components/dashboard/edit-modal'
 import { CreatePageModal } from '@/components/dashboard/create-page-modal'
+import { SkriptAccessManager } from '@/components/permissions/SkriptAccessManager'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookA, BookOpen, FileText, FilePenLine, GripVertical, Trash2, Users, Wand2 } from 'lucide-react'
+import { AIEditModal } from '@/components/ai'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -29,6 +31,8 @@ import {
 import { useSession } from 'next-auth/react'
 import { usePublicUrl } from '@/hooks/use-public-url'
 import type { VideoInfo } from '@/lib/skript-files'
+import type { Skript, SkriptAuthor, User, Collection, CollectionSkript } from '@prisma/client'
+import type { UserPermissions } from '@/types'
 
 interface PageVersion {
   id: string
@@ -49,17 +53,24 @@ interface SkriptPage {
   isPublished: boolean
 }
 
+type SkriptAuthorWithUser = SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email' | 'image' | 'title'> }
+type CollectionSkriptWithCollection = CollectionSkript & { collection: Collection | null }
+
+interface SkriptWithData extends Skript {
+  authors: SkriptAuthorWithUser[]
+  collectionSkripts: CollectionSkriptWithCollection[]
+}
+
 interface PageEditorProps {
-  collection: {
-    id: string
-    slug: string
-    title: string
-  }
   skript: {
     id: string
     slug: string
     title: string
+    description: string | null
+    isPublished: boolean
     pages?: SkriptPage[]
+    authors: SkriptAuthorWithUser[]
+    collectionSkripts: CollectionSkriptWithCollection[]
   }
   page: {
     id: string
@@ -73,15 +84,19 @@ interface PageEditorProps {
       requireSEB?: boolean
     } | null
   }
+  canEdit: boolean
+  userPermissions: UserPermissions
+  currentUserId: string
 }
 
-export function PageEditor({ collection, skript, page }: PageEditorProps) {
+export function PageEditor({ skript, page, canEdit, userPermissions, currentUserId }: PageEditorProps) {
   const [title, setTitle] = useState(page.title || '')
   const [slug, setSlug] = useState(page.slug || '')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState(page.content || '')
   const [isPublished] = useState(page.isPublished || false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [versions, setVersions] = useState<PageVersion[]>([])
@@ -101,6 +116,23 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
+
+  // Persisted skript tab state — null means all collapsed
+  const [activeSkriptTab, setActiveSkriptTab] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('eduskript:skript-tab') || null
+  })
+  const handleSkriptTabClick = useCallback((tab: string) => {
+    setActiveSkriptTab(prev => {
+      const next = prev === tab ? null : tab
+      if (next) {
+        localStorage.setItem('eduskript:skript-tab', next)
+      } else {
+        localStorage.removeItem('eduskript:skript-tab')
+      }
+      return next
+    })
+  }, [])
 
   // Pages list with local reordering
   const [pages, setPages] = useState<SkriptPage[]>(skript.pages || [])
@@ -192,7 +224,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         const updatedPage = await response.json()
         if (updatedPage.slug !== page.slug) {
           // Slug changed, redirect to new URL
-          const newUrl = `/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${updatedPage.slug}/edit`
+          const newUrl = `/dashboard/skripts/${skript.slug}/pages/${updatedPage.slug}/edit`
           router.push(newUrl)
         } else {
           // Just reload the page data
@@ -206,6 +238,36 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       console.error('Error fetching updated page:', error)
       // If fetch fails, just reload
       window.location.reload()
+    }
+  }
+
+  // Skript-level handlers
+  const handleSkriptUpdated = (newSlug?: string) => {
+    if (newSlug) {
+      router.push(`/dashboard/skripts/${newSlug}/pages/${page.slug}/edit`)
+    } else {
+      router.refresh()
+    }
+  }
+
+  const handleDeleteSkript = async () => {
+    if (!confirm(`Delete "${skript.title}" and all its pages?`)) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/skripts/${skript.id}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        router.push('/dashboard/page-builder')
+      } else {
+        alert.showError('Failed to delete skript')
+      }
+    } catch (error) {
+      console.error('Error deleting skript:', error)
+      alert.showError('Failed to delete skript')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -481,7 +543,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     const userPageSlug = (session?.user as { pageSlug?: string })?.pageSlug
     if (!userPageSlug) return
 
-    const examUrl = `https://${window.location.host}/${userPageSlug}/${collection.slug}/${skript.slug}/${page.slug}`
+    const examUrl = `https://${window.location.host}/${userPageSlug}/${skript.slug}/${page.slug}`
     await navigator.clipboard.writeText(examUrl)
     setSebLinkCopied(true)
     setTimeout(() => setSebLinkCopied(false), 2000)
@@ -517,7 +579,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         loadVersions()
         // Update URL if slug changed
         if (slug !== originalSlug) {
-          const newUrl = `/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${slug}/edit`
+          const newUrl = `/dashboard/skripts/${skript.slug}/pages/${slug}/edit`
           router.push(newUrl)
           return // Don't continue with other updates since we're navigating
         }
@@ -530,7 +592,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       alert.showError('Failed to save page')
     }
     setIsSaving(false)
-  }, [title, slug, description, isPublished, pageType, examSettings, page.id, page.slug, collection.slug, skript.slug, router, loadVersions, alert])
+  }, [title, slug, description, isPublished, pageType, examSettings, page.id, page.slug, skript.slug, router, loadVersions, alert])
 
   // Handle version restoration
   const handleRestoreVersion = async (versionId: string, versionContent: string) => {
@@ -588,121 +650,310 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     loadVersions()
   }, [page.id, loadVersions])
 
+  // Build the skript object needed by SkriptAccessManager (needs full Skript model shape)
+  const skriptForAccessManager: SkriptWithData = {
+    id: skript.id,
+    slug: skript.slug,
+    title: skript.title,
+    description: skript.description,
+    isPublished: skript.isPublished,
+    authors: skript.authors,
+    collectionSkripts: skript.collectionSkripts,
+    // Fill in required Skript model fields with reasonable defaults
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    order: 0,
+    skriptType: 'normal',
+  } as SkriptWithData
+
   return (
     <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6 overflow-auto' : ''}`}>
-      {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-start">
-        {/* Column 1: Back button */}
-        <Link href={`/dashboard/collections/${collection.slug}`} className={`row-span-2 self-center ${isFullscreen ? 'hidden' : ''}`}>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
 
-        {/* Column 2 Row 1: Title */}
-        <Input
-          type="text"
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value)
-            setHasUnsavedChanges(true)
-          }}
-          placeholder="Page title"
-          className="text-2xl font-semibold border-transparent hover:border-border focus:border-border"
-        />
+      {/* ── SKRIPT SECTION ── (hidden in fullscreen) */}
+      {!isFullscreen && (
+        <section className="border rounded-lg">
+          {/* Header: back, title, actions, toggle tabs */}
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="flex items-center justify-between w-[7.5rem] flex-shrink-0">
+              <Link href="/dashboard/page-builder">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              </Link>
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm text-muted-foreground">Skript:</span>
+              </div>
+            </div>
+            <span className="text-3xl font-semibold truncate">{skript.title}</span>
+            {canEdit && (
+              <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                <PublishToggle
+                  type="skript"
+                  itemId={skript.id}
+                  isPublished={skript.isPublished}
+                  onToggle={() => {}}
+                  showText={false}
+                  size="sm"
+                />
+                <EditModal
+                  type="skript"
+                  item={skript}
+                  onItemUpdated={handleSkriptUpdated}
+                />
+                <Link href={`/dashboard/skripts/${skript.slug}/frontpage`}>
+                  <Button variant="ghost" size="sm" title="Front Page">
+                    <BookA className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDeleteSkript}
+                  disabled={isDeleting}
+                  title="Delete Skript"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
 
-        {/* Column 3 Row 1: Action buttons */}
-        <div className="flex gap-2 items-center">
-          {/* Page Type selector */}
-          <Select
-            value={pageType}
-            onValueChange={(value) => {
-              setPageType(value)
+          {/* Toggle tabs — always visible, clicking active tab collapses */}
+          <div className="flex items-center border-t">
+            <span className="px-3 text-xs text-muted-foreground whitespace-nowrap">Manage skript:</span>
+            {[
+              { id: 'pages', label: 'Pages', icon: <FileText className="w-3.5 h-3.5" /> },
+              { id: 'files', label: 'Files', icon: <Files className="w-3.5 h-3.5" /> },
+              { id: 'access', label: 'Access', icon: <Users className="w-3.5 h-3.5" /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => handleSkriptTabClick(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeSkriptTab === tab.id
+                    ? 'bg-background text-foreground shadow-sm border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground bg-muted/50'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content — only shown when a tab is active */}
+          {activeSkriptTab === 'pages' && (
+            <div className="border-t p-3">
+              {pages.map((p, idx) => (
+                <Fragment key={p.id}>
+                  <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === idx ? 'bg-primary' : 'bg-transparent'}`} />
+                  <div
+                    draggable
+                    onDragStart={() => { dragIdxRef.current = idx }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      setDragOverIdx(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1)
+                    }}
+                    onDragLeave={() => setDragOverIdx(null)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const fromIdx = dragIdxRef.current
+                      const toIdx = dragOverIdx
+                      dragIdxRef.current = null
+                      setDragOverIdx(null)
+                      if (fromIdx === null || toIdx === null || toIdx === fromIdx || toIdx === fromIdx + 1) return
+                      const newPages = [...pages]
+                      const [moved] = newPages.splice(fromIdx, 1)
+                      newPages.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, moved)
+                      handlePageReorder(newPages)
+                    }}
+                    onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null) }}
+                    className={`flex items-center gap-1 rounded-md text-sm transition-colors ${
+                      p.id === page.id ? 'bg-primary/10' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <GripVertical className="w-4 h-4 flex-shrink-0 text-muted-foreground opacity-40 hover:opacity-80 cursor-grab ml-1" />
+                    <Link
+                      href={`/dashboard/skripts/${skript.slug}/pages/${p.slug}/edit`}
+                      className={`flex items-center gap-2 flex-1 min-w-0 px-1 py-1.5 ${
+                        p.id === page.id
+                          ? 'text-primary font-medium'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{p.title}</span>
+                      {!p.isPublished && (
+                        <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
+                      )}
+                    </Link>
+                  </div>
+                </Fragment>
+              ))}
+              <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === pages.length ? 'bg-primary' : 'bg-transparent'}`} />
+              <CreatePageModal
+                skriptId={skript.id}
+                onPageCreated={() => router.refresh()}
+              />
+            </div>
+          )}
+
+          {activeSkriptTab === 'files' && (
+            <div className="border-t">
+              <FileBrowser
+                skriptId={skript.id}
+                files={fileList}
+                loading={fileListLoading}
+                onFileSelect={(file) => {
+                  handleFileInsert(file)
+                  refreshFileList()
+                }}
+                onUploadComplete={refreshFileList}
+                onFileRenamed={handleFileRenamed}
+                onExcalidrawEdit={handleExcalidrawEdit}
+              />
+            </div>
+          )}
+
+          {activeSkriptTab === 'access' && (
+            <div className="border-t">
+              {canEdit && userPermissions.canManageAuthors ? (
+                <SkriptAccessManager
+                  skript={skriptForAccessManager}
+                  userPermissions={userPermissions}
+                  currentUserId={currentUserId}
+                  onPermissionChange={() => router.refresh()}
+                  compact
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground p-3">Only skript owners can manage access.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── PAGE SECTION ── */}
+      <section className="space-y-4">
+        {/* Page title + description */}
+        <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-1.5 w-[7.5rem] flex-shrink-0">
+            <FilePenLine className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm text-muted-foreground">Page:</span>
+          </div>
+          <Input
+            type="text"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value)
               setHasUnsavedChanges(true)
             }}
-          >
-            <SelectTrigger className="w-[90px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="normal">Normal</SelectItem>
-              <SelectItem value="exam">Exam</SelectItem>
-            </SelectContent>
-          </Select>
-          <PublishToggle
-            type="page"
-            itemId={page.id}
-            isPublished={page.isPublished}
-            onToggle={() => {}} // No-op - PublishToggle manages its own state
-            showText={false}
-            size="sm"
+            placeholder="Page title"
+            className="flex-1 min-w-0 text-2xl font-semibold border-transparent hover:border-border focus:border-border"
           />
-          {sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
-            <Link
-              href={buildPreviewUrl(collection.slug, skript.slug, page.slug)}
-              target="_blank"
-              rel="noopener noreferrer"
-              prefetch={false}
+          <div className="flex gap-2 items-center flex-shrink-0">
+            <Select
+              value={pageType}
+              onValueChange={(value) => {
+                setPageType(value)
+                setHasUnsavedChanges(true)
+              }}
             >
-              <Button variant="ghost" size="sm" title="Preview page (works for unpublished)">
-                <Eye className="w-4 h-4" />
-              </Button>
-            </Link>
-          )}
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            size="sm"
-            className="relative"
-            title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
-          >
-
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save'}
-
-            {hasUnsavedChanges && (
-              <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+              <SelectTrigger className="w-[90px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="exam">Exam</SelectItem>
+              </SelectContent>
+            </Select>
+            <PublishToggle
+              type="page"
+              itemId={page.id}
+              isPublished={page.isPublished}
+              onToggle={() => {}}
+              showText={false}
+              size="sm"
+            />
+            {sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
+              <Link
+                href={buildPreviewUrl(skript.slug, page.slug)}
+                target="_blank"
+                rel="noopener noreferrer"
+                prefetch={false}
+              >
+                <Button variant="ghost" size="sm" title="Preview page (works for unpublished)">
+                  <Eye className="w-4 h-4" />
+                </Button>
+              </Link>
             )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAiEditModalOpen(true)}
+              title="AI Edit"
+            >
+              <Wand2 className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="sm"
+              className="relative"
+              title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Save'}
+              {hasUnsavedChanges && (
+                <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
 
-        {/* Column 2 Row 2: Description */}
-        <Input
-          type="text"
-          value={description}
-          onChange={(e) => {
-            setDescription(e.target.value)
-            setHasUnsavedChanges(true)
-          }}
-          placeholder="Description (optional)"
-          className="text-sm border-transparent hover:border-border focus:border-border"
-        />
+        {/* Description + Slug */}
+        {!isFullscreen && (
+          <div className="flex items-center gap-2">
+            <div className="w-[7.5rem] flex-shrink-0" />
+            <Input
+              type="text"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value)
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="Description (optional)"
+              className="flex-1 min-w-0 text-sm border-transparent hover:border-border focus:border-border"
+            />
+            <Input
+              type="text"
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value)
+                setHasUnsavedChanges(true)
+              }}
+              placeholder="page-slug"
+              className="text-sm font-mono border-transparent hover:border-border focus:border-border w-[200px] flex-shrink-0"
+            />
+          </div>
+        )}
+        </div>
 
-        {/* Column 3 Row 2: Slug */}
-        <Input
-          type="text"
-          value={slug}
-          onChange={(e) => {
-            setSlug(e.target.value)
-            setHasUnsavedChanges(true)
-          }}
-          placeholder="page-slug"
-          className="text-sm font-mono border-transparent hover:border-border focus:border-border"
-        />
-      </div>
-
-      {/* Exam Settings - only shown when page type is exam */}
-      {pageType === 'exam' && !isFullscreen && (
-        <div className="flex flex-wrap items-start gap-6 p-4 border rounded-lg bg-muted/30">
-            {/* Require SEB */}
+        {/* Exam Settings */}
+        {pageType === 'exam' && !isFullscreen && (
+          <div className="flex flex-wrap items-start gap-6 p-4 border rounded-lg bg-muted/30">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="require-seb"
@@ -717,8 +968,6 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
                 Require Safe Exam Browser
               </Label>
             </div>
-
-            {/* Unlock for Classes */}
             {teacherClasses.length > 0 && (
               <div className="flex items-center gap-3">
                 <span className="text-sm text-muted-foreground">Unlock for:</span>
@@ -741,12 +990,10 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
                 ))}
               </div>
             )}
-
-            {/* Exam Link - shown when requireSEB is enabled (students login via browser first, then SEB launches) */}
             {examSettings.requireSEB && sessionStatus === 'authenticated' && (session?.user as { pageSlug?: string })?.pageSlug && (
               <div className="flex items-center gap-2">
                 <code className="text-xs bg-background px-2 py-1 rounded border font-mono">
-                  https://{typeof window !== 'undefined' ? window.location.host : 'example.com'}/{(session?.user as { pageSlug?: string })?.pageSlug}/{collection.slug}/{skript.slug}/{page.slug}
+                  https://{typeof window !== 'undefined' ? window.location.host : 'example.com'}/{(session?.user as { pageSlug?: string })?.pageSlug}/{skript.slug}/{page.slug}
                 </code>
                 <Button
                   variant="ghost"
@@ -762,183 +1009,82 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
                 </Button>
               </div>
             )}
-
-          {teacherClasses.length === 0 && (
-            <span className="text-sm text-muted-foreground italic">
-              No classes yet. Create a class to unlock exams for students.
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Skript Overview - Pages and Files (hidden in fullscreen) */}
-      {!isFullscreen && (
-      <CollapsibleDrawer
-        title={skript.title}
-        icon={<BookOpen className="w-5 h-5" />}
-        defaultOpen={true}
-      >
-        {/* Pages */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileText className="w-4 h-4" />
-              <span>Pages</span>
-            </div>
-            <CreatePageModal
-              skriptId={skript.id}
-              onPageCreated={() => router.refresh()}
-            />
-          </div>
-          <div>
-            {pages.map((p, idx) => (
-              <Fragment key={p.id}>
-                {/* Insertion line above this item */}
-                <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === idx ? 'bg-primary' : 'bg-transparent'}`} />
-                <div
-                  draggable
-                  onDragStart={() => { dragIdxRef.current = idx }}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setDragOverIdx(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1)
-                  }}
-                  onDragLeave={() => setDragOverIdx(null)}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    const fromIdx = dragIdxRef.current
-                    const toIdx = dragOverIdx
-                    dragIdxRef.current = null
-                    setDragOverIdx(null)
-                    if (fromIdx === null || toIdx === null || toIdx === fromIdx || toIdx === fromIdx + 1) return
-                    const newPages = [...pages]
-                    const [moved] = newPages.splice(fromIdx, 1)
-                    newPages.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, moved)
-                    handlePageReorder(newPages)
-                  }}
-                  onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null) }}
-                  className={`flex items-center gap-1 rounded-md text-sm transition-colors ${
-                    p.id === page.id ? 'bg-primary/10' : 'hover:bg-muted'
-                  }`}
-                >
-                  <GripVertical className="w-4 h-4 flex-shrink-0 text-muted-foreground opacity-40 hover:opacity-80 cursor-grab ml-1" />
-                  <Link
-                    href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
-                    className={`flex items-center gap-2 flex-1 min-w-0 px-1 py-1.5 ${
-                      p.id === page.id
-                        ? 'text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{p.title}</span>
-                    {!p.isPublished && (
-                      <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
-                    )}
-                  </Link>
-                </div>
-              </Fragment>
-            ))}
-            {/* Insertion line after the last item */}
-            <div className={`h-0.5 mx-2 rounded transition-colors ${dragOverIdx === pages.length ? 'bg-primary' : 'bg-transparent'}`} />
-          </div>
-        </div>
-
-        {/* Files section */}
-        <div className="border-t pt-3">
-          <div className="flex items-center gap-2 px-2 mb-2 text-sm font-medium text-muted-foreground">
-            <Files className="w-4 h-4" />
-            <span>Files</span>
-          </div>
-          <FileBrowser
-            skriptId={skript.id}
-            files={fileList}
-            loading={fileListLoading}
-            onFileSelect={(file) => {
-              // Files are inserted via drag and drop, not click
-              // This is just for backwards compatibility with other file types
-              handleFileInsert(file)
-              refreshFileList()
-            }}
-            onUploadComplete={refreshFileList}
-            onFileRenamed={handleFileRenamed}
-            onExcalidrawEdit={handleExcalidrawEdit}
-          />
-        </div>
-      </CollapsibleDrawer>
-      )}
-
-      {/* Content Editor - Full width */}
-      <Card className={isFullscreen ? 'border-0 shadow-none flex-1' : ''}>
-        {!isFullscreen && (
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-          <CardDescription>
-            Write your content using the markdown editor. Drag files from the Files drawer to insert them. Ctrl+S to save.
-          </CardDescription>
-        </CardHeader>
-        )}
-        <CardContent>
-          <MarkdownEditor
-            content={content}
-            onChange={handleContentChange}
-            onSave={handleSave}
-            onFileInsert={handleFileInsert}
-            onFileDrop={(file, position, screenX, screenY) => {
-              // Check if file has multiple insertion options
-              const extension = file.name.split('.').pop()?.toLowerCase()
-              const hasMultipleOptions =
-                ['sqlite', 'db'].includes(extension || '') || // databases: sql-editor or link
-                ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '') // images: embed or link
-
-              if (hasMultipleOptions) {
-                // Show insertion menu with position and screen coordinates
-                setInsertionMenuFile({ ...file, position, x: screenX, y: screenY })
-              } else {
-                // Insert directly with default option
-                handleFileInsert({ ...file, position })
-                refreshFileList()
-              }
-            }}
-            skriptId={skript.id}
-            pageId={page.id}
-            domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
-            fileList={fileList}
-            videoList={videoList}
-            fileListLoading={fileListLoading}
-            onFileUpload={refreshFileList}
-            onAIEdit={() => setAiEditModalOpen(true)}
-            onExcalidrawEdit={(filename, fileId) => handleExcalidrawEdit({ id: fileId, name: filename })}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Version History - Collapsible Drawer (hidden in fullscreen) */}
-      {!isFullscreen && (
-      <CollapsibleDrawer
-        title={
-          <div className="flex items-center gap-2">
-            <span>History</span>
-            {lastSaved && (
-              <span className="text-xs text-muted-foreground font-normal">
-                Last saved {lastSaved.toLocaleTimeString()}
+            {teacherClasses.length === 0 && (
+              <span className="text-sm text-muted-foreground italic">
+                No classes yet. Create a class to unlock exams for students.
               </span>
             )}
           </div>
-        }
-        icon={<History className="w-5 h-5" />}
-        defaultOpen={false}
-      >
-        <VersionHistory
-          pageId={page.id}
-          versions={versions}
-          currentContent={content}
-          onRestoreVersion={handleRestoreVersion}
-        />
-      </CollapsibleDrawer>
-      )}
+        )}
 
-      {/* Excalidraw Editor Modal */}
+        {/* Content Editor */}
+        <Card className={isFullscreen ? 'border-0 shadow-none flex-1' : ''}>
+          {!isFullscreen && (
+            <CardHeader className="pb-2">
+              <CardDescription>
+                Drag files from the Files tab to insert them. Ctrl+S to save.
+              </CardDescription>
+            </CardHeader>
+          )}
+          <CardContent>
+            <MarkdownEditor
+              content={content}
+              onChange={handleContentChange}
+              onSave={handleSave}
+              onFileInsert={handleFileInsert}
+              onFileDrop={(file, position, screenX, screenY) => {
+                const extension = file.name.split('.').pop()?.toLowerCase()
+                const hasMultipleOptions =
+                  ['sqlite', 'db'].includes(extension || '') ||
+                  ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')
+
+                if (hasMultipleOptions) {
+                  setInsertionMenuFile({ ...file, position, x: screenX, y: screenY })
+                } else {
+                  handleFileInsert({ ...file, position })
+                  refreshFileList()
+                }
+              }}
+              skriptId={skript.id}
+              pageId={page.id}
+              domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
+              fileList={fileList}
+              videoList={videoList}
+              fileListLoading={fileListLoading}
+              onFileUpload={refreshFileList}
+              onAIEdit={() => setAiEditModalOpen(true)}
+              onExcalidrawEdit={(filename, fileId) => handleExcalidrawEdit({ id: fileId, name: filename })}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Version History (hidden in fullscreen) */}
+        {!isFullscreen && (
+          <CollapsibleDrawer
+            title={
+              <div className="flex items-center gap-2">
+                <span>Version history</span>
+                {lastSaved && (
+                  <span className="text-xs text-muted-foreground font-normal">
+                    Last saved {lastSaved.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            }
+            icon={<History className="w-5 h-5" />}
+            defaultOpen={false}
+          >
+            <VersionHistory
+              pageId={page.id}
+              versions={versions}
+              currentContent={content}
+              onRestoreVersion={handleRestoreVersion}
+            />
+          </CollapsibleDrawer>
+        )}
+      </section>
+
+      {/* ── MODALS & OVERLAYS ── */}
       {excalidrawEditFile && (
         <ExcalidrawEditor
           open={excalidrawEditorOpen}
@@ -952,11 +1098,11 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
             name: excalidrawEditFile.name.replace('.excalidraw', ''),
             elements: excalidrawEditFile.excalidrawData?.elements || [],
             appState: excalidrawEditFile.excalidrawData?.appState,
-            files: excalidrawEditFile.excalidrawData?.files  // Include embedded images
+            files: excalidrawEditFile.excalidrawData?.files
           }}
         />
       )}
-      {/* File Insertion Menu - Compact Popup at Cursor */}
+
       {insertionMenuFile && (() => {
         const extension = insertionMenuFile.name.split('.').pop()?.toLowerCase()
         const isDatabase = ['sqlite', 'db'].includes(extension || '')
@@ -964,12 +1110,10 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
 
         return (
           <>
-            {/* Backdrop to close menu */}
             <div
               className="fixed inset-0 z-40"
               onClick={() => setInsertionMenuFile(null)}
             />
-            {/* Compact menu positioned at cursor */}
             <div
               className="fixed z-50 bg-popover border border-border rounded-md shadow-lg py-1 min-w-[140px]"
               style={{
@@ -1052,14 +1196,12 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         currentContent={content}
         onEditsApplied={(newContent) => {
           if (newContent !== undefined) {
-            // Update the editor with the new content
             setContent(newContent)
             setHasUnsavedChanges(false)
             setLastSaved(new Date())
           }
-          // Refresh to update version history and pages list
           loadVersions()
-          router.refresh() // Refresh server data to show new pages in sidebar
+          router.refresh()
         }}
       />
     </div>

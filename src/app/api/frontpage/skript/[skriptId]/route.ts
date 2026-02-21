@@ -218,10 +218,7 @@ export async function PATCH(
       })
 
       if (ownerUser?.pageSlug) {
-        const collectionSlug = skript.collectionSkripts[0]?.collection?.slug
-        if (collectionSlug) {
-          revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, collectionSlug, skript.slug), 'default')
-        }
+        revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, skript.slug), 'default')
         revalidateTag(CACHE_TAGS.teacherContent(ownerUser.pageSlug), 'default')
       }
     }

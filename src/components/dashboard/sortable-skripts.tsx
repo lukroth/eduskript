@@ -49,7 +49,6 @@ interface Skript {
 interface SortableSkriptItemProps {
   skript: Skript
   index: number
-  collectionSlug: string
   onSkriptUpdated: () => void
   onSkriptDeleted: () => void
   canEdit?: boolean
@@ -59,7 +58,6 @@ interface SortableSkriptItemProps {
 function SortableSkriptItem({
   skript,
   index,
-  collectionSlug,
   onSkriptUpdated,
   onSkriptDeleted,
   canEdit = true,
@@ -99,7 +97,7 @@ function SortableSkriptItem({
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
       const isFullyPublished = skript.isPublished && firstPage.isPublished
-      window.open(buildViewUrl(collectionSlug, skript.slug, firstPage.slug, isFullyPublished), '_blank')
+      window.open(buildViewUrl(skript.slug, firstPage.slug, isFullyPublished), '_blank')
     }
   }
 
@@ -153,7 +151,7 @@ function SortableSkriptItem({
                 </div>
               </div>
               <div>
-                <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
+                <Link href={`/dashboard/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
                   <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground'} transition-colors`}>
                     {skript.title}
                   </h3>
@@ -266,7 +264,6 @@ function SortableSkriptItem({
                 <SortablePages
                   pages={skript.pages}
                   skriptId={skript.id}
-                  collectionSlug={collectionSlug}
                   skriptSlug={skript.slug}
                   onReorder={onSkriptUpdated}
                   onPageDeleted={onSkriptUpdated}
@@ -291,7 +288,6 @@ function SortableSkriptItem({
 function StaticSkriptItem({
   skript,
   index,
-  collectionSlug,
   onSkriptUpdated,
   onSkriptDeleted,
   canEdit = true,
@@ -331,7 +327,7 @@ function StaticSkriptItem({
     if (username && skript.pages.length > 0) {
       const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
       const isFullyPublished = skript.isPublished && firstPage.isPublished
-      window.open(buildViewUrl(collectionSlug, skript.slug, firstPage.slug, isFullyPublished), '_blank')
+      window.open(buildViewUrl(skript.slug, firstPage.slug, isFullyPublished), '_blank')
     }
   }
 
@@ -372,7 +368,7 @@ function StaticSkriptItem({
             </div>
           </div>
           <div>
-            <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
+            <Link href={`/dashboard/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
               <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground'} transition-colors`}>
                 {skript.title}
               </h3>
@@ -485,7 +481,6 @@ function StaticSkriptItem({
             <SortablePages
               pages={skript.pages}
               skriptId={skript.id}
-              collectionSlug={collectionSlug}
               skriptSlug={skript.slug}
               onReorder={onSkriptUpdated}
               onPageDeleted={onSkriptUpdated}
@@ -508,7 +503,6 @@ function StaticSkriptItem({
 interface SortableSkriptsProps {
   skripts: Skript[]
   collectionId: string
-  collectionSlug: string
   onReorder: () => void
   onSkriptUpdated?: () => void
   onSkriptDeleted?: () => void
@@ -520,7 +514,6 @@ interface SortableSkriptsProps {
 export function SortableSkripts({
   skripts,
   collectionId,
-  collectionSlug,
   onReorder,
   onSkriptUpdated,
   onSkriptDeleted,
@@ -592,7 +585,6 @@ export function SortableSkripts({
                     key={skript.id}
                     skript={skript}
                     index={index}
-                    collectionSlug={collectionSlug}
                     onSkriptUpdated={onSkriptUpdated || onReorder}
                     onSkriptDeleted={onSkriptDeleted || onReorder}
                     canEdit={canEdit}
@@ -613,7 +605,6 @@ export function SortableSkripts({
               key={skript.id}
               skript={skript}
               index={index}
-              collectionSlug={collectionSlug}
               onSkriptUpdated={onSkriptUpdated || onReorder}
               onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}
@@ -630,7 +621,6 @@ export function SortableSkripts({
               key={skript.id}
               skript={skript}
               index={index}
-              collectionSlug={collectionSlug}
               onSkriptUpdated={onSkriptUpdated || onReorder}
               onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}

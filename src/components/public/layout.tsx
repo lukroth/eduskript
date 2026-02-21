@@ -169,7 +169,7 @@ export function PublicSiteLayout({
       siteStructure.forEach(collection => {
         collection.skripts.forEach(skript => {
           const hasCurrentPage = skript.pages.some(page =>
-            currentPath === `/${collection.slug}/${skript.slug}/${page.slug}`
+            currentPath === `/${skript.slug}/${page.slug}`
           )
           if (hasCurrentPage && !expandedFromStorage.includes(skript.id)) {
             expandedFromStorage.push(skript.id)
@@ -206,8 +206,8 @@ export function PublicSiteLayout({
     
     siteStructure.forEach(collection => {
       collection.skripts.forEach(skript => {
-        const hasCurrentPage = skript.pages.some(page => 
-          currentPath === `/${collection.slug}/${skript.slug}/${page.slug}`
+        const hasCurrentPage = skript.pages.some(page =>
+          currentPath === `/${skript.slug}/${page.slug}`
         )
         if (hasCurrentPage && !newExpandedSkripts.includes(skript.id)) {
           newExpandedSkripts.push(skript.id)
@@ -288,22 +288,22 @@ export function PublicSiteLayout({
     )
   }
 
-  const isCurrentPage = (collectionSlug: string, skriptSlug: string, pageSlug: string) => {
-    return currentPath === `/${collectionSlug}/${skriptSlug}/${pageSlug}`
+  const isCurrentPage = (skriptSlug: string, pageSlug: string) => {
+    return currentPath === `/${skriptSlug}/${pageSlug}`
   }
 
-  const navigateToPage = (collectionSlug: string, skriptSlug: string, pageSlug: string) => {
+  const navigateToPage = (skriptSlug: string, pageSlug: string) => {
     // Use getBasePrefix() at click time for correct custom domain handling
-    const url = `${getBasePrefix()}/${collectionSlug}/${skriptSlug}/${pageSlug}`
+    const url = `${getBasePrefix()}/${skriptSlug}/${pageSlug}`
 
     router.push(url)
     setIsSidebarOpen(false)
   }
 
-  const navigateToSkript = (collectionSlug: string, skriptSlug: string, skriptId: string, hasFrontpage?: boolean) => {
+  const navigateToSkript = (skriptSlug: string, skriptId: string, hasFrontpage?: boolean) => {
     if (hasFrontpage) {
       // Navigate to skript frontpage and expand the skript
-      const url = `${getBasePrefix()}/${collectionSlug}/${skriptSlug}`
+      const url = `${getBasePrefix()}/${skriptSlug}`
 
       // Ensure the skript is expanded
       if (!expandedSkripts.includes(skriptId)) {
@@ -522,7 +522,7 @@ export function PublicSiteLayout({
                             </span>
                             {/* Title - navigate to frontpage (if exists) or toggle expand */}
                             <button
-                              onClick={() => navigateToSkript(collection.slug, skript.slug, skript.id, skript.hasFrontpage)}
+                              onClick={() => navigateToSkript(skript.slug, skript.id, skript.hasFrontpage)}
                               className="truncate flex-1 text-left hover:text-primary"
                             >
                               {skript.title}
@@ -559,9 +559,9 @@ export function PublicSiteLayout({
                                 {skript.pages.map((page, pageIndex) => (
                                   <button
                                     key={page.id}
-                                    onClick={() => navigateToPage(collection.slug, skript.slug, page.slug)}
+                                    onClick={() => navigateToPage(skript.slug, page.slug)}
                                     className={`flex items-center w-full text-left py-1.5 px-2 text-sm rounded-md transition-colors ${
-                                      isCurrentPage(collection.slug, skript.slug, page.slug)
+                                      isCurrentPage(skript.slug, page.slug)
                                         ? 'text-primary font-medium bg-primary/10'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                                     }`}
@@ -610,7 +610,7 @@ export function PublicSiteLayout({
                         </span>
                         {/* Title - navigate to frontpage (if exists) or toggle expand */}
                         <button
-                          onClick={() => navigateToSkript(skript.collection.slug, skript.slug, skript.id, skript.hasFrontpage)}
+                          onClick={() => navigateToSkript(skript.slug, skript.id, skript.hasFrontpage)}
                           className="truncate flex-1 text-left hover:text-primary"
                         >
                           {skript.title}
@@ -641,9 +641,9 @@ export function PublicSiteLayout({
                             {skript.pages.map((page, pageIndex) => (
                               <button
                                 key={page.id}
-                                onClick={() => navigateToPage(skript.collection.slug, skript.slug, page.slug)}
+                                onClick={() => navigateToPage(skript.slug, page.slug)}
                                 className={`flex items-center w-full text-left py-1.5 px-2 text-sm rounded-md transition-colors ${
-                                  isCurrentPage(skript.collection.slug, skript.slug, page.slug)
+                                  isCurrentPage(skript.slug, page.slug)
                                     ? 'text-primary font-medium bg-primary/10'
                                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                                 }`}

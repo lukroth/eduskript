@@ -559,16 +559,14 @@ export async function POST(request: NextRequest) {
             const skriptSlug = page.skript.slug
             const contentPageSlug = page.slug
 
-            // Invalidate paths for all collections this skript is in
+            // Invalidate paths for all authors' domains
             for (const cs of page.skript.collectionSkripts) {
               if (!cs.collection) continue
-              const collectionSlug = cs.collection.slug
 
-              // Invalidate for all authors' domains
               for (const author of cs.collection.authors) {
                 const userPageSlug = author.user.pageSlug
                 if (userPageSlug) {
-                  revalidatePath(`/${userPageSlug}/${collectionSlug}/${skriptSlug}/${contentPageSlug}`)
+                  revalidatePath(`/${userPageSlug}/${skriptSlug}/${contentPageSlug}`)
                 }
               }
             }
@@ -649,18 +647,17 @@ export async function POST(request: NextRequest) {
               revalidatePath(`/org/${frontPage.organization.slug}`)
             }
 
-            // Skript front page: /{pageSlug}/{collectionSlug}/{skriptSlug}
+            // Skript front page: /{pageSlug}/{skriptSlug}
             if (frontPage.skriptId && frontPage.skript) {
               const skriptSlug = frontPage.skript.slug
               for (const cs of frontPage.skript.collectionSkripts) {
                 if (!cs.collection) continue
-                const collectionSlug = cs.collection.slug
 
                 // Invalidate for all authors' domains
                 for (const author of cs.collection.authors) {
                   const userPageSlug = author.user.pageSlug
                   if (userPageSlug) {
-                    revalidatePath(`/${userPageSlug}/${collectionSlug}/${skriptSlug}`)
+                    revalidatePath(`/${userPageSlug}/${skriptSlug}`)
                   }
                 }
               }

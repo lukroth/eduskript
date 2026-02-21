@@ -86,11 +86,11 @@ export async function GET(
     }
 
     // Build the exam URL - use https for all external hosts, http only for localhost
-    // URL structure: /org/{orgSlug}/{teacherPageSlug}/{collectionSlug}/{skriptSlug}/{pageSlug}
+    // URL structure: /org/{orgSlug}/{teacherPageSlug}/{skriptSlug}/{pageSlug}
     const host = request.headers.get('host') || 'eduskript.org'
     const protocol = host.startsWith('localhost') ? 'http' : 'https'
     const orgSlug = process.env.DEFAULT_ORG_SLUG || 'eduskript'
-    const baseExamUrl = `${protocol}://${host}/org/${orgSlug}/${teacher.pageSlug}/${collectionSkript.collection.slug}/${page.skript.slug}/${page.slug}`
+    const baseExamUrl = `${protocol}://${host}/org/${orgSlug}/${teacher.pageSlug}/${page.skript.slug}/${page.slug}`
 
     // Generate one-time token for SEB authentication
     // This allows the user to be authenticated inside SEB without logging in again

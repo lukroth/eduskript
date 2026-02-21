@@ -106,7 +106,7 @@ export async function POST(
         }
       }
       revalidatePath(`/${user.pageSlug}`)
-      revalidatePath('/dashboard/collections')
+      revalidatePath('/dashboard/page-builder')
     }
 
     return NextResponse.json({ 

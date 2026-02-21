@@ -16,6 +16,8 @@ interface SkriptAccessManagerProps {
   userPermissions: UserPermissions
   currentUserId: string
   onPermissionChange?: () => void
+  /** Render without Card wrapper for embedding in tabs/panels */
+  compact?: boolean
 }
 
 interface UserForPermissionManager {
@@ -62,11 +64,12 @@ interface CollaboratorForSharing {
   }[]
 }
 
-export function SkriptAccessManager({ 
-  skript, 
+export function SkriptAccessManager({
+  skript,
   userPermissions,
-  currentUserId, 
-  onPermissionChange 
+  currentUserId,
+  onPermissionChange,
+  compact = false
 }: SkriptAccessManagerProps) {
   const [permissions, setPermissions] = useState<UserPermission[]>([])
   const [showShareModal, setShowShareModal] = useState(false)
@@ -254,8 +257,8 @@ export function SkriptAccessManager({
     <div className="space-y-4">
       {/* Permission Manager */}
       <PermissionManager
-        title="Access Management"
-        description={`Manage who can access "${skript.title}"`}
+        title={compact ? undefined : "Access Management"}
+        description={compact ? undefined : `Manage who can access "${skript.title}"`}
         contentId={skript.id}
         contentType="skript"
         currentUserId={currentUserId}
@@ -264,6 +267,7 @@ export function SkriptAccessManager({
         onRemoveUser={handleRemoveUser}
         canManageAccess={canManageAccess}
         onShareClick={() => setShowShareModal(true)}
+        compact={compact}
       />
 
       {/* Share Content Modal - Modified to handle skripts */}

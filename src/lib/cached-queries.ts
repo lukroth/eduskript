@@ -10,11 +10,11 @@ export const CACHE_TAGS = {
   collection: (id: string) => `collection:${id}`,
   collectionBySlug: (pageSlug: string, slug: string) => `collection:${pageSlug}:${slug}`,
   skript: (id: string) => `skript:${id}`,
-  skriptBySlug: (pageSlug: string, collectionSlug: string, skriptSlug: string) =>
-    `skript:${pageSlug}:${collectionSlug}:${skriptSlug}`,
+  skriptBySlug: (pageSlug: string, skriptSlug: string) =>
+    `skript:${pageSlug}:${skriptSlug}`,
   page: (id: string) => `page:${id}`,
-  pageBySlug: (pageSlugParam: string, collectionSlug: string, skriptSlug: string, pageSlug: string) =>
-    `page:${pageSlugParam}:${collectionSlug}:${skriptSlug}:${pageSlug}`,
+  pageBySlug: (pageSlugParam: string, skriptSlug: string, pageSlug: string) =>
+    `page:${pageSlugParam}:${skriptSlug}:${pageSlug}`,
   teacherContent: (pageSlug: string) => `teacher-content:${pageSlug}`,
   organization: (slug: string) => `org:${slug}`,
   orgContent: (slug: string) => `org-content:${slug}`,
@@ -272,95 +272,89 @@ export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
 
 /**
  * Get published page content - cached
- * The main content fetch for public pages
+ * The main content fetch for public pages.
+ * Queries skript directly by unique slug (no collection needed in URL).
  */
 export const getPublishedPage = (
   teacherId: string,
-  collectionSlug: string,
   skriptSlug: string,
   contentPageSlug: string,
   ownerPageSlug?: string
 ) =>
   unstable_cache(
     async () => {
-      const collection = await prisma.collection.findFirst({
-        where: {
-          slug: collectionSlug,
-          isPublished: true,
-          authors: {
-            some: { userId: teacherId }
-          }
-        },
+      // Skript slugs are globally unique, so query directly
+      const skript = await prisma.skript.findUnique({
+        where: { slug: skriptSlug },
         include: {
+          authors: { where: { userId: teacherId }, select: { userId: true } },
           collectionSkripts: {
-            where: {
-              skript: {
-                slug: skriptSlug,
-                isPublished: true
-              }
-            },
             include: {
-              skript: {
+              collection: {
                 include: {
-                  frontPage: { select: { id: true } },
-                  pages: {
-                    where: { isPublished: true },
-                    orderBy: { order: 'asc' },
-                    select: {
-                      id: true,
-                      title: true,
-                      slug: true,
-                      content: true,
-                      order: true,
-                      isPublished: true,
-                      pageType: true,
-                      examSettings: true,
-                    }
-                  }
+                  authors: { where: { userId: teacherId }, select: { userId: true } }
                 }
               }
             },
-            orderBy: { order: 'asc' }
+            orderBy: { order: 'asc' },
+            take: 1,
+          },
+          pages: {
+            where: { isPublished: true },
+            orderBy: { order: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              content: true,
+              order: true,
+              isPublished: true,
+              pageType: true,
+              examSettings: true,
+            }
           }
         }
       })
 
-      if (!collection) return null
+      if (!skript || !skript.isPublished) return null
 
-      const collectionSkript = collection.collectionSkripts[0]
-      if (!collectionSkript) return null
+      // Verify teacher is an author (direct skript author or collection author)
+      const isAuthor = skript.authors.length > 0 ||
+        skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
+      if (!isAuthor) return null
 
-      const skript = collectionSkript.skript
       const page = skript.pages.find(p => p.slug === contentPageSlug)
       if (!page) return null
 
+      // Get collection info for sidebar structure
+      const collectionSkript = skript.collectionSkripts[0]
+      const collection = collectionSkript?.collection
+
       return {
-        collection: {
+        collection: collection ? {
           id: collection.id,
           title: collection.title,
           slug: collection.slug,
           description: collection.description,
           isPublished: collection.isPublished,
           accentColor: collection.accentColor,
-        },
+        } : null,
         skript: {
           id: skript.id,
           title: skript.title,
           slug: skript.slug,
           isPublished: skript.isPublished,
-          order: collectionSkript.order, // Position within collection for letter markers
+          order: collectionSkript?.order ?? 0,
         },
         page,
-        // Include all pages for navigation
         allPages: skript.pages,
       }
     },
-    [`published-page-${collectionSlug}-${skriptSlug}-${contentPageSlug}`],
+    [`published-page-${skriptSlug}-${contentPageSlug}`],
     {
       tags: ownerPageSlug ? [
-        CACHE_TAGS.pageBySlug(ownerPageSlug, collectionSlug, skriptSlug, contentPageSlug),
-        CACHE_TAGS.skriptBySlug(ownerPageSlug, collectionSlug, skriptSlug),
-        CACHE_TAGS.collectionBySlug(ownerPageSlug, collectionSlug),
+        CACHE_TAGS.pageBySlug(ownerPageSlug, skriptSlug, contentPageSlug),
+        CACHE_TAGS.skriptBySlug(ownerPageSlug, skriptSlug),
         CACHE_TAGS.teacherContent(ownerPageSlug),
       ] : [],
       revalidate: false,
@@ -528,6 +522,54 @@ export const getCollectionForPreview = async (teacherId: string, collectionSlug:
   })
 }
 
+/**
+ * Get skript for preview (including unpublished) by unique slug.
+ * NOT cached - used for preview mode.
+ * Verifies teacher authorship via skript or collection authors.
+ */
+export const getSkriptForPreview = async (teacherId: string, skriptSlug: string) => {
+  const skript = await prisma.skript.findUnique({
+    where: { slug: skriptSlug },
+    include: {
+      authors: { where: { userId: teacherId }, select: { userId: true } },
+      collectionSkripts: {
+        include: {
+          collection: {
+            include: {
+              authors: { where: { userId: teacherId }, select: { userId: true } }
+            }
+          }
+        },
+        orderBy: { order: 'asc' },
+        take: 1,
+      },
+      frontPage: { select: { id: true } },
+      pages: {
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          content: true,
+          order: true,
+          isPublished: true,
+          pageType: true,
+          examSettings: true,
+        }
+      }
+    }
+  })
+
+  if (!skript) return null
+
+  // Verify teacher is an author
+  const isAuthor = skript.authors.length > 0 ||
+    skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
+  if (!isAuthor) return null
+
+  return skript
+}
+
 // ============================================
 // Organization cached queries
 // ============================================
@@ -666,44 +708,19 @@ export const getOrgFullSiteStructure = (orgId: string, orgSlug: string) =>
  * Get published page content for an organization - cached
  * Looks up content owned by any org admin/owner
  */
+/**
+ * Get published page content for an organization - cached.
+ * Queries skript directly by unique slug (no collection needed in URL).
+ * Verifies the skript's collection is in the org's page layout.
+ */
 export const getOrgPublishedPage = (
   orgId: string,
   slug: string,
-  collectionSlug: string,
   skriptSlug: string,
   pageSlug: string
 ) =>
   unstable_cache(
     async () => {
-      // First, verify this collection is actually in the org's page layout
-      // This prevents accessing content via org routes that isn't configured for the org
-      const orgPageLayout = await prisma.orgPageLayout.findUnique({
-        where: { organizationId: orgId },
-        include: {
-          items: {
-            where: { type: 'collection' }
-          }
-        }
-      })
-
-      if (!orgPageLayout) return null
-
-      // Get collection IDs that are in the org's page layout
-      const configuredCollectionIds = orgPageLayout.items.map(item => item.contentId)
-
-      // Find the collection by slug first to get its ID
-      const collectionCheck = await prisma.collection.findFirst({
-        where: { slug: collectionSlug },
-        select: { id: true }
-      })
-
-      if (!collectionCheck) return null
-
-      // Verify this collection is configured in the org's page layout
-      if (!configuredCollectionIds.includes(collectionCheck.id)) {
-        return null
-      }
-
       // Get all admin/owner user IDs for this org
       const adminMembers = await prisma.organizationMember.findMany({
         where: {
@@ -714,78 +731,88 @@ export const getOrgPublishedPage = (
       })
       const adminUserIds = adminMembers.map(m => m.userId)
 
-      const collection = await prisma.collection.findFirst({
-        where: {
-          slug: collectionSlug,
-          isPublished: true,
-          authors: {
-            some: { userId: { in: adminUserIds } }
-          }
-        },
+      // Find skript by unique slug
+      const skript = await prisma.skript.findUnique({
+        where: { slug: skriptSlug },
         include: {
+          authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } },
           collectionSkripts: {
-            where: {
-              skript: {
-                slug: skriptSlug,
-                isPublished: true
-              }
-            },
             include: {
-              skript: {
+              collection: {
                 include: {
-                  frontPage: { select: { id: true } },
-                  pages: {
-                    where: { isPublished: true },
-                    orderBy: { order: 'asc' },
-                    select: {
-                      id: true,
-                      title: true,
-                      slug: true,
-                      content: true,
-                      order: true,
-                      isPublished: true,
-                      pageType: true,
-                      examSettings: true,
-                    }
-                  }
+                  authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } }
                 }
               }
             },
-            orderBy: { order: 'asc' }
+            orderBy: { order: 'asc' },
+            take: 1,
+          },
+          pages: {
+            where: { isPublished: true },
+            orderBy: { order: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              content: true,
+              order: true,
+              isPublished: true,
+              pageType: true,
+              examSettings: true,
+            }
           }
         }
       })
 
-      if (!collection) return null
+      if (!skript || !skript.isPublished) return null
 
-      const collectionSkript = collection.collectionSkripts[0]
-      if (!collectionSkript) return null
+      // Verify an org admin is an author
+      const isAuthor = skript.authors.length > 0 ||
+        skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
+      if (!isAuthor) return null
 
-      const skript = collectionSkript.skript
+      // Verify the skript's collection is in the org's page layout
+      const collectionSkript = skript.collectionSkripts[0]
+      if (collectionSkript?.collection) {
+        const orgPageLayout = await prisma.orgPageLayout.findUnique({
+          where: { organizationId: orgId },
+          include: {
+            items: { where: { type: 'collection' } }
+          }
+        })
+        if (!orgPageLayout) return null
+        const configuredCollectionIds = orgPageLayout.items.map(item => item.contentId)
+        if (!configuredCollectionIds.includes(collectionSkript.collection.id)) {
+          return null
+        }
+      }
+
       const page = skript.pages.find(p => p.slug === pageSlug)
       if (!page) return null
 
+      const collection = collectionSkript?.collection
+
       return {
-        collection: {
+        collection: collection ? {
           id: collection.id,
           title: collection.title,
           slug: collection.slug,
           description: collection.description,
           isPublished: collection.isPublished,
           accentColor: collection.accentColor,
-        },
+        } : null,
         skript: {
           id: skript.id,
           title: skript.title,
           slug: skript.slug,
           isPublished: skript.isPublished,
-          order: collectionSkript.order, // Position within collection for letter markers
+          order: collectionSkript?.order ?? 0,
         },
         page,
         allPages: skript.pages,
       }
     },
-    [`org-published-page-${slug}-${collectionSlug}-${skriptSlug}-${pageSlug}`],
+    [`org-published-page-${slug}-${skriptSlug}-${pageSlug}`],
     {
       tags: [CACHE_TAGS.orgContent(slug)],
       revalidate: false,

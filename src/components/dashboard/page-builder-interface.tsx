@@ -6,7 +6,7 @@ import { ContentLibrary } from './content-library'
 import { PageBuilder } from './page-builder'
 import { ImportExportSettings } from './import-export-settings'
 import { useSession } from 'next-auth/react'
-import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
+import { checkSkriptPermissions } from '@/lib/permissions'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
 
@@ -400,10 +400,9 @@ export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilder
         if (dragData.fromLibrary && !pageItems.some(item => item.id === dragData.id && item.type === dragData.type)) {
           // Add new collection from library
           const collection = libraryData.collections.find(c => c.id === dragData.id)
-          const collectionPermissions = collection && session?.user?.id 
-            ? checkCollectionPermissions(session.user.id, collection.authors)
-            : { canEdit: false, canView: false }
-          
+          // Collections are always editable by the page owner (just grouping)
+          const collectionPermissions = { canEdit: true, canView: true }
+
           const newItem: PageItem = {
             id: dragData.id,
             type: dragData.type,
@@ -413,18 +412,9 @@ export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilder
             permissions: collectionPermissions,
             slug: collection?.slug,
             skripts: collection?.collectionSkripts?.map((cs: any, idx: number) => {
-              // Calculate skript permissions
-              // According to permission model: "Collection authors can view all skripts in their collections"
-              const directSkriptPermissions = session?.user?.id
+              const skriptPermissions = session?.user?.id
                 ? checkSkriptPermissions(session.user.id, cs.skript.authors || [])
                 : { canEdit: false, canView: false }
-
-              // If user has collection access but no direct skript access, grant view-only
-              const skriptPermissions = directSkriptPermissions.canView
-                ? directSkriptPermissions
-                : collectionPermissions.canView || collectionPermissions.canEdit
-                  ? { canEdit: false, canView: true }  // Collection-level view inheritance
-                  : { canEdit: false, canView: false }
 
               return {
                 id: cs.skript.id,

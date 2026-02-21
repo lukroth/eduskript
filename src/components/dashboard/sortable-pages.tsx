@@ -28,13 +28,12 @@ interface Page {
 interface SortablePageItemProps {
   page: Page
   index: number
-  collectionSlug: string
   skriptSlug: string
   onPageUpdated?: () => void
   canEdit?: boolean
 }
 
-function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated, canEdit = true }: SortablePageItemProps) {
+function SortablePageItem({ page, index, skriptSlug, onPageUpdated, canEdit = true }: SortablePageItemProps) {
   const alert = useAlertDialog()
 
   const handleDeletePage = async () => {
@@ -81,7 +80,7 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
               </span>
             </div>
             <div>
-              <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}/edit`} className="inline-flex items-center gap-1 hover:underline w-fit">
+              <Link href={`/dashboard/skripts/${skriptSlug}/pages/${page.slug}/edit`} className="inline-flex items-center gap-1 hover:underline w-fit">
                 <h4 className="text-sm font-medium transition-colors">
                   {page.title}
                 </h4>
@@ -140,7 +139,7 @@ function SortablePageItem({ page, index, collectionSlug, skriptSlug, onPageUpdat
   )
 }
 
-function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated, canEdit = true }: SortablePageItemProps) {
+function StaticPageItem({ page, index, skriptSlug, onPageUpdated, canEdit = true }: SortablePageItemProps) {
   const alert = useAlertDialog()
 
   const handleDeletePage = async () => {
@@ -174,7 +173,7 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
           </span>
         </div>
         <div>
-          <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skriptSlug}/pages/${page.slug}/edit`} className="inline-flex items-center gap-1 hover:underline w-fit">
+          <Link href={`/dashboard/skripts/${skriptSlug}/pages/${page.slug}/edit`} className="inline-flex items-center gap-1 hover:underline w-fit">
             <h4 className="text-sm font-medium transition-colors">
               {page.title}
             </h4>
@@ -234,7 +233,6 @@ function StaticPageItem({ page, index, collectionSlug, skriptSlug, onPageUpdated
 interface SortablePagesProps {
   pages: Page[]
   skriptId: string
-  collectionSlug: string
   skriptSlug: string
   onReorder: () => void
   onPageDeleted?: () => void
@@ -244,7 +242,6 @@ interface SortablePagesProps {
 export function SortablePages({
   pages,
   skriptId,
-  collectionSlug,
   skriptSlug,
   onReorder,
   onPageDeleted,
@@ -328,7 +325,6 @@ export function SortablePages({
                     key={page.id}
                     page={page}
                     index={index}
-                    collectionSlug={collectionSlug}
                     skriptSlug={skriptSlug}
                     onPageUpdated={handlePageUpdated}
                     canEdit={canEdit}
@@ -347,7 +343,6 @@ export function SortablePages({
               key={page.id}
               page={page}
               index={index}
-              collectionSlug={collectionSlug}
               skriptSlug={skriptSlug}
               onPageUpdated={handlePageUpdated}
               canEdit={canEdit}
@@ -362,7 +357,6 @@ export function SortablePages({
               key={page.id}
               page={page}
               index={index}
-              collectionSlug={collectionSlug}
               skriptSlug={skriptSlug}
               onPageUpdated={handlePageUpdated}
               canEdit={canEdit}

@@ -108,11 +108,6 @@ export default function MySnapsPage() {
       return null
     }
 
-    if (snap.collectionSlug) {
-      return `/${snap.authorPageSlug}/${snap.collectionSlug}/${snap.skriptSlug}/${snap.pageSlug}`
-    }
-
-    // Skript at root level (no collection)
     return `/${snap.authorPageSlug}/${snap.skriptSlug}/${snap.pageSlug}`
   }
 

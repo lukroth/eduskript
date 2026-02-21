@@ -190,18 +190,15 @@ export async function PATCH(
 
     if (user?.pageSlug) {
       // Invalidate cached data using tags
+      revalidateTag(CACHE_TAGS.skriptBySlug(user.pageSlug, updatedSkript.slug), 'default')
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
-          // Invalidate skript-level cache
-          revalidateTag(CACHE_TAGS.skriptBySlug(user.pageSlug, cs.collection.slug, updatedSkript.slug), 'default')
-          // Invalidate collection-level cache
           revalidateTag(CACHE_TAGS.collectionBySlug(user.pageSlug, cs.collection.slug), 'default')
-          // Revalidate paths as fallback
-          revalidatePath(`/${user.pageSlug}/${cs.collection.slug}/${updatedSkript.slug}`)
         }
       }
       // Invalidate teacher content cache (homepage, sidebar)
       revalidateTag(CACHE_TAGS.teacherContent(user.pageSlug), 'default')
+      revalidatePath(`/${user.pageSlug}/${updatedSkript.slug}`)
       revalidatePath('/dashboard')
     }
 

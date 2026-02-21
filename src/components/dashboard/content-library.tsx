@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { DraggableCollection, DraggableSkript } from './draggable-content'
 import { Search, BookOpen, FileText } from 'lucide-react'
 import { CollectionAuthor, SkriptAuthor, User, Collection, Skript } from '@prisma/client'
-import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
+import { checkSkriptPermissions } from '@/lib/permissions'
 import { api, handleJsonResponse } from '@/lib/api-error-handler'
 import type { PageBuilderContext } from './page-builder-interface'
 
@@ -151,9 +151,6 @@ export function ContentLibrary({ onDataLoad, refreshTrigger, context = { type: '
                   className="space-y-2"
                 >
                   {filteredCollections.map((collection, index) => {
-                    const permissions = checkCollectionPermissions(session.user.id, collection.authors)
-                    const isViewOnly = !permissions.canEdit
-
                     return (
                       <DraggableCollection
                         key={collection.id}
@@ -164,7 +161,7 @@ export function ContentLibrary({ onDataLoad, refreshTrigger, context = { type: '
                         skriptCount={collection.collectionSkripts.length}
                         authors={collection.authors}
                         currentUserId={session.user.id}
-                        isViewOnly={isViewOnly}
+                        isViewOnly={false}
                         index={index}
                         slug={collection.slug}
                       />
@@ -192,16 +189,11 @@ export function ContentLibrary({ onDataLoad, refreshTrigger, context = { type: '
                   className="space-y-2"
                 >
                   {filteredSkripts.map((skript, index) => {
-                    // For now, just check skript permissions without collection permissions
-                    // since the skripts API needs to be updated to include collectionSkripts properly
                     const permissions = checkSkriptPermissions(
                       session.user.id,
                       skript.authors
                     )
                     const isViewOnly = !permissions.canEdit
-
-                    // Get the first collection slug (skripts can be in multiple collections)
-                    const collectionSlug = skript.collectionSkripts[0]?.collection?.slug
 
                     return (
                       <DraggableSkript
@@ -216,7 +208,6 @@ export function ContentLibrary({ onDataLoad, refreshTrigger, context = { type: '
                         isViewOnly={isViewOnly}
                         index={index}
                         slug={skript.slug}
-                        collectionSlug={collectionSlug}
                       />
                     )
                   })}

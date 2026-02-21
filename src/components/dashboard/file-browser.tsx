@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Pencil, TextCursor, Database, FileCode, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   const [updateLinks, setUpdateLinks] = useState(true)
   const [duplicateUpload, setDuplicateUpload] = useState<{file: File, existingFile: FileItem} | null>(null)
   const [newUploadName, setNewUploadName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { resolvedTheme } = useTheme()
   const alert = useAlertDialog()
 
@@ -359,20 +360,43 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
 
   return (
     <div className={`p-4 space-y-4 ${className}`}>
+      {/* Hidden file input for click-to-upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={async (e) => {
+          const selectedFiles = Array.from(e.target.files || [])
+          if (selectedFiles.length > 0) {
+            await uploadFiles(selectedFiles, 'skript')
+          }
+          // Reset so the same file can be selected again
+          e.target.value = ''
+        }}
+      />
+
       {/* Skript Files Section */}
       {skriptId && (
         <div>
           <div
-            className={`border-2 border-dashed rounded-lg p-3 transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-3 transition-colors cursor-pointer ${
               dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : 'border-border'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, 'skript')}
+            onClick={(e) => {
+              // Only trigger file picker if clicking the drop zone itself, not file items
+              if (e.target === e.currentTarget || (e.target as HTMLElement).closest('[data-upload-zone]')) {
+                fileInputRef.current?.click()
+              }
+            }}
+            data-upload-zone
           >
             {getDisplayFiles().length === 0 ? (
-              <div className="text-center py-2 text-muted-foreground text-sm">
-                No skript files. Drop files here or click upload.
+              <div className="text-center py-2 text-muted-foreground text-sm" data-upload-zone>
+                Drop files here or click to upload
               </div>
             ) : (
               <div className="space-y-1">

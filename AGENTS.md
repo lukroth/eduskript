@@ -192,7 +192,6 @@ Eduskript is a multi-tenant education platform where teachers create educational
   - `page-builder.tsx` - Visual page builder with drop zones, permission indicators, and nested skript support
   - `content-library.tsx` - Draggable content browser with permission filtering
   - `draggable-content.tsx` - Draggable items with eye icon indicators for view-only content
-  - `skript-editor.tsx` - Dedicated skript editing interface with page management
   - `collection-editor.tsx` - Collection management interface with skript organization
 - `src/components/public/` - Public-facing components (markdown renderer, TOC)
 - `src/components/permissions/` - Permission management UI components

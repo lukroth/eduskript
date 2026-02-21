@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { checkCollectionPermissions } from '@/lib/permissions'
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +9,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -44,16 +43,16 @@ export async function GET(
       return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
 
-    // Check if user has permission to view this collection
-    const permissions = checkCollectionPermissions(session.user.id, collection.authors, session.user.isAdmin)
-    if (!permissions.canView) {
+    // Simple ownership check: user must be an author or admin
+    const isAuthor = collection.authors.some(a => a.userId === session.user.id)
+    if (!isAuthor && !session.user.isAdmin) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: collection, 
-      permissions,
+    return NextResponse.json({
+      success: true,
+      data: collection,
+      permissions: { canEdit: true, canView: true },
       title: collection.title,
       description: collection.description
     })
@@ -69,33 +68,25 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
-    const { title, slug, description, isPublished, accentColor } = await request.json()
+    const { title, slug, description, accentColor } = await request.json()
 
-    // Get collection with authors to check permissions
     const existingCollection = await prisma.collection.findUnique({
       where: { id },
-      include: {
-        authors: {
-          include: {
-            user: true
-          }
-        }
-      }
+      include: { authors: true }
     })
 
     if (!existingCollection) {
       return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
 
-    // Check if user can edit this collection
-    const permissions = checkCollectionPermissions(session.user.id, existingCollection.authors)
-    if (!permissions.canEdit) {
+    const isAuthor = existingCollection.authors.some(a => a.userId === session.user.id)
+    if (!isAuthor && !session.user.isAdmin) {
       return NextResponse.json({ error: 'You do not have permission to edit this collection' }, { status: 403 })
     }
 
@@ -105,7 +96,6 @@ export async function PATCH(
         ...(title && { title }),
         ...(slug && { slug }),
         ...(description !== undefined && { description }),
-        ...(isPublished !== undefined && { isPublished }),
         ...(accentColor !== undefined && { accentColor })
       },
       include: {
@@ -130,32 +120,24 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
 
-    // Get collection with authors to check permissions
     const existingCollection = await prisma.collection.findUnique({
       where: { id },
-      include: {
-        authors: {
-          include: {
-            user: true
-          }
-        }
-      }
+      include: { authors: true }
     })
 
     if (!existingCollection) {
       return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
 
-    // Check if user can edit (delete) this collection
-    const permissions = checkCollectionPermissions(session.user.id, existingCollection.authors)
-    if (!permissions.canEdit) {
+    const isAuthor = existingCollection.authors.some(a => a.userId === session.user.id)
+    if (!isAuthor && !session.user.isAdmin) {
       return NextResponse.json({ error: 'You do not have permission to delete this collection' }, { status: 403 })
     }
 
@@ -168,4 +150,4 @@ export async function DELETE(
     console.error('Error deleting collection:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

@@ -130,11 +130,8 @@ export async function POST(
           select: { pageSlug: true }
         })
         if (ownerUser?.pageSlug) {
-          const collectionSlug = frontPage.skript.collectionSkripts[0]?.collection?.slug
-          if (collectionSlug) {
-            revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, collectionSlug, frontPage.skript.slug), 'default')
-            revalidatePath(`/${ownerUser.pageSlug}/${collectionSlug}/${frontPage.skript.slug}`)
-          }
+          revalidateTag(CACHE_TAGS.skriptBySlug(ownerUser.pageSlug, frontPage.skript.slug), 'default')
+          revalidatePath(`/${ownerUser.pageSlug}/${frontPage.skript.slug}`)
         }
       }
     }

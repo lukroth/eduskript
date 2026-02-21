@@ -145,16 +145,28 @@ export function PageBuilder({
                 Edit Main Frontpage
               </Button>
             </Link>
-            <Link href="/dashboard/collections/new">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                New Collection
-              </Button>
-            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              onClick={() => {
+                // Collections are created via API and added to page builder
+                const title = prompt('Collection name:')
+                if (!title?.trim()) return
+                const slug = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+                fetch('/api/collections', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ title: title.trim(), slug, description: '' })
+                }).then(res => {
+                  if (res.ok) onRefresh?.()
+                  else res.json().then(d => window.alert(d.error || 'Failed to create collection'))
+                })
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              New Collection
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -355,7 +367,7 @@ function PageBuilderItem({ item, index, onRemove, expandedCollections, onToggleC
               <>
                 {item.permissions?.canEdit && item.slug ? (
                   <Link
-                    href={item.type === 'collection' ? `/dashboard/collections/${item.slug}` : `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`}
+                    href={item.type === 'collection' ? '#' : `/dashboard/skripts/${item.slug}`}
                     className="font-medium text-sm truncate hover:underline flex items-center gap-1 w-fit"
                   >
                     {item.title}
@@ -499,11 +511,7 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                   <div className="flex items-center gap-2">
                     {item.permissions?.canEdit && item.slug ? (
                       <Link
-                        href={
-                          item.collectionSlug && item.slug
-                            ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
-                            : `/dashboard/collections/${item.collectionSlug || item.id}` // fallback to collection
-                        }
+                        href={`/dashboard/skripts/${item.slug}`}
                         className={cn(
                           "font-medium text-xs truncate hover:underline flex items-center gap-1 w-fit",
                           !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
