@@ -120,9 +120,21 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
     domain
   )
 
-  // Not found or not published - 404
-  // (Authors can use /preview/[domain]/... to view unpublished content)
+  // Not found - try treating skriptSlug as a legacy collection slug to ignore.
+  // Old URLs: /{domain}/{collectionSlug}/{skriptSlug} → redirect to /{domain}/{skriptSlug}
   if (!content) {
+    const fallbackSkript = await prisma.skript.findFirst({
+      where: {
+        slug: pageSlug,
+        isPublished: true,
+        authors: { some: { user: { pageSlug: domain } } }
+      },
+      select: { id: true }
+    })
+    if (fallbackSkript) {
+      redirect(`/${domain}/${pageSlug}`)
+    }
+
     notFound()
   }
 
