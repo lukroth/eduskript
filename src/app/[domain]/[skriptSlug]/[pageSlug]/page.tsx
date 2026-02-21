@@ -120,8 +120,8 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
     domain
   )
 
-  // Not found - try treating skriptSlug as a legacy collection slug to ignore.
-  // Old URLs: /{domain}/{collectionSlug}/{skriptSlug} → redirect to /{domain}/{skriptSlug}
+  // TODO: Remove in spring 2026. Temporary legacy redirect for old URLs
+  // that included the collection slug: /{domain}/{collectionSlug}/{skriptSlug} → /{domain}/{skriptSlug}
   if (!content) {
     const fallbackSkript = await prisma.skript.findFirst({
       where: {

@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 
-// Legacy redirect: /{domain}/{collectionSlug}/{skriptSlug}/{pageSlug}
-// → /{domain}/{skriptSlug}/{pageSlug}
-// Handles old URLs that included the collection slug prefix.
+// TODO: Remove in spring 2026. Temporary legacy redirect for old URLs
+// that included the collection slug prefix.
+// /{domain}/{collectionSlug}/{skriptSlug}/{pageSlug} → /{domain}/{skriptSlug}/{pageSlug}
 
 interface LegacyPageProps {
   params: Promise<{

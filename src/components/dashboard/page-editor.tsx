@@ -116,12 +116,35 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [aiEditModalOpen, setAiEditModalOpen] = useState(false)
+  const [editorHeight, setEditorHeight] = useState(() => {
+    if (typeof window === 'undefined') return 500
+    const saved = localStorage.getItem('eduskript:editor-height')
+    return saved ? parseInt(saved, 10) : 500
+  })
 
   // Persisted skript tab state — null means all collapsed
   const [activeSkriptTab, setActiveSkriptTab] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
     return localStorage.getItem('eduskript:skript-tab') || null
   })
+  const handleEditorResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = editorHeight
+    const onMouseMove = (e: MouseEvent) => {
+      const newHeight = Math.max(200, startHeight + e.clientY - startY)
+      setEditorHeight(newHeight)
+    }
+    const onMouseUp = (e: MouseEvent) => {
+      const finalHeight = Math.max(200, startHeight + e.clientY - startY)
+      localStorage.setItem('eduskript:editor-height', String(finalHeight))
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [editorHeight])
+
   const handleSkriptTabClick = useCallback((tab: string) => {
     setActiveSkriptTab(prev => {
       const next = prev === tab ? null : tab
@@ -1018,7 +1041,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
         )}
 
         {/* Content Editor */}
-        <Card className={isFullscreen ? 'border-0 shadow-none flex-1' : ''}>
+        <Card className={isFullscreen ? 'border-0 shadow-none flex-1 flex flex-col' : ''}>
           {!isFullscreen && (
             <CardHeader className="pb-2">
               <CardDescription>
@@ -1026,35 +1049,48 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
               </CardDescription>
             </CardHeader>
           )}
-          <CardContent>
-            <MarkdownEditor
-              content={content}
-              onChange={handleContentChange}
-              onSave={handleSave}
-              onFileInsert={handleFileInsert}
-              onFileDrop={(file, position, screenX, screenY) => {
-                const extension = file.name.split('.').pop()?.toLowerCase()
-                const hasMultipleOptions =
-                  ['sqlite', 'db'].includes(extension || '') ||
-                  ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')
+          <CardContent className={isFullscreen ? 'flex-1 overflow-hidden' : ''}>
+            <div
+              style={{ height: isFullscreen ? '100%' : `${editorHeight}px` }}
+              className={isFullscreen ? '' : 'overflow-hidden'}
+            >
+              <MarkdownEditor
+                content={content}
+                onChange={handleContentChange}
+                onSave={handleSave}
+                onFileInsert={handleFileInsert}
+                onFileDrop={(file, position, screenX, screenY) => {
+                  const extension = file.name.split('.').pop()?.toLowerCase()
+                  const hasMultipleOptions =
+                    ['sqlite', 'db'].includes(extension || '') ||
+                    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')
 
-                if (hasMultipleOptions) {
-                  setInsertionMenuFile({ ...file, position, x: screenX, y: screenY })
-                } else {
-                  handleFileInsert({ ...file, position })
-                  refreshFileList()
-                }
-              }}
-              skriptId={skript.id}
-              pageId={page.id}
-              domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
-              fileList={fileList}
-              videoList={videoList}
-              fileListLoading={fileListLoading}
-              onFileUpload={refreshFileList}
-              onAIEdit={() => setAiEditModalOpen(true)}
-              onExcalidrawEdit={(filename, fileId) => handleExcalidrawEdit({ id: fileId, name: filename })}
-            />
+                  if (hasMultipleOptions) {
+                    setInsertionMenuFile({ ...file, position, x: screenX, y: screenY })
+                  } else {
+                    handleFileInsert({ ...file, position })
+                    refreshFileList()
+                  }
+                }}
+                skriptId={skript.id}
+                pageId={page.id}
+                domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
+                fileList={fileList}
+                videoList={videoList}
+                fileListLoading={fileListLoading}
+                onFileUpload={refreshFileList}
+                onAIEdit={() => setAiEditModalOpen(true)}
+                onExcalidrawEdit={(filename, fileId) => handleExcalidrawEdit({ id: fileId, name: filename })}
+              />
+            </div>
+            {!isFullscreen && (
+              <div
+                onMouseDown={handleEditorResizeStart}
+                className="h-2 cursor-row-resize flex items-center justify-center hover:bg-muted/50 transition-colors -mb-4 mt-1"
+              >
+                <div className="w-12 h-1 rounded-full bg-muted-foreground/20" />
+              </div>
+            )}
           </CardContent>
         </Card>
 

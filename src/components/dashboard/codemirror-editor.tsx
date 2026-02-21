@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +62,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const editorViewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const previewRef = useRef<HTMLDivElement>(null)
+  const [editorFontSize, setEditorFontSize] = useState(() => {
+    if (typeof window === 'undefined') return 14
+    const saved = localStorage.getItem('eduskript:editor-font-size')
+    return saved ? parseInt(saved, 10) : 14
+  })
   const [editorWidth, setEditorWidth] = useState(50) // Percentage
   const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -535,7 +540,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               },
               '.cm-content': {
                 padding: '12px',
-                fontSize: '14px',
+                fontSize: `${editorFontSize}px`,
                 lineHeight: '1.5',
                 minHeight: '100%',
               },
@@ -598,6 +603,16 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, isDark]) // Only re-initialize when mounted state or theme changes
+
+  // Update editor font size dynamically
+  useEffect(() => {
+    if (editorViewRef.current) {
+      const cmContent = editorViewRef.current.dom.querySelector('.cm-content') as HTMLElement
+      if (cmContent) {
+        cmContent.style.fontSize = `${editorFontSize}px`
+      }
+    }
+  }, [editorFontSize])
 
   // Update editor content when prop changes (e.g., from image resize in preview)
   useEffect(() => {
@@ -1200,8 +1215,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   }
 
   return (
-    <div 
-      className={`border border-border rounded-lg bg-card ${
+    <div
+      className={`border border-border rounded-lg bg-card h-full flex flex-col ${
         dragOver ? 'border-primary bg-primary/10' : ''
       }`}
       onDragOver={handleDragOver}
@@ -1452,6 +1467,38 @@ const CodeMirrorEditor = function CodeMirrorEditor({
             )}
           </div>
 
+          {/* Font size controls */}
+          <div className="h-4 w-px bg-border mx-1" />
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const newSize = Math.max(10, editorFontSize - 1)
+                setEditorFontSize(newSize)
+                localStorage.setItem('eduskript:editor-font-size', String(newSize))
+              }}
+              className="w-6 h-6 p-0"
+              title="Decrease font size"
+            >
+              <Minus className="w-3 h-3" />
+            </Button>
+            <span className="text-xs text-muted-foreground w-6 text-center tabular-nums">{editorFontSize}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const newSize = Math.min(24, editorFontSize + 1)
+                setEditorFontSize(newSize)
+                localStorage.setItem('eduskript:editor-font-size', String(newSize))
+              }}
+              className="w-6 h-6 p-0"
+              title="Increase font size"
+            >
+              <Plus className="w-3 h-3" />
+            </Button>
+          </div>
+
           {/* Show collapsed panel buttons */}
           {(!showEditor || !showPreview) && (
             <>
@@ -1486,7 +1533,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       </div>
 
       {/* Editor and Preview */}
-      <div ref={containerRef} className="flex h-[600px] min-h-[400px] relative">
+      <div ref={containerRef} className="flex flex-1 min-h-[400px] relative overflow-hidden">
         {/* Drag overlay */}
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded">
