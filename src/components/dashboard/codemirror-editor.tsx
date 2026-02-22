@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus, CircleHelp } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus, CircleHelp, TextQuote } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -436,6 +436,26 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         const { EditorView, keymap } = await import('@codemirror/view')
         const { EditorState } = await import('@codemirror/state')
         const { indentWithTab } = await import('@codemirror/commands')
+
+        // Toggle "> " prefix on all selected lines (Ctrl/Cmd+Shift+.)
+        const toggleBlockquoteCmd = ({ state, dispatch }: { state: (typeof EditorState)['prototype'], dispatch: InstanceType<typeof EditorView>['dispatch'] }) => {
+          const { from, to } = state.selection.main
+          const lines = []
+          for (let pos = from; pos <= to;) {
+            const line = state.doc.lineAt(pos)
+            lines.push(line)
+            pos = line.to + 1
+          }
+          const allQuoted = lines.every(l => l.text.startsWith('> '))
+          dispatch(state.update({
+            changes: lines.map(line => allQuoted
+              ? { from: line.from, to: line.from + 2, insert: '' }
+              : { from: line.from, insert: '> ' }
+            ),
+            userEvent: 'input',
+          }))
+          return true
+        }
         const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
         const { LanguageDescription } = await import('@codemirror/language')
         
@@ -483,7 +503,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           doc: editorContent,
           extensions: [
             basicSetup,
-            keymap.of([indentWithTab]), // Enable Tab/Shift+Tab for indentation
+            keymap.of([indentWithTab, { key: 'Mod-Shift-.', run: toggleBlockquoteCmd }]), // Tab + blockquote toggle
             markdownExtension,
             ...(isDark ? [vsCodeDark] : [vsCodeLight]),
             EditorView.updateListener.of((update: ViewUpdate) => {
@@ -1150,6 +1170,27 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       view.focus()
     }
   }
+  const toggleBlockquote = () => {
+    if (!editorViewRef.current || useSimpleEditor) return
+    const view = editorViewRef.current
+    const { from, to } = view.state.selection.main
+    const lines = []
+    for (let pos = from; pos <= to;) {
+      const line = view.state.doc.lineAt(pos)
+      lines.push(line)
+      pos = line.to + 1
+    }
+    const allQuoted = lines.every(l => l.text.startsWith('> '))
+    view.dispatch(view.state.update({
+      changes: lines.map(line => allQuoted
+        ? { from: line.from, to: line.from + 2, insert: '' }
+        : { from: line.from, insert: '> ' }
+      ),
+      userEvent: 'input',
+    }))
+    view.focus()
+  }
+
   const insertBulletList = () => insertAtCursor('\n- ')
   const insertNumberedList = () => insertAtCursor('\n1. ')
   const insertLink = () => wrapSelection('[', '](url)')
@@ -1359,6 +1400,15 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                   className="w-8 h-8 p-0 border rounded-md"
                 >
                   <Link className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleBlockquote}
+                  title="Blockquote (Ctrl+Shift+.)"
+                  className="w-8 h-8 p-0 border rounded-md"
+                >
+                  <TextQuote className="w-4 h-4" />
                 </Button>
               </div>
               <div className="h-4 w-px bg-border mx-1" />
