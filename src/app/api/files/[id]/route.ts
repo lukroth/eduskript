@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getFileById, getFileExtension, getS3Key, sanitizeFilename } from '@/lib/file-storage'
 import { prisma } from '@/lib/prisma'
-import { getTeacherFileUrl } from '@/lib/s3'
+import { getTeacherFileUrl, downloadTeacherFile } from '@/lib/s3'
 
 export async function GET(
   request: NextRequest,
@@ -58,12 +58,7 @@ export async function GET(
       // If proxy mode is requested, fetch and return content directly (for CORS/canvas capture)
       if (proxyContent) {
         try {
-          const s3Response = await fetch(s3Url)
-          if (!s3Response.ok) {
-            return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 502 })
-          }
-
-          const body = await s3Response.arrayBuffer()
+          const body = new Uint8Array(await downloadTeacherFile(s3Key))
           return new NextResponse(body, {
             status: 200,
             headers: {
@@ -94,13 +89,8 @@ export async function GET(
     // If ?download=filename is set, proxy the file and force download with original filename
     if (downloadFilename) {
       try {
-        const s3Response = await fetch(file.s3Url)
-        if (!s3Response.ok) {
-          return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 502 })
-        }
-
-        const contentType = file.contentType || s3Response.headers.get('content-type') || 'application/octet-stream'
-        const body = await s3Response.arrayBuffer()
+        const body = new Uint8Array(await downloadTeacherFile(file.s3Key!))
+        const contentType = file.contentType || 'application/octet-stream'
         const safeName = downloadFilename.replace(/["\\\n\r]/g, '_')
 
         return new NextResponse(body, {
@@ -118,16 +108,13 @@ export async function GET(
     }
 
     // If proxy mode is requested, fetch content from S3 and return it directly
-    // This is useful for avoiding CORS issues when fetching from client-side JS
+    // This is useful for avoiding CORS issues when fetching from client-side JS.
+    // NOTE: Uses SDK download (credentials) rather than plain fetch of public URL to avoid
+    // potential Scaleway path-style URL issues or ACL mismatches.
     if (proxyContent) {
       try {
-        const s3Response = await fetch(file.s3Url)
-        if (!s3Response.ok) {
-          return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 502 })
-        }
-
-        const contentType = file.contentType || s3Response.headers.get('content-type') || 'application/octet-stream'
-        const body = await s3Response.arrayBuffer()
+        const body = new Uint8Array(await downloadTeacherFile(file.s3Key!))
+        const contentType = file.contentType || 'application/octet-stream'
 
         return new NextResponse(body, {
           status: 200,
