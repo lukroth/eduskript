@@ -242,7 +242,7 @@ export default function ClassesPage() {
 
       // Parse emails
       const emails = emailInput
-        .split(/[\n,\s]+/)
+        .split(/[\n,;\s]+/)
         .map((e) => e.trim())
         .filter((e) => e.length > 0 && e.includes('@'))
 
@@ -807,7 +807,7 @@ export default function ClassesPage() {
                                 [classItem.id]: e.target.value,
                               })
                             }
-                            placeholder="Paste student email addresses (one per line, or comma-separated)"
+                            placeholder="Paste student emails, separated by newlines, commas, semicolons, or spaces"
                             rows={4}
                             className="font-mono text-sm"
                           />
