@@ -655,8 +655,18 @@ export const CodeEditor = memo(function CodeEditor({
   const createVersionSnapshot = useCallback(async (isManualSave = false) => {
     if (!pageId) return
 
+    // Read from filesRef (kept in sync with editor) instead of files state,
+    // which lags behind because debouncedSaveContent writes to the ref, not state.
+    const liveFiles = editorViewRef.current
+      ? filesRef.current.map((file, idx) =>
+          idx === activeFileIndex
+            ? { ...file, content: editorViewRef.current!.state.doc.toString() }
+            : file
+        )
+      : filesRef.current
+
     const dataToVersion: CodeEditorData = {
-      files,
+      files: liveFiles,
       activeFileIndex,
       fontSize,
       lineWrapping,
@@ -666,7 +676,7 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     // Don't create version if content matches initial/default code
-    const currentContent = files.map(f => f.content).join('\n')
+    const currentContent = liveFiles.map(f => f.content).join('\n')
     const isDefaultContent = currentContent === initialCode || currentContent.trim() === ''
     if (isDefaultContent) {
       keystrokeCountRef.current = 0
@@ -686,7 +696,8 @@ export const CodeEditor = memo(function CodeEditor({
       // Clear highlight after 2 seconds
       setTimeout(() => setHighlightedVersion(null), 2000)
     }
-  }, [pageId, files, activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- files read from filesRef/editorViewRef to get live content
+  }, [pageId, activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
 
   // Keep refs in sync with callbacks (avoids dependencies in CodeMirror effect)
   useEffect(() => {
@@ -1621,8 +1632,8 @@ export const CodeEditor = memo(function CodeEditor({
             // Increment keystroke counter
             keystrokeCountRef.current++
 
-            // Create version every 5 keystrokes
-            if (keystrokeCountRef.current >= 5) {
+            // Create autosave version every 100 keystrokes
+            if (keystrokeCountRef.current >= 100) {
               createVersionSnapshotRef.current()
             }
 
@@ -3127,7 +3138,20 @@ plots
                           const data = await restore(version.versionNumber)
                           if (data) {
                             // Restore the data to component state
-                            if (data.files) setFiles(data.files)
+                            if (data.files) {
+                              setFiles(data.files)
+                              filesRef.current = data.files
+                              // Update editor content directly — setFiles alone may not
+                              // trigger the sync effect if files state was already stale
+                              const view = editorViewRef.current
+                              const fileIdx = data.activeFileIndex ?? activeFileIndex
+                              if (view && data.files[fileIdx]) {
+                                view.dispatch(view.state.update({
+                                  changes: { from: 0, to: view.state.doc.length, insert: data.files[fileIdx].content },
+                                  annotations: programmaticChange.of(true)
+                                }))
+                              }
+                            }
                             if (data.activeFileIndex !== undefined) setActiveFileIndex(data.activeFileIndex)
                             if (data.fontSize !== undefined) setFontSize(data.fontSize)
                             if (data.lineWrapping !== undefined) setLineWrapping(data.lineWrapping)
