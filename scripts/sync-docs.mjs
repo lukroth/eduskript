@@ -52,9 +52,62 @@ const pool = new Pool({
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
+/**
+ * Recursively hash all files in a directory to produce a single content fingerprint.
+ * Used to skip sync when docs haven't changed since last run.
+ */
+function hashDirectory(dir) {
+  const hash = createHash('sha256')
+  const entries = readdirSync(dir).sort()
+  for (const entry of entries) {
+    const fullPath = join(dir, entry)
+    const stat = statSync(fullPath)
+    if (stat.isDirectory()) {
+      hash.update(hashDirectory(fullPath))
+    } else {
+      hash.update(entry)
+      hash.update(readFileSync(fullPath))
+    }
+  }
+  return hash.digest('hex')
+}
+
 async function main() {
   console.log('📚 Starting docs sync...')
   console.log(`   Source: ${DOCS_DIR}`)
+
+  if (!existsSync(DOCS_DIR)) {
+    console.log('   No docs/ directory found, skipping sync.')
+    return
+  }
+
+  // Compute content hash of entire docs/ directory
+  const currentHash = hashDirectory(DOCS_DIR)
+
+  // Check if docs have changed since last sync (stored in DB via raw SQL)
+  // Uses a single-row convention: key = 'docs_sync_hash' in a raw query
+  // against an existing table would require a migration, so we use a
+  // lightweight approach: store the hash on the first admin's bio field...
+  // Actually, just use raw SQL to check if a table exists and create it if not.
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "_sync_metadata" (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `)
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT value FROM "_sync_metadata" WHERE key = 'docs_content_hash'`
+    )
+    if (Array.isArray(rows) && rows.length > 0 && rows[0].value === currentHash) {
+      console.log('   Docs unchanged since last sync, skipping.')
+      await prisma.$disconnect()
+      await pool.end()
+      return
+    }
+  } catch {
+    // Table doesn't exist or query failed — proceed with sync
+  }
 
   // 1. Read collections config
   const configPath = join(DOCS_DIR, '_collections.json')
@@ -245,6 +298,16 @@ async function main() {
     }
 
     console.log(`      Linked ${collectionDef.skripts.length} skript(s)`)
+  }
+
+  // Store content hash so next startup skips sync if unchanged
+  try {
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "_sync_metadata" (key, value) VALUES ('docs_content_hash', '${currentHash}')
+      ON CONFLICT (key) DO UPDATE SET value = '${currentHash}'
+    `)
+  } catch {
+    // Non-fatal: sync succeeded even if hash storage fails
   }
 
   console.log('\n✅ Docs sync complete!')
