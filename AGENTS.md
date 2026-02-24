@@ -728,7 +728,7 @@ All code editors (Python, JavaScript, SQL) support multiple files with language-
 
 **Version Control:**
 - Manual version creation with labels
-- Auto-version every 500 keystrokes
+- Auto-version every 100 keystrokes
 - Restore previous versions
 - Delete unwanted versions
 - Filter autosaves in history view
