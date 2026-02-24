@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { Pencil } from 'lucide-react'
 import type { SkriptFilesData } from '@/lib/skript-files'
 import { resolveExcalidraw, resolveFile } from '@/lib/skript-files'
@@ -39,9 +39,6 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
   const lightFile = files?.files[`${baseName}.excalidraw.light.svg`]
   const imgWidth = lightFile?.width ?? 800
   const imgHeight = lightFile?.height ?? 600
-
-  const [lightLoaded, setLightLoaded] = useState(false)
-  const [darkLoaded, setDarkLoaded] = useState(false)
 
   // Parse initial width from style
   const initialWidth = style?.width && typeof style.width === 'string' && style.width.includes('%')
@@ -118,10 +115,7 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
           height={imgHeight}
           loading="lazy"
           decoding="async"
-          onLoad={() => setLightLoaded(true)}
-          className={`excalidraw-light w-full h-auto rounded-md transition-opacity duration-200 dark:hidden ${
-            lightLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
+          className="excalidraw-light w-full h-auto rounded-md dark:hidden"
         />
       )}
       {darkSrc && (
@@ -133,10 +127,7 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
           height={imgHeight}
           loading="lazy"
           decoding="async"
-          onLoad={() => setDarkLoaded(true)}
-          className={`excalidraw-dark w-full h-auto rounded-md transition-opacity duration-200 hidden dark:block ${
-            darkLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
+          className="excalidraw-dark w-full h-auto rounded-md hidden dark:block"
         />
       )}
       {caption && (

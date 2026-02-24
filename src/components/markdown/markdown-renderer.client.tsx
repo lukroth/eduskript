@@ -9,7 +9,7 @@ import { EagerImageLoader } from './eager-image-loader'
 
 interface MarkdownRendererProps {
   content: string
-  fileList?: Array<{ id: string; name: string; url?: string }>
+  fileList?: Array<{ id: string; name: string; url?: string; updatedAt?: string | Date; width?: number; height?: number }>
   videoList?: VideoInfo[]
   pageId?: string
   skriptId?: string
@@ -178,10 +178,8 @@ function arePropsEqual(prevProps: MarkdownRendererProps, nextProps: MarkdownRend
   if (prevProps.pageId !== nextProps.pageId) return false
   if (prevProps.skriptId !== nextProps.skriptId) return false
 
-  // Compare fileList length
-  const prevFileCount = prevProps.fileList?.length ?? 0
-  const nextFileCount = nextProps.fileList?.length ?? 0
-  if (prevFileCount !== nextFileCount) return false
+  // Re-render when fileList reference changes (refreshFileList creates a new array)
+  if (prevProps.fileList !== nextProps.fileList) return false
 
   // Compare videoList length
   const prevVideoCount = prevProps.videoList?.length ?? 0

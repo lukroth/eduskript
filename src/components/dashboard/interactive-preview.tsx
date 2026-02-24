@@ -6,7 +6,7 @@ import type { VideoInfo } from '@/lib/skript-files'
 interface InteractivePreviewProps {
   markdown: string
   onContentChange?: (newContent: string) => void
-  fileList?: Array<{ id: string; name: string; url?: string; isDirectory?: boolean }>
+  fileList?: Array<{ id: string; name: string; url?: string; isDirectory?: boolean; updatedAt?: string | Date; width?: number; height?: number }>
   videoList?: VideoInfo[]
   pageId?: string
   onExcalidrawEdit?: (filename: string, fileId: string) => void

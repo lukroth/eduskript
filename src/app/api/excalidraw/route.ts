@@ -19,15 +19,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Verify skript ownership
+    // Verify skript ownership (super admins can edit all skripts)
     const skript = await prisma.skript.findFirst({
       where: {
         id: skriptId,
-        authors: {
-          some: {
-            userId: session.user.id
+        ...(session.user.isAdmin ? {} : {
+          authors: {
+            some: {
+              userId: session.user.id
+            }
           }
-        }
+        })
       }
     })
 
@@ -107,18 +109,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing fileId or skriptId' }, { status: 400 })
     }
 
-    // Verify access to the file
+    // Verify access to the file (super admins can access all skripts)
     const file = await prisma.file.findFirst({
       where: {
         id: fileId,
         skriptId: skriptId,
-        skript: {
-          authors: {
-            some: {
-              userId: session.user.id
+        ...(session.user.isAdmin ? {} : {
+          skript: {
+            authors: {
+              some: {
+                userId: session.user.id
+              }
             }
           }
-        }
+        })
       }
     })
 
