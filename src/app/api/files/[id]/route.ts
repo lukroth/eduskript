@@ -31,7 +31,11 @@ export async function GET(
     // If no session, try to get file for public access (will check if skript is published)
     const file = await getFileById(fileId, session?.user?.id)
     if (!file) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+      console.warn(`[FILES] File not found or access denied: id=${fileId}`)
+      // Redirect to placeholder to prevent Next.js image optimizer OOM
+      // from repeatedly retrying missing image URLs
+      const placeholderUrl = new URL('/no-image.svg', request.url)
+      return NextResponse.redirect(placeholderUrl, { status: 302 })
     }
 
     // If requesting an SVG variant, find the corresponding SVG file
@@ -47,7 +51,9 @@ export async function GET(
       })
 
       if (!svgFile || !svgFile.hash) {
-        return NextResponse.json({ error: 'SVG variant not found' }, { status: 404 })
+        console.warn(`[FILES] SVG variant not found: "${svgFileName}" for file "${file.name}" (id=${fileId})`)
+        const placeholderUrl = new URL('/no-image.svg', request.url)
+        return NextResponse.redirect(placeholderUrl, { status: 302 })
       }
 
       // Get S3 URL for the SVG file
@@ -67,8 +73,9 @@ export async function GET(
             }
           })
         } catch (fetchError) {
-          console.error('Failed to proxy SVG from S3:', fetchError)
-          return NextResponse.json({ error: 'Storage fetch failed' }, { status: 502 })
+          console.error(`[FILES] Failed to proxy SVG from S3: "${svgFileName}" (s3Key=${s3Key})`, fetchError)
+          const placeholderUrl = new URL('/no-image.svg', request.url)
+          return NextResponse.redirect(placeholderUrl, { status: 302 })
         }
       }
 
@@ -102,8 +109,9 @@ export async function GET(
           }
         })
       } catch (fetchError) {
-        console.error('Failed to proxy file for download:', fetchError)
-        return NextResponse.json({ error: 'Storage fetch failed' }, { status: 502 })
+        console.error(`[FILES] Failed to proxy file for download: "${file.name}" (s3Key=${file.s3Key})`, fetchError)
+        const placeholderUrl = new URL('/no-image.svg', request.url)
+        return NextResponse.redirect(placeholderUrl, { status: 302 })
       }
     }
 
@@ -125,8 +133,9 @@ export async function GET(
           }
         })
       } catch (fetchError) {
-        console.error('Failed to proxy file from S3:', fetchError)
-        return NextResponse.json({ error: 'Storage fetch failed' }, { status: 502 })
+        console.error(`[FILES] Failed to proxy file from S3: "${file.name}" (s3Key=${file.s3Key})`, fetchError)
+        const placeholderUrl = new URL('/no-image.svg', request.url)
+        return NextResponse.redirect(placeholderUrl, { status: 302 })
       }
     }
 
@@ -139,11 +148,11 @@ export async function GET(
       }
     })
   } catch (error) {
-    console.error('File serving error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to serve file' },
-      { status: 500 }
-    )
+    console.error(`[FILES] Error serving file:`, error)
+    // Redirect to placeholder image to prevent Next.js image optimizer OOM
+    // from repeatedly retrying broken image URLs
+    const placeholderUrl = new URL('/no-image.svg', request.url)
+    return NextResponse.redirect(placeholderUrl, { status: 302 })
   }
 }
 
