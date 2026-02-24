@@ -9,7 +9,7 @@ import { EagerImageLoader } from './eager-image-loader'
 
 interface MarkdownRendererProps {
   content: string
-  fileList?: Array<{ id: string; name: string; url?: string; updatedAt?: string | Date; width?: number; height?: number }>
+  fileList?: Array<{ id: string; name: string; url?: string; s3Url?: string; updatedAt?: string | Date; width?: number; height?: number }>
   videoList?: VideoInfo[]
   pageId?: string
   skriptId?: string

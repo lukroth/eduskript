@@ -39,6 +39,11 @@ let scriptLoading: Promise<void> | null = null
 // Database instances stored by path (allows multiple databases to be open simultaneously)
 const databaseCache = new Map<string, SqlJsDatabase>()
 
+// In-flight load deduplication: prevents N SQL editors on the same page from
+// triggering N parallel server-side downloads of the same database file.
+// Without this, each ?proxy=true request buffers the entire DB in server memory → OOM.
+const pendingLoads = new Map<string, Promise<SqlJsDatabase>>()
+
 export interface SqlResultSet {
   columns: string[]
   values: any[][]
@@ -115,20 +120,32 @@ async function initializeSqlJs(): Promise<SqlJsStatic> {
 }
 
 /**
- * Load a database from the given path
- * Returns the database instance (cached if already loaded)
+ * Load a database from the given path.
+ * Returns the database instance (cached if already loaded).
+ * Deduplicates concurrent requests: if N editors request the same DB before
+ * the first fetch completes, they all share a single fetch+parse.
  */
 export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
   // Check cache first
   const cached = databaseCache.get(dbPath)
-  if (cached) {
-    return cached
-  }
+  if (cached) return cached
 
-  // Initialize SQL.js if needed
+  // Deduplicate in-flight loads
+  const pending = pendingLoads.get(dbPath)
+  if (pending) return pending
+
+  const promise = loadDatabaseImpl(dbPath)
+  pendingLoads.set(dbPath, promise)
+  try {
+    return await promise
+  } finally {
+    pendingLoads.delete(dbPath)
+  }
+}
+
+async function loadDatabaseImpl(dbPath: string): Promise<SqlJsDatabase> {
   const sql = await initializeSqlJs()
 
-  // Fetch database file
   const response = await fetch(dbPath)
   if (!response.ok) {
     throw new Error(`Failed to load database: ${response.status} ${response.statusText}`)
@@ -137,10 +154,7 @@ export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
   const arrayBuffer = await response.arrayBuffer()
   const uInt8Array = new Uint8Array(arrayBuffer)
 
-  // Create database from file
   const database = new sql.Database(uInt8Array)
-
-  // Store in cache
   databaseCache.set(dbPath, database)
 
   return database

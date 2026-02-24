@@ -23,7 +23,7 @@ interface MarkdownEditorProps {
   pageId?: string
   domain?: string
   isReadOnly?: boolean
-  fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean}>
+  fileList?: Array<{id: string, name: string, url?: string, s3Url?: string, isDirectory?: boolean}>
   videoList?: VideoInfo[]
   fileListLoading?: boolean
   onFileUpload?: () => void

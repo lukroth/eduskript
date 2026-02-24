@@ -174,6 +174,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
     name: string
     size?: number
     url?: string
+    s3Url?: string
     isDirectory?: boolean
     contentType?: string
     createdAt: Date

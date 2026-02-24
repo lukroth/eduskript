@@ -50,10 +50,13 @@ export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData>
       ? getTeacherFileUrl(getS3Key(file.hash, ext))
       : `/api/files/${file.id}`
 
+    const s3Url = file.hash ? getTeacherFileUrl(getS3Key(file.hash, ext)) : undefined
+
     files[file.name] = {
       id: file.id,
       name: file.name,
       url,
+      s3Url,
       width: file.width ?? undefined,
       height: file.height ?? undefined,
     }

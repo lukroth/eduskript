@@ -31,7 +31,7 @@ interface CodeMirrorEditorProps {
   pageId?: string
   domain?: string
   isReadOnly?: boolean
-  fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean, updatedAt?: string | Date, width?: number, height?: number}>
+  fileList?: Array<{id: string, name: string, url?: string, s3Url?: string, isDirectory?: boolean, updatedAt?: string | Date, width?: number, height?: number}>
   videoList?: VideoInfo[]
   fileListLoading?: boolean
   onFileUpload?: () => void

@@ -696,7 +696,6 @@ export const CodeEditor = memo(function CodeEditor({
       // Clear highlight after 2 seconds
       setTimeout(() => setHighlightedVersion(null), 2000)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- files read from filesRef/editorViewRef to get live content
   }, [pageId, activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
 
   // Keep refs in sync with callbacks (avoids dependencies in CodeMirror effect)

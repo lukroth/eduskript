@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { saveFile, MAX_FILE_SIZE, validateFile, sanitizeFilename } from '@/lib/file-storage'
+import { saveFile, MAX_FILE_SIZE, validateFile, sanitizeFilename, getFileExtension, getS3Key } from '@/lib/file-storage'
+import { getTeacherFileUrl } from '@/lib/s3'
 import sharp from 'sharp'
 
 // Increase function timeout for large uploads
@@ -191,18 +192,30 @@ export async function GET(request: NextRequest) {
       ]
     })
 
-    const mappedFiles = files.map(file => ({
-      id: file.id,
-      name: file.name,
-      isDirectory: file.isDirectory,
-      size: file.size ? Number(file.size) : undefined,
-      contentType: file.contentType || undefined,
-      width: file.width ?? undefined,
-      height: file.height ?? undefined,
-      createdAt: file.createdAt,
-      updatedAt: file.updatedAt,
-      url: file.isDirectory ? undefined : `/api/files/${file.id}`
-    }))
+    const mappedFiles = files.map(file => {
+      // Compute direct S3 URL for files with a hash (avoids proxy overhead)
+      let s3Url: string | undefined
+      if (!file.isDirectory && file.hash) {
+        const ext = getFileExtension(file.name)
+        if (ext) {
+          s3Url = getTeacherFileUrl(getS3Key(file.hash, ext))
+        }
+      }
+
+      return {
+        id: file.id,
+        name: file.name,
+        isDirectory: file.isDirectory,
+        size: file.size ? Number(file.size) : undefined,
+        contentType: file.contentType || undefined,
+        width: file.width ?? undefined,
+        height: file.height ?? undefined,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        url: file.isDirectory ? undefined : `/api/files/${file.id}`,
+        s3Url,
+      }
+    })
 
     // Also fetch all videos (they're global, not per-skript)
     const videos = await prisma.video.findMany({
