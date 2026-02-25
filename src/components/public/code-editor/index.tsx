@@ -205,6 +205,10 @@ export const CodeEditor = memo(function CodeEditor({
   const [output, setOutput] = useState<OutputEntry[]>([])
   const [verificationResult, setVerificationResult] = useState<{ isCorrect: boolean; showSolution: boolean } | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [editorReady, setEditorReady] = useState(false)
+
+  const debugTag = `[CodeEditor:${id}]`
+  const dbName = db ? db.split('/').pop() || db : 'Database'
 
   // User data persistence - only if pageId is provided
   const componentId = `code-editor-${id}`
@@ -503,6 +507,9 @@ export const CodeEditor = memo(function CodeEditor({
     // Only restore once when data first loads.
     // The editor id is a hash of the markdown content, so if the teacher edits
     // the markdown the componentId changes and no saved data will be found.
+    if (!isLoading && !hasLoadedData.current) {
+      console.debug(debugTag, 'userData loaded', !!savedData)
+    }
     if (!isLoading && savedData && !hasLoadedData.current) {
       hasLoadedData.current = true
 
@@ -516,7 +523,7 @@ export const CodeEditor = memo(function CodeEditor({
         setHighlights(savedData.highlights)
       }
     }
-  }, [isLoading, savedData, isBroadcastMode])
+  }, [isLoading, savedData, isBroadcastMode, debugTag])
 
   // Track previous broadcast mode to detect mode switches
   // MODE SWITCHING BEHAVIOR:
@@ -1309,7 +1316,9 @@ export const CodeEditor = memo(function CodeEditor({
 
   // Wait for theme to hydrate
   useEffect(() => {
+    console.debug(debugTag, 'mounted')
     setMounted(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect, debugTag is stable
   }, [])
 
   // Preload runtime in background on mount (before user clicks Run)
@@ -1330,15 +1339,21 @@ export const CodeEditor = memo(function CodeEditor({
   // Load SQL database when in SQL mode
   useEffect(() => {
     if (language === 'sql' && db && mounted) {
+      console.debug(debugTag, 'loading database', db)
+      setDbStatus('loading')
       // Dynamic import to avoid SSR issues
       import('@/lib/sql-executor.client').then(({ loadDatabase }) => {
         loadDatabase(db).then(() => {
+          console.debug(debugTag, 'database ready', db)
           setDbStatus('ready')
         }).catch((error) => {
+          console.debug(debugTag, 'database error', db, error.message)
+          setDbStatus('idle')
           addOutput(`Failed to load database: ${error.message}`, OutputLevel.ERROR)
         })
       })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- debugTag is stable (derived from id prop)
   }, [language, db, mounted])
 
   // Poll for cross-editor database cache hits (another editor may have loaded the same DB)
@@ -1667,6 +1682,8 @@ export const CodeEditor = memo(function CodeEditor({
     })
 
     editorViewRef.current = view
+    setEditorReady(true)
+    console.debug(debugTag, 'CodeMirror created')
 
     // Re-apply highlights after editor creation
     // Use displayHighlightsRef to include both student and teacher highlights
@@ -1693,6 +1710,7 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     return () => {
+      setEditorReady(false)
       // Flush pending content to IndexedDB before destroying the editor.
       // This catches edits made in the last 2 seconds before unmount/navigation.
       if (contentSaveTimeoutRef.current) {
@@ -2745,6 +2763,12 @@ plots
 
             {/* CodeMirror Editor */}
             <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative" style={{ cursor: highlighterMode ? highlighterCursor : undefined }}>
+              {/* Loading skeleton while editor initializes */}
+              {!editorReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-[#1e1e1e] z-[1]">
+                  <span className="text-xs text-muted-foreground animate-pulse">Loading editor...</span>
+                </div>
+              )}
               {/* Floating Control Buttons - Bottom Left */}
               <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
                 {runState === RunState.STOPPED ? (
@@ -2784,9 +2808,9 @@ plots
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
-                        {dbStatus === 'idle' && 'Database loads on first run'}
-                        {dbStatus === 'loading' && 'Loading database...'}
-                        {dbStatus === 'ready' && 'Database ready'}
+                        {dbStatus === 'idle' && `${dbName} — loads on first run`}
+                        {dbStatus === 'loading' && `Loading ${dbName}...`}
+                        {dbStatus === 'ready' && `${dbName} ready`}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -2795,6 +2819,21 @@ plots
               {/* Floating Control Buttons - Bottom Right */}
               {pageId && (
                 <div className="absolute bottom-2 right-2 flex items-center gap-1 z-10">
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(componentId) }}
+                          className="h-7 w-7 flex items-center justify-center text-[10px] font-mono opacity-15 hover:opacity-60 active:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          #
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs font-mono">
+                        {componentId}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <Button
                     onClick={resetCode}
                     size="sm"
