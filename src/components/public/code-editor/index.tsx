@@ -2983,9 +2983,9 @@ plots
 
                   {/* SQL Results Table */}
                   {entry.sqlResults && entry.sqlResults.length > 0 && (
-                    <div className="mt-1 overflow-x-auto">
+                    <div className="mt-1">
                       {entry.sqlResults.map((resultSet, rsIndex) => (
-                        <table key={rsIndex} className="w-full border-collapse border border-border text-[11px] mb-2">
+                        <table key={rsIndex} className="w-max min-w-full border-collapse border border-border text-[11px] mb-2">
                           <thead className="bg-muted">
                             <tr>
                               {resultSet.columns.map((column, colIdx) => (
