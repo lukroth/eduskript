@@ -1805,9 +1805,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }
   }, [recalculateHeadingPositions])
 
-  // Watch dynamic-height elements (callouts, code editors) for size changes
-  // This triggers repositioning when callouts expand/collapse or editors show console output
-  // Uses MutationObserver to handle dynamically added elements (e.g., hydrated code editors)
+  // Watch the entire content container for size changes.
+  // Any element growing/shrinking (callouts, editors, images, datacube, etc.)
+  // triggers recalculation so annotations reposition correctly.
   useEffect(() => {
     if (!contentRef.current) return
 
@@ -1825,43 +1825,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }
 
     const resizeObserver = new ResizeObserver(scheduleRecalculation)
-
-    // Observe all current dynamic-height elements
-    const observeElements = () => {
-      const dynamicElements = contentRef.current?.querySelectorAll<HTMLElement>('[data-dynamic-height="true"]')
-      dynamicElements?.forEach(el => resizeObserver.observe(el))
-    }
-
-    observeElements()
-
-    // Watch for dynamically added elements (e.g., hydrated code editors)
-    const mutationObserver = new MutationObserver((mutations) => {
-      let shouldObserve = false
-      for (const mutation of mutations) {
-        if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach(node => {
-            if (node instanceof HTMLElement) {
-              // Check if the added node or its children have data-dynamic-height
-              if (node.hasAttribute?.('data-dynamic-height') ||
-                  node.querySelector?.('[data-dynamic-height="true"]')) {
-                shouldObserve = true
-              }
-            }
-          })
-        }
-      }
-      if (shouldObserve) {
-        observeElements()
-        // Also recalculate since new elements may have changed layout
-        scheduleRecalculation()
-      }
-    })
-
-    mutationObserver.observe(contentRef.current, { childList: true, subtree: true })
+    resizeObserver.observe(contentRef.current)
 
     return () => {
       resizeObserver.disconnect()
-      mutationObserver.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)
     }
   }, [children, recalculateHeadingPositions])
