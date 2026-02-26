@@ -88,8 +88,10 @@ import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-c
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
 import { useSyncedUserData, useUserDataContext, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import type { AnnotationData, StrokeTelemetry, TelemetryData } from '@/lib/userdata/types'
-import type { SnapsData } from '@/lib/userdata/adapters'
+import type { SnapsData, SpacersData } from '@/lib/userdata/adapters'
+import type { Spacer, SpacerPattern } from '@/types/spacer'
 import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
+import { getStrokeAvg } from '@/lib/annotations/stroke-grouping'
 import { repositionStrokes, repositionSnaps } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
@@ -101,6 +103,7 @@ import type { Snap } from '@/types/snap'
 import { PasteSnapHandler } from './paste-snap-handler'
 import { SnapsDisplay, type StudentWorkSnap } from './snaps-display'
 import { LayerBadges } from './layer-badges'
+import { SpacersDisplay } from './spacers-display'
 import { createLogger } from '@/lib/logger'
 
 const log = createLogger('annotations:layer')
@@ -500,14 +503,26 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     syncOptions
   )
 
+  // Use synced user data service for spacers
+  // Spacers follow the same targeting as annotations/snaps for broadcast support
+  const emptySpacersData = useMemo(() => ({ spacers: [] } as SpacersData), [])
+  const { data: spacersData, updateData: updateSpacersData } = useSyncedUserData<SpacersData>(
+    pageId,
+    'spacers',
+    emptySpacersData,
+    syncOptions
+  )
+
   // For students: fetch teacher broadcasts (annotations + snaps)
   // isExamStudent handles the SEB exam case where NextAuth session isn't available
   const isStudent = session?.user?.accountType === 'student' || isExamStudent
   const {
     classAnnotations: teacherClassAnnotations,
     classSnaps: teacherClassSnaps,
+    classSpacers: teacherClassSpacers,
     individualFeedback: teacherIndividualFeedback,
     individualSnapFeedback: teacherIndividualSnapFeedback,
+    individualSpacerFeedback: teacherIndividualSpacerFeedback,
     isLoading: teacherAnnotationsLoading,
     refetch: refetchTeacherAnnotations,
   } = useTeacherBroadcast(isStudent ? pageId : '')
@@ -520,6 +535,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     'annotations',
     null,
     {} // No targeting = personal annotations
+  )
+  // Personal spacers hook (needed when broadcasting, so we can clear personal spacers independently)
+  const { updateData: updatePersonalSpacersData } = useSyncedUserData<SpacersData>(
+    shouldLoadPersonalAsReference ? pageId : '',
+    'spacers',
+    emptySpacersData,
+    {} // No targeting = personal spacers
   )
 
   // Layer visibility state
@@ -854,6 +876,23 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   // Layer badges visibility - hidden by default, shown when hovering layers dropdown in toolbar
   const [showLayerBadges, setShowLayerBadges] = useState(false)
 
+  // Spacer state
+  const [spacerPattern, setSpacerPattern] = useState<SpacerPattern>('blank')
+  const [spacerInsertIndex, setSpacerInsertIndex] = useState<number | null>(null) // Hover insertion indicator
+  const [spacerDeleteAnnotations, setSpacerDeleteAnnotations] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('spacer-delete-annotations')
+      return saved !== null ? saved === 'true' : true // Default: enabled
+    }
+    return true
+  })
+  const handleSpacerDeleteAnnotationsChange = useCallback((value: boolean) => {
+    setSpacerDeleteAnnotations(value)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spacer-delete-annotations', value.toString())
+    }
+  }, [])
+
   // Check if class broadcast and student feedback layers have content
   // IMPORTANT: When in the respective mode, use local canvasData/hasAnnotations state (which updates immediately)
   // because the useSyncedUserData hooks don't update until after save completes
@@ -943,6 +982,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       classBroadcastCanvasRef.current = ''
 
       await updateClassBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
+      // Also clear spacers for this class broadcast
+      updateSpacersData({ spacers: [] })
       // If currently viewing class broadcast, also clear local state
       if (viewMode === 'class-broadcast') {
         setCanvasData('')
@@ -956,7 +997,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         c.id === selectedClass.id ? { ...c, hasAnnotationsOnPage: false } : c
       ))
     }
-  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode])
+  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode, updateSpacersData])
 
   // Delete student feedback annotations specifically
   // Works for both selected student and last selected student (in class-broadcast mode)
@@ -975,6 +1016,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (updateStudentFeedbackData) {
       await updateStudentFeedbackData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
     }
+    // Also clear spacers for this student feedback
+    updateSpacersData({ spacers: [] })
 
     // If currently drawing on this student, also clear local canvas
     if (viewMode === 'student-view') {
@@ -987,7 +1030,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     setClassStudents(prev => prev.map(s =>
       s.id === studentForFeedback.id ? { ...s, hasAnnotationsOnPage: false } : s
     ))
-  }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode])
+  }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode, updateSpacersData])
 
   // Delete page broadcast annotations (for page authors)
   const deletePageBroadcastData = useCallback(async () => {
@@ -997,6 +1040,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (updatePageBroadcastData) {
       await updatePageBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
     }
+    // Also clear spacers for page broadcast
+    updateSpacersData({ spacers: [] })
 
     // If currently viewing page broadcast, also clear local state
     if (viewMode === 'page-broadcast') {
@@ -1004,7 +1049,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       setHasAnnotations(false)
       canvasRef.current?.clear()
     }
-  }, [viewMode, updatePageBroadcastData])
+  }, [viewMode, updatePageBroadcastData, updateSpacersData])
 
   // Build list of available layers for the toolbar UI
   // This includes reference layers AND the currently active/editable layer
@@ -1833,6 +1878,235 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }
   }, [children, recalculateHeadingPositions])
 
+  // =========================================================================
+  // Spacer DOM injection
+  // Injects spacer divs as real DOM elements between content blocks.
+  // This pushes content down (not an overlay), and recalculates heading
+  // positions so annotations below spacers reposition automatically.
+  // =========================================================================
+
+  // Derive spacers from synced data (user's own spacers)
+  const spacers: Spacer[] = useMemo(() => spacersData?.spacers || [], [spacersData?.spacers])
+
+  // Derive broadcast spacers for students (teacher → student)
+  const broadcastSpacers: Spacer[] = useMemo(() => {
+    if (!isStudent) return []
+    const result: Spacer[] = []
+
+    // Class broadcast spacers
+    for (const classSpacerData of (teacherClassSpacers || [])) {
+      const data = classSpacerData.data as { spacers?: Spacer[] } | null
+      if (data?.spacers) {
+        result.push(...data.spacers)
+      }
+    }
+
+    // Individual spacer feedback
+    if (teacherIndividualSpacerFeedback) {
+      const data = teacherIndividualSpacerFeedback.data as { spacers?: Spacer[] } | null
+      if (data?.spacers) {
+        result.push(...data.spacers)
+      }
+    }
+
+    return result
+  }, [isStudent, teacherClassSpacers, teacherIndividualSpacerFeedback])
+
+  // All spacers to inject (own + broadcast)
+  const allSpacersToInject: Spacer[] = useMemo(() => {
+    // Dedupe by id (own spacers take precedence)
+    const ids = new Set(spacers.map(s => s.id))
+    return [...spacers, ...broadcastSpacers.filter(s => !ids.has(s.id))]
+  }, [spacers, broadcastSpacers])
+
+  // Helper: get the .markdown-content container (the actual parent of block elements)
+  const getMarkdownContainer = useCallback(() => {
+    if (!contentRef.current) return null
+    return contentRef.current.querySelector('.markdown-content') ?? contentRef.current
+  }, [])
+
+  // Helper: get block children (non-spacer direct children of markdown container)
+  const getBlockChildren = useCallback(() => {
+    const container = getMarkdownContainer()
+    if (!container) return []
+    return Array.from(container.children).filter(
+      el => !el.hasAttribute('data-spacer-id')
+    )
+  }, [getMarkdownContainer])
+
+  // Inject spacer DOM elements between block children of .markdown-content
+  useEffect(() => {
+    const container = getMarkdownContainer()
+    if (!container) return
+
+    // Remove previously injected spacer elements
+    container.querySelectorAll('[data-spacer-id]').forEach(el => el.remove())
+
+    if (allSpacersToInject.length === 0) {
+      recalculateHeadingPositions()
+      return
+    }
+
+    // Sort spacers by afterBlockIndex descending so insertions don't shift indices
+    const sorted = [...allSpacersToInject].sort((a, b) => b.afterBlockIndex - a.afterBlockIndex)
+
+    for (const spacer of sorted) {
+      // Re-query children excluding spacers since we just removed them all
+      const currentChildren = Array.from(container.children).filter(
+        el => !el.hasAttribute('data-spacer-id')
+      )
+      const clampedIndex = Math.min(spacer.afterBlockIndex, currentChildren.length - 1)
+      if (clampedIndex < 0) continue
+
+      const targetChild = currentChildren[clampedIndex]
+      if (!targetChild) continue
+
+      const spacerDiv = document.createElement('div')
+      spacerDiv.setAttribute('data-spacer-id', spacer.id)
+      spacerDiv.className = `spacer-element spacer-${spacer.pattern}`
+      spacerDiv.style.height = `${spacer.height}px`
+
+      targetChild.after(spacerDiv)
+    }
+
+    // Recalculate heading positions since content shifted
+    recalculateHeadingPositions()
+  }, [allSpacersToInject, children, recalculateHeadingPositions, getMarkdownContainer])
+
+  // Spacer CRUD operations
+  const handleAddSpacer = useCallback((afterBlockIndex: number) => {
+    const newSpacer: Spacer = {
+      id: crypto.randomUUID(),
+      afterBlockIndex,
+      height: 80,
+      pattern: spacerPattern,
+    }
+    const current = spacersData?.spacers || []
+    updateSpacersData({ spacers: [...current, newSpacer] })
+  }, [spacerPattern, spacersData, updateSpacersData])
+
+  const handleUpdateSpacer = useCallback((id: string, updates: Partial<Spacer>) => {
+    const current = spacersData?.spacers || []
+    updateSpacersData({
+      spacers: current.map(s => s.id === id ? { ...s, ...updates } : s)
+    })
+  }, [spacersData, updateSpacersData])
+
+  const handleRemoveSpacer = useCallback((id: string) => {
+    // Optionally delete annotations whose avgY falls within the spacer's vertical range
+    if (spacerDeleteAnnotations && canvasData) {
+      const spacerEl = document.querySelector(`[data-spacer-id="${id}"]`) as HTMLElement | null
+      if (spacerEl) {
+        const paperEl = document.getElementById('paper')
+        if (paperEl) {
+          const paperRect = paperEl.getBoundingClientRect()
+          const scale = (paperRect.height / paperEl.offsetHeight) || 1
+          const elRect = spacerEl.getBoundingClientRect()
+          const spacerTop = (elRect.top - paperRect.top) / scale
+          const spacerBottom = (elRect.bottom - paperRect.top) / scale
+
+          try {
+            const strokes = JSON.parse(canvasData) as StrokeData[]
+            const filtered = strokes.filter(stroke => {
+              const avg = getStrokeAvg(stroke)
+              return avg.y < spacerTop || avg.y > spacerBottom
+            })
+            if (filtered.length !== strokes.length) {
+              const newData = JSON.stringify(filtered)
+              // Update canvas state — SimpleCanvas re-renders when initialData changes
+              setCanvasData(newData)
+              // Save filtered annotations
+              const hasData = filtered.length > 0
+              setHasAnnotations(hasData)
+              const currentOffsets = Object.fromEntries(
+                headingPositions.map(h => [h.sectionId, h.offsetY])
+              )
+              updateAnnotationData({
+                canvasData: newData,
+                headingOffsets: currentOffsets,
+                pageVersion: pageVersionRef.current,
+                paddingLeft: currentPaddingLeft,
+              })
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+
+    const current = spacersData?.spacers || []
+    updateSpacersData({ spacers: current.filter(s => s.id !== id) })
+  }, [spacersData, updateSpacersData, spacerDeleteAnnotations, canvasData, headingPositions, currentPaddingLeft, updateAnnotationData])
+
+  // Compute all gap Y positions between block children (for preview lines)
+  // Returns array of { index, y } for each gap
+  const [spacerGapPositions, setSpacerGapPositions] = useState<Array<{ index: number; y: number }>>([])
+
+  useEffect(() => {
+    if (mode !== 'spacer') {
+      setSpacerGapPositions([])
+      return
+    }
+
+    const blockChildren = getBlockChildren()
+    if (blockChildren.length === 0) {
+      setSpacerGapPositions([])
+      return
+    }
+
+    const paperEl = document.getElementById('paper')
+    if (!paperEl) return
+    const paperRect = paperEl.getBoundingClientRect()
+    const scale = (paperRect.height / paperEl.offsetHeight) || 1
+
+    const gaps: Array<{ index: number; y: number }> = []
+    for (let i = 0; i < blockChildren.length; i++) {
+      const rect = blockChildren[i].getBoundingClientRect()
+      const bottomY = (rect.bottom - paperRect.top) / scale
+      gaps.push({ index: i, y: bottomY })
+    }
+    setSpacerGapPositions(gaps)
+  }, [mode, children, getBlockChildren, allSpacersToInject])
+
+  // Find nearest gap index from a client Y position
+  const findNearestGap = useCallback((clientY: number): number | null => {
+    const paperEl = document.getElementById('paper')
+    if (!paperEl || spacerGapPositions.length === 0) return null
+    const paperRect = paperEl.getBoundingClientRect()
+    const scale = (paperRect.height / paperEl.offsetHeight) || 1
+    const y = (clientY - paperRect.top) / scale
+
+    let bestIndex = 0
+    let bestDist = Infinity
+
+    for (const gap of spacerGapPositions) {
+      const dist = Math.abs(y - gap.y)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIndex = gap.index
+      }
+    }
+
+    return bestIndex
+  }, [spacerGapPositions])
+
+  // Click-to-place: find the nearest gap and insert a spacer
+  const handleSpacerPlacement = useCallback((e: React.MouseEvent) => {
+    if (mode !== 'spacer') return
+    const index = findNearestGap(e.clientY)
+    if (index === null) return
+
+    handleAddSpacer(index)
+    setSpacerInsertIndex(null)
+  }, [mode, handleAddSpacer, findNearestGap])
+
+  // Hover: highlight nearest gap
+  const handleSpacerHover = useCallback((e: React.MouseEvent) => {
+    if (mode !== 'spacer') return
+    setSpacerInsertIndex(findNearestGap(e.clientY))
+  }, [mode, findNearestGap])
+
   // Ref for the save function that accepts options (used when switching targets)
   const performSaveWithOptionsRef = useRef<((options?: SyncedUserDataOptions) => Promise<void>) | null>(null)
 
@@ -2067,6 +2341,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       // Clear user data
       await deleteAnnotationData()
 
+      // Also clear spacers for the same target
+      updateSpacersData({ spacers: [] })
+
       // Clear canvas
       if (canvasRef.current) {
         canvasRef.current.clear()
@@ -2074,7 +2351,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     } catch {
       // Ignore clearing errors
     }
-  }, [deleteAnnotationData, setAnnotationVersionMismatch])
+  }, [deleteAnnotationData, setAnnotationVersionMismatch, updateSpacersData])
 
   // Handle layer delete (only for active layer)
   const handleLayerDelete = useCallback((layerId: string) => {
@@ -2110,10 +2387,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       }
 
       await deletePersonalAnnotationData()
+
+      // Also clear personal spacers
+      if (shouldLoadPersonalAsReference && updatePersonalSpacersData) {
+        updatePersonalSpacersData({ spacers: [] })
+      } else {
+        updateSpacersData({ spacers: [] })
+      }
     } catch (err) {
       console.error('Failed to clear personal annotations:', err)
     }
-  }, [deletePersonalAnnotationData, shouldLoadPersonalAsReference, setAnnotationVersionMismatch])
+  }, [deletePersonalAnnotationData, shouldLoadPersonalAsReference, setAnnotationVersionMismatch, updatePersonalSpacersData, updateSpacersData])
 
   // Register clear callback with global provider for SyncStatusButton
   useEffect(() => {
@@ -2554,8 +2838,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           className={`annotation-content-wrapper ${!activeLayerVisible ? 'annotation-layer-hidden' : ''}`}
           style={{
             height: pageHeight,
-            // Always capture events when in draw/erase mode or stylus mode
-            pointerEvents: (mode !== 'view' || stylusModeActive) ? 'auto' : 'none',
+            // Always capture events when in draw/erase mode or stylus mode (spacer mode bypasses canvas)
+            pointerEvents: ((mode === 'draw' || mode === 'erase') || stylusModeActive) ? 'auto' : 'none',
             // CRITICAL: When pen is actively drawing, disable touch actions to prevent scroll
             // When pen is not drawing, allow touch scrolling
             touchAction: penActive ? 'none' : 'auto',
@@ -2566,7 +2850,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             ref={canvasRef}
             width={paperWidth}
             height={pageHeight}
-            mode={mode === 'view' ? 'view' : (mode as DrawMode)}
+            mode={(mode === 'view' || mode === 'spacer') ? 'view' : (mode as DrawMode)}
             onUpdate={handleCanvasUpdate}
             onTelemetry={handleTelemetry}
             onDrawStart={ensureActiveLayerVisible}
@@ -3021,7 +3305,52 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         onStudentSelect={setSelectedStudent}
         lastSelectedStudent={lastSelectedStudent}
         onClearLastSelectedStudent={() => setLastSelectedStudent(null)}
+        spacerPattern={spacerPattern}
+        onSpacerPatternChange={setSpacerPattern}
+        spacerDeleteAnnotations={spacerDeleteAnnotations}
+        onSpacerDeleteAnnotationsChange={handleSpacerDeleteAnnotationsChange}
       />
+
+      {/* Spacer click-to-place overlay - portaled into paper, captures clicks when spacer mode active */}
+      {paperElement && mode === 'spacer' && createPortal(
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 42, // Above content, below toolbar
+            cursor: 'crosshair',
+            pointerEvents: 'auto',
+          }}
+          onClick={handleSpacerPlacement}
+          onMouseMove={handleSpacerHover}
+          onMouseLeave={() => setSpacerInsertIndex(null)}
+        >
+          {/* All gap indicators - subtle lines at every possible insertion point */}
+          {spacerGapPositions.map((gap) => (
+            <div
+              key={gap.index}
+              className="spacer-insertion-indicator"
+              style={{
+                top: gap.y,
+                opacity: spacerInsertIndex === gap.index ? 1 : 0.25,
+                height: spacerInsertIndex === gap.index ? 3 : 1,
+              }}
+            />
+          ))}
+        </div>,
+        paperElement
+      )}
+
+      {/* Spacer controls - adds border, resize handle, delete button to injected spacer elements */}
+      {spacers.length > 0 && (
+        <SpacersDisplay
+          spacers={spacers}
+          onUpdateSpacer={handleUpdateSpacer}
+          onRemoveSpacer={handleRemoveSpacer}
+          zoom={zoom}
+          active={mode === 'spacer'}
+        />
+      )}
 
       {/* Paste-to-snap: listens for paste events and shows crop UI */}
       <PasteSnapHandler

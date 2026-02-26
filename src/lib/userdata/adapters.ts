@@ -6,6 +6,7 @@
  */
 
 import type { AnnotationData, CodeEditorData } from './types'
+import type { Spacer } from '@/types/spacer'
 
 /**
  * Data adapter interface for type-safe data handling
@@ -201,6 +202,39 @@ export const snapsAdapter: DataAdapter<SnapsData> = {
 }
 
 /**
+ * Spacers collection stored per page
+ */
+export interface SpacersData {
+  spacers: Spacer[]
+}
+
+/**
+ * Spacers data adapter
+ * Handles visual spacers injected between content blocks
+ */
+export const spacersAdapter: DataAdapter<SpacersData> = {
+  key: 'spacers',
+
+  serialize: (data) => JSON.stringify(data),
+
+  deserialize: (raw) => JSON.parse(raw) as SpacersData,
+
+  // Merge by combining spacers from both, deduping by id
+  merge: (local, remote) => {
+    const localIds = new Set(local.spacers.map(s => s.id))
+    const mergedSpacers = [
+      ...local.spacers,
+      ...remote.spacers.filter(s => !localIds.has(s.id))
+    ]
+    return { spacers: mergedSpacers }
+  },
+
+  validate: (data) => {
+    return Array.isArray(data.spacers)
+  },
+}
+
+/**
  * Registry of all adapters by key
  */
 export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
@@ -209,6 +243,7 @@ export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
   settings: settingsAdapter as DataAdapter<unknown>,
   preferences: preferencesAdapter as DataAdapter<unknown>,
   snaps: snapsAdapter as DataAdapter<unknown>,
+  spacers: spacersAdapter as DataAdapter<unknown>,
 }
 
 /**

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe, Layers, Camera } from 'lucide-react'
+import { Pen, Eraser, Trash2, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe, Layers, Camera, SeparatorHorizontal } from 'lucide-react'
+import type { SpacerPattern } from '@/types/spacer'
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/contexts/layout-context'
@@ -91,7 +92,7 @@ function ToolbarDivider() {
   return <div className="w-px h-6 bg-border mx-1" />
 }
 
-export type AnnotationMode = 'view' | 'draw' | 'erase'
+export type AnnotationMode = 'view' | 'draw' | 'erase' | 'spacer'
 
 export interface AnnotationLayer {
   id: string
@@ -155,6 +156,11 @@ interface AnnotationToolbarProps {
   // Last selected student for quick-access (managed by parent)
   lastSelectedStudent?: StudentOption | null
   onClearLastSelectedStudent?: () => void
+  // Spacer controls
+  spacerPattern?: SpacerPattern
+  onSpacerPatternChange?: (pattern: SpacerPattern) => void
+  spacerDeleteAnnotations?: boolean
+  onSpacerDeleteAnnotationsChange?: (value: boolean) => void
 }
 
 export function AnnotationToolbar({
@@ -207,6 +213,10 @@ export function AnnotationToolbar({
   onStudentSelect,
   lastSelectedStudent = null,
   onClearLastSelectedStudent,
+  spacerPattern = 'blank',
+  onSpacerPatternChange,
+  spacerDeleteAnnotations = true,
+  onSpacerDeleteAnnotationsChange,
 }: AnnotationToolbarProps) {
   // Get layout context for centering toolbar on page content (not viewport)
   const { sidebarWidth } = useLayout()
@@ -273,6 +283,14 @@ export function AnnotationToolbar({
     }
     return false
   })
+
+  // Spacer pattern picker state (hover/long-press popover, same pattern as pen)
+  const [showSpacerPicker, setShowSpacerPicker] = useState(false)
+  const spacerHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const spacerHideTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const spacerLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const spacerLongPressStartPos = useRef<{ x: number; y: number } | null>(null)
+  const spacerPopoverRef = useRef<HTMLDivElement>(null)
 
   // Ref for the popover elements to detect clicks outside
   const penPopoverRef = useRef<HTMLDivElement>(null)
@@ -500,6 +518,9 @@ export function AnnotationToolbar({
       if (layersDropdownRef.current && !layersDropdownRef.current.contains(e.target as Node)) {
         setShowLayersDropdown(false)
         onShowLayerBadgesChange?.(false)
+      }
+      if (spacerPopoverRef.current && !spacerPopoverRef.current.contains(e.target as Node)) {
+        setShowSpacerPicker(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -1104,6 +1125,127 @@ export function AnnotationToolbar({
                 <kbd className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono border border-border shadow-sm leading-none">V</kbd>
               </div>
             </div>
+          </div>
+
+          {/* Spacer tool - insert visual spacers between content blocks */}
+          <div className="relative" ref={spacerPopoverRef}>
+            <button
+              className={cn(
+                'p-2 rounded-md transition-colors',
+                mode === 'spacer'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              )}
+              onClick={() => {
+                onModeChange(mode === 'spacer' ? 'view' : 'spacer')
+              }}
+              onMouseEnter={() => {
+                if (spacerHideTimerRef.current) {
+                  clearTimeout(spacerHideTimerRef.current)
+                  spacerHideTimerRef.current = null
+                }
+                spacerHoverTimerRef.current = setTimeout(() => {
+                  setShowSpacerPicker(true)
+                }, 300)
+              }}
+              onMouseLeave={() => {
+                if (spacerHoverTimerRef.current) {
+                  clearTimeout(spacerHoverTimerRef.current)
+                  spacerHoverTimerRef.current = null
+                }
+                spacerHideTimerRef.current = setTimeout(() => {
+                  setShowSpacerPicker(false)
+                }, 200)
+              }}
+              onTouchStart={(e) => {
+                spacerLongPressStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                spacerLongPressTimerRef.current = setTimeout(() => {
+                  setShowSpacerPicker(true)
+                }, 500)
+              }}
+              onTouchMove={(e) => {
+                if (spacerLongPressStartPos.current) {
+                  const dx = e.touches[0].clientX - spacerLongPressStartPos.current.x
+                  const dy = e.touches[0].clientY - spacerLongPressStartPos.current.y
+                  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                    if (spacerLongPressTimerRef.current) {
+                      clearTimeout(spacerLongPressTimerRef.current)
+                      spacerLongPressTimerRef.current = null
+                    }
+                  }
+                }
+              }}
+              onTouchEnd={() => {
+                if (spacerLongPressTimerRef.current) {
+                  clearTimeout(spacerLongPressTimerRef.current)
+                  spacerLongPressTimerRef.current = null
+                }
+              }}
+              title="Insert spacer"
+              aria-label="Toggle spacer mode"
+            >
+              <SeparatorHorizontal className="w-4 h-4" />
+            </button>
+
+            {/* Spacer pattern picker popover */}
+            {showSpacerPicker && (
+              <div
+                className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50"
+                onMouseEnter={() => {
+                  if (spacerHideTimerRef.current) {
+                    clearTimeout(spacerHideTimerRef.current)
+                    spacerHideTimerRef.current = null
+                  }
+                }}
+                onMouseLeave={() => {
+                  spacerHideTimerRef.current = setTimeout(() => {
+                    setShowSpacerPicker(false)
+                  }, 200)
+                }}
+              >
+                <div className="bg-popover text-popover-foreground rounded-md shadow-lg border border-border p-2 spacer-preview">
+                  {/* Erase-on-delete toggle - above patterns */}
+                  <label
+                    className="flex items-center gap-1.5 mb-2 px-1 cursor-pointer select-none"
+                    title="When enabled, removing a spacer also erases any annotations drawn inside it"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={spacerDeleteAnnotations}
+                      onChange={(e) => onSpacerDeleteAnnotationsChange?.(e.target.checked)}
+                      className="rounded border-border accent-primary w-3.5 h-3.5"
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Erase ink on remove</span>
+                  </label>
+                  <div className="flex gap-1.5">
+                    {([
+                      { key: 'blank' as SpacerPattern, label: 'Blank' },
+                      { key: 'checkered' as SpacerPattern, label: 'Grid' },
+                      { key: 'lines' as SpacerPattern, label: 'Lines' },
+                      { key: 'dots' as SpacerPattern, label: 'Dots' },
+                    ]).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        className={cn(
+                          'w-8 h-8 rounded border-2 transition-colors',
+                          spacerPattern === key
+                            ? 'border-primary ring-1 ring-primary'
+                            : 'border-border hover:border-muted-foreground'
+                        )}
+                        onClick={() => {
+                          onSpacerPatternChange?.(key)
+                          if (mode !== 'spacer') onModeChange('spacer')
+                        }}
+                        title={label}
+                        aria-label={`${label} spacer pattern`}
+                      >
+                        <div className={cn('w-full h-full rounded-sm spacer-element', `spacer-${key}`)} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
         </ToolbarSection>

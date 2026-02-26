@@ -54,12 +54,21 @@ export interface TeacherIndividualCodeHighlights {
   updatedAt: number
 }
 
+export interface TeacherClassSpacers {
+  classId: string
+  className: string
+  data: unknown
+  updatedAt: number
+}
+
 export interface TeacherBroadcastData {
   classAnnotations: TeacherClassAnnotation[]
   classSnaps: TeacherClassSnaps[]
+  classSpacers: TeacherClassSpacers[]
   classCodeHighlights: TeacherClassCodeHighlights[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
+  individualSpacerFeedback: TeacherIndividualFeedback | null
   individualCodeHighlights: TeacherIndividualCodeHighlights[]
 }
 
@@ -81,9 +90,11 @@ export function TeacherBroadcastProvider({ pageId, children }: TeacherBroadcastP
   const examSession = useExamSession()
   const [classAnnotations, setClassAnnotations] = useState<TeacherClassAnnotation[]>([])
   const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
+  const [classSpacers, setClassSpacers] = useState<TeacherClassSpacers[]>([])
   const [classCodeHighlights, setClassCodeHighlights] = useState<TeacherClassCodeHighlights[]>([])
   const [individualFeedback, setIndividualFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualSnapFeedback, setIndividualSnapFeedback] = useState<TeacherIndividualFeedback | null>(null)
+  const [individualSpacerFeedback, setIndividualSpacerFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualCodeHighlights, setIndividualCodeHighlights] = useState<TeacherIndividualCodeHighlights[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,9 +120,11 @@ export function TeacherBroadcastProvider({ pageId, children }: TeacherBroadcastP
       const data: TeacherBroadcastData = await res.json()
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
+      setClassSpacers(data.classSpacers || [])
       setClassCodeHighlights(data.classCodeHighlights || [])
       setIndividualFeedback(data.individualFeedback || null)
       setIndividualSnapFeedback(data.individualSnapFeedback || null)
+      setIndividualSpacerFeedback(data.individualSpacerFeedback || null)
       setIndividualCodeHighlights(data.individualCodeHighlights || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teacher annotations')
@@ -139,9 +152,11 @@ export function TeacherBroadcastProvider({ pageId, children }: TeacherBroadcastP
   const value: TeacherBroadcastContextValue = {
     classAnnotations,
     classSnaps,
+    classSpacers,
     classCodeHighlights,
     individualFeedback,
     individualSnapFeedback,
+    individualSpacerFeedback,
     individualCodeHighlights,
     isLoading,
     error,
@@ -176,9 +191,11 @@ export function useTeacherBroadcastContextSafe(): TeacherBroadcastContextValue {
     return {
       classAnnotations: [],
       classSnaps: [],
+      classSpacers: [],
       classCodeHighlights: [],
       individualFeedback: null,
       individualSnapFeedback: null,
+      individualSpacerFeedback: null,
       individualCodeHighlights: [],
       isLoading: false,
       error: null,

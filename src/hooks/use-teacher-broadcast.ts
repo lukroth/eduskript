@@ -34,6 +34,13 @@ export interface TeacherClassSnaps {
   updatedAt: number
 }
 
+export interface TeacherClassSpacers {
+  classId: string
+  className: string
+  data: unknown
+  updatedAt: number
+}
+
 /**
  * Code highlights broadcast for a class
  * editorId identifies which code editor on the page this belongs to
@@ -66,18 +73,22 @@ export interface TeacherIndividualCodeHighlights {
 export interface TeacherBroadcastData {
   classAnnotations: TeacherClassAnnotation[]
   classSnaps: TeacherClassSnaps[]
+  classSpacers: TeacherClassSpacers[]
   classCodeHighlights: TeacherClassCodeHighlights[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
+  individualSpacerFeedback: TeacherIndividualFeedback | null
   individualCodeHighlights: TeacherIndividualCodeHighlights[]
 }
 
 interface TeacherBroadcastResult {
   classAnnotations: TeacherClassAnnotation[]
   classSnaps: TeacherClassSnaps[]
+  classSpacers: TeacherClassSpacers[]
   classCodeHighlights: TeacherClassCodeHighlights[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
+  individualSpacerFeedback: TeacherIndividualFeedback | null
   individualCodeHighlights: TeacherIndividualCodeHighlights[]
   isLoading: boolean
   error: string | null
@@ -102,9 +113,11 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
   const examSession = useExamSession()
   const [classAnnotations, setClassAnnotations] = useState<TeacherClassAnnotation[]>([])
   const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
+  const [classSpacers, setClassSpacers] = useState<TeacherClassSpacers[]>([])
   const [classCodeHighlights, setClassCodeHighlights] = useState<TeacherClassCodeHighlights[]>([])
   const [individualFeedback, setIndividualFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualSnapFeedback, setIndividualSnapFeedback] = useState<TeacherIndividualFeedback | null>(null)
+  const [individualSpacerFeedback, setIndividualSpacerFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualCodeHighlights, setIndividualCodeHighlights] = useState<TeacherIndividualCodeHighlights[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,17 +147,21 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
       console.log('[useTeacherBroadcast] Fetched data (fallback):', {
         classAnnotationsCount: data.classAnnotations?.length ?? 0,
         classSnapsCount: data.classSnaps?.length ?? 0,
+        classSpacersCount: data.classSpacers?.length ?? 0,
         classCodeHighlightsCount: data.classCodeHighlights?.length ?? 0,
         hasIndividualFeedback: !!data.individualFeedback,
         hasIndividualSnapFeedback: !!data.individualSnapFeedback,
+        hasIndividualSpacerFeedback: !!data.individualSpacerFeedback,
         individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0,
         individualFeedbackTeacherName: data.individualFeedback?.teacherName,
       })
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
+      setClassSpacers(data.classSpacers || [])
       setClassCodeHighlights(data.classCodeHighlights || [])
       setIndividualFeedback(data.individualFeedback || null)
       setIndividualSnapFeedback(data.individualSnapFeedback || null)
+      setIndividualSpacerFeedback(data.individualSpacerFeedback || null)
       setIndividualCodeHighlights(data.individualCodeHighlights || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teacher annotations')
@@ -191,9 +208,11 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
   return {
     classAnnotations,
     classSnaps,
+    classSpacers,
     classCodeHighlights,
     individualFeedback,
     individualSnapFeedback,
+    individualSpacerFeedback,
     individualCodeHighlights,
     isLoading,
     error,

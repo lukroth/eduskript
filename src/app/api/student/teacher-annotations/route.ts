@@ -125,6 +125,21 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch class spacer broadcasts
+    const classSpacers = await prisma.userData.findMany({
+      where: {
+        targetType: 'class',
+        targetId: { in: classIds },
+        adapter: 'spacers',
+        itemId: pageId,
+      },
+      select: {
+        targetId: true,
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Fetch class code highlights broadcasts (adapter pattern: code-highlights-{id})
     const classCodeHighlights = await prisma.userData.findMany({
       where: {
@@ -172,6 +187,22 @@ export async function GET(request: NextRequest) {
           className: membership?.class.name ?? 'Unknown Class',
           data: snap.data,
           updatedAt: snap.updatedAt.getTime(),
+        }
+      })
+
+    // Map class spacers with class info, filtering out empty spacer arrays
+    const classSpacersWithInfo = classSpacers
+      .filter(spacer => {
+        const data = spacer.data as { spacers?: unknown[] } | null
+        return data?.spacers && data.spacers.length > 0
+      })
+      .map(spacer => {
+        const membership = memberships.find(m => m.classId === spacer.targetId)
+        return {
+          classId: spacer.targetId,
+          className: membership?.class.name ?? 'Unknown Class',
+          data: spacer.data,
+          updatedAt: spacer.updatedAt.getTime(),
         }
       })
 
@@ -234,6 +265,20 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch individual spacer feedback targeted at this student
+    const individualSpacerFeedback = await prisma.userData.findFirst({
+      where: {
+        targetType: 'student',
+        targetId: userId,
+        adapter: 'spacers',
+        itemId: pageId,
+      },
+      select: {
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Fetch individual code highlight feedback targeted at this student
     const individualCodeHighlights = await prisma.userData.findMany({
       where: {
@@ -258,6 +303,10 @@ export async function GET(request: NextRequest) {
     const snapFeedbackData = individualSnapFeedback?.data as { snaps?: unknown[] } | null
     const hasValidSnapFeedback = snapFeedbackData?.snaps && snapFeedbackData.snaps.length > 0
 
+    // Filter out empty individual spacer feedback
+    const spacerFeedbackData = individualSpacerFeedback?.data as { spacers?: unknown[] } | null
+    const hasValidSpacerFeedback = spacerFeedbackData?.spacers && spacerFeedbackData.spacers.length > 0
+
     // Filter and map individual code highlights feedback
     const individualCodeHighlightsWithInfo = individualCodeHighlights
       .filter(record => {
@@ -278,6 +327,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       classAnnotations: classAnnotationsWithInfo,
       classSnaps: classSnapsWithInfo,
+      classSpacers: classSpacersWithInfo,
       classCodeHighlights: classCodeHighlightsWithInfo,
       individualFeedback: individualFeedback && hasValidFeedback
         ? {
@@ -291,6 +341,12 @@ export async function GET(request: NextRequest) {
             data: individualSnapFeedback.data,
             updatedAt: individualSnapFeedback.updatedAt.getTime(),
             teacherName: individualSnapFeedback.user?.name || individualSnapFeedback.user?.pageSlug || 'Teacher',
+          }
+        : null,
+      individualSpacerFeedback: hasValidSpacerFeedback && individualSpacerFeedback
+        ? {
+            data: individualSpacerFeedback.data,
+            updatedAt: individualSpacerFeedback.updatedAt.getTime(),
           }
         : null,
       individualCodeHighlights: individualCodeHighlightsWithInfo,
