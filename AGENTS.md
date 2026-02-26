@@ -293,18 +293,13 @@ The markdown transformation follows this **exact plugin order** (critical for pr
    - Looks up `{video}.json` metadata file for playback ID, poster, blur data
    - Creates custom `<muxvideo>` element with Mux-specific data attributes
 
-5. **`remarkImageAttributes`** (`src/lib/remark-plugins/image-attributes.ts`)
-   - Parses image attribute syntax: `![alt](image.png){width=50%;align=center}`
-   - Applies inline styles and `data-align`, `data-wrap` attributes
-   - Removes attribute syntax from markdown
-
-6. **`remarkCodeEditor`** (`src/lib/remark-plugins/code-editor.ts`)
+5. **`remarkCodeEditor`** (`src/lib/remark-plugins/code-editor.ts`)
    - Converts code blocks with `editor` keyword to interactive editors
    - Syntax: ` ```python editor``` ` or ` ```sql editor db="database.db"``` `
    - Transforms to custom `<code-editor>` element with `data-*` attributes
    - Supports multi-file syntax, IDs, and database references
 
-7. **`remarkCallouts`** (`src/lib/remark-plugins/callouts.ts`)
+6. **`remarkCallouts`** (`src/lib/remark-plugins/callouts.ts`)
    - Transforms Obsidian-style callouts: `> [!type]` syntax
    - **41 callout types** with aliases:
      - Base types: note, tip, warning, abstract, info, todo, success, question, failure, danger, bug, example, quote, solution, discuss
@@ -318,11 +313,11 @@ The markdown transformation follows this **exact plugin order** (critical for pr
      </blockquote>
      ```
 
-8. **`remarkMath`** - Parse LaTeX math (`$...$` or `$$...$$`)
+7. **`remarkMath`** - Parse LaTeX math (`$...$` or `$$...$$`)
 
-9. **`remarkGfm`** - GitHub-Flavored Markdown (tables, strikethrough, task lists)
+8. **`remarkGfm`** - GitHub-Flavored Markdown (tables, strikethrough, task lists)
 
-10. **`remarkServerImageOptimizer`** (Server-only, dynamically added)
+9. **`remarkServerImageOptimizer`** (Server-only, dynamically added)
    - Downloads remote images and caches in `/public/cache/images/[domain]/[skriptId]/`
    - Only runs in Node.js environment
 
@@ -442,7 +437,7 @@ interface MarkdownContext {
 ```
 
 **File List Usage:**
-1. Server: Passed to `remarkFileResolver` and `remarkImageAttributes`
+1. Server: Passed to `remarkImageResolver` and other file-resolving plugins
 2. Client: Fetched via `/api/upload?skriptId={id}` during hydration
 3. Used to resolve filenames → URLs for images and databases
 

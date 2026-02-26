@@ -106,12 +106,26 @@ $$
   // Images
   sections.push(`## Images
 
-**Basic:** \`![alt text](image.png)\`
-**With attributes:** \`![alt text](image.png){width=50%;align=center}\`
+**Basic markdown:** \`![alt text](image.png)\` — renders centered at full width
 
-**Alignment options:** left, center, right
-**Width:** Any CSS value (50%, 200px, etc.)
-**Wrap:** \`{wrap=true;align=left}\` for text wrapping
+**With size/layout control:** Use HTML \`<img>\` tags with \`style\` and \`data-*\` attributes:
+
+\`\`\`html
+<img src="image.png" alt="Description" style="width: 50%" />
+
+<img src="image.png" alt="Left-aligned" style="width: 40%" data-align="left" />
+
+<img src="image.png" alt="Floated left with text wrap" style="width: 40%" data-align="left" data-wrap="true" />
+\`\`\`
+
+**Attributes:**
+- \`style="width: X%"\` — Image width (percentage)
+- \`data-align="left|center|right"\` — Alignment (default: center)
+- \`data-wrap="true"\` — Float image so text wraps around it
+- \`data-invert="dark|light|always"\` — Invert colors (useful for diagrams)
+- \`data-saturate="70"\` — Saturation adjustment when inverted
+
+**Do NOT use** the \`{width=;align=}\` attribute syntax — it is not implemented.
 
 Excalidraw diagrams: Reference \`.excalidraw\` files directly. The system auto-detects light/dark SVG variants.`)
 
@@ -151,16 +165,25 @@ console.log("Hello");
   // Quiz
   sections.push(`## Quizzes
 
-Interactive multiple choice:
+Interactive multiple choice using \`<Question>\` and \`<Option>\` HTML tags:
 
 \`\`\`markdown
-:::quiz
-What is 2 + 2?
-- [ ] 3
-- [x] 4
-- [ ] 5
-:::
-\`\`\``)
+<Question id="q1" type="single">
+<Option is="correct">4</Option>
+<Option feedback="Too low">3</Option>
+<Option feedback="Too high">5</Option>
+</Question>
+\`\`\`
+
+**Question attributes:**
+- \`id="unique-id"\` — Optional, auto-generated if omitted
+- \`type="single"\` — Single choice (default)
+
+**Option attributes:**
+- \`is="correct"\` — Marks the correct answer
+- \`feedback="..."\` — Shown when this wrong option is selected
+
+**Do NOT use** the \`:::quiz\` fence syntax — it is not implemented.`)
 
   return sections.join('\n\n')
 }
@@ -187,10 +210,11 @@ export function getCondensedSyntaxReference(): string {
 
 **Math:** \`$inline$\` and \`$$display$$\` (KaTeX)
 
-**Images:** \`![alt](img.png){width=50%;align=center;wrap=true}\`
+**Images:** \`![alt](img.png)\` or \`<img src="img.png" alt="alt" style="width: 50%" data-align="left" data-wrap="true" />\`
 
 **Tabs:** HTML syntax only:
   \`<tabs-container data-items='["Tab1", "Tab2"]'><tab-item>Content1</tab-item><tab-item>Content2</tab-item></tabs-container>\`
 
-**Quiz:** \`:::quiz\` with \`- [ ]\` wrong and \`- [x]\` correct options`
+**Quiz:** \`<Question id="q1" type="single"><Option is="correct">Right</Option><Option feedback="Nope">Wrong</Option></Question>\`
+  - Do NOT use \`:::quiz\` syntax — it is not implemented`
 }
