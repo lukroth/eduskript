@@ -1181,7 +1181,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const [zoom, setZoom] = useState(1.0)
   // Default values used for both SSR and initial client render
   const defaultPenColors: [string, string, string] = ['#000000', '#FF0000', '#0000FF']
-  const defaultPenSizes: [number, number, number] = [10, 10, 10]
+  const defaultPenSizes: [number, number, number] = [2, 2, 2]
 
   const [penColors, setPenColors] = useState<[string, string, string]>(defaultPenColors)
   const [penSizes, setPenSizes] = useState<[number, number, number]>(defaultPenSizes)

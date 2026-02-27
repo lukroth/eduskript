@@ -581,14 +581,18 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       isDrawingRef.current = true
       strokeStartTimeRef.current = Date.now() // Track start time for telemetry
 
-      // Notify parent that drawing has started (for auto-showing hidden layers)
-      onDrawStart?.()
+      // Defer state updates to avoid React re-renders blocking the first pointermove events
+      // (causes choppy stroke start if done synchronously)
+      requestAnimationFrame(() => {
+        // Notify parent that drawing has started (for auto-showing hidden layers)
+        onDrawStart?.()
 
-      // Track pen drawing state for touch-action control
-      if (isStylusInput) {
-        setIsPenDrawing(true)
-        onPenStateChange?.(true)
-      }
+        // Track pen drawing state for touch-action control
+        if (isStylusInput) {
+          setIsPenDrawing(true)
+          onPenStateChange?.(true)
+        }
+      })
 
       // Cache bounding rect on pointer down to avoid layout recalculations during move
       const rect = canvas.getBoundingClientRect()

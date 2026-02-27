@@ -1067,9 +1067,9 @@ export function AnnotationToolbar({
                     <BrushThickIcon className="w-6 h-6 flex-shrink-0 opacity-60" />
                     <input
                       type="range"
-                      min="2"
-                      max="20"
-                      step="1"
+                      min="0.1"
+                      max="5"
+                      step="0.1"
                       value={penSizes[penIndex]}
                       onChange={(e) => handleSizeChange(penIndex, parseFloat(e.target.value))}
                       className="flex-grow cursor-pointer [writing-mode:vertical-lr] [direction:rtl] slider-vertical"
