@@ -220,11 +220,31 @@ export interface CompileMarkdownOptions {
  * @param options - Optional components mapping
  * @returns React elements ready to render
  */
+// HTML void elements that are legitimately self-closing
+const HTML_VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+])
+
+/**
+ * Expand self-closing custom element tags to explicit open+close pairs.
+ * HTML only allows self-closing syntax for void elements (img, br, etc.).
+ * Custom elements like <excali src="x" /> must become <excali src="x"></excali>.
+ */
+function expandSelfClosingTags(markdown: string): string {
+  return markdown.replace(/<([a-zA-Z][\w-]*)((?:\s+[^>]*?)?)\/>/g, (match, tag, attrs) => {
+    if (HTML_VOID_ELEMENTS.has(tag.toLowerCase())) return match
+    return `<${tag}${attrs}></${tag}>`
+  })
+}
+
 export async function compileMarkdown(
   content: string,
   options?: CompileMarkdownOptions
 ): Promise<ReactNode> {
   const { components = {} } = options ?? {}
+
+  const processed = expandSelfClosingTags(content)
 
   const processor = unified()
     .use(remarkParse)
@@ -239,6 +259,6 @@ export async function compileMarkdown(
       components,
     } as Parameters<typeof rehypeReact>[0])
 
-  const result = await processor.process(content)
+  const result = await processor.process(processed)
   return result.result as ReactNode
 }
