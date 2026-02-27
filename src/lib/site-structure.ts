@@ -97,8 +97,7 @@ export function buildSiteStructure(
   const { onlyPublished = true } = options
 
   return collections
-    // Filter unpublished collections
-    .filter(col => !onlyPublished || col.isPublished !== false)
+    // Collections are always shown (no publish status — purely organizational)
     .map(col => ({
       id: col.id,
       title: col.title,

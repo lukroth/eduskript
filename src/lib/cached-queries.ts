@@ -91,7 +91,6 @@ export const getPublishedCollection = (teacherId: string, pageSlug: string, coll
       return prisma.collection.findFirst({
         where: {
           slug: collectionSlug,
-          isPublished: true,
           authors: {
             some: { userId: teacherId }
           }
@@ -148,8 +147,7 @@ export const getAllPublishedCollections = (teacherId: string, pageSlug: string) 
         where: {
           authors: {
             some: { userId: teacherId }
-          },
-          isPublished: true
+          }
         },
         include: {
           collectionSkripts: {
@@ -218,7 +216,6 @@ export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
         where: {
           id: { in: layoutCollectionIds },
           authors: { some: { userId: teacherId } },
-          isPublished: true
         },
         select: {
           id: true,
@@ -406,7 +403,6 @@ export const getTeacherHomepageContent = (teacherId: string, pageSlug: string, p
           const collection = await prisma.collection.findFirst({
             where: {
               id: item.contentId,
-              isPublished: true,
               authors: { some: { userId: teacherId } }
             },
             include: {
@@ -646,8 +642,7 @@ export const getOrgFullSiteStructure = (orgId: string, orgSlug: string) =>
       const collections = await prisma.collection.findMany({
         where: {
           id: { in: layoutCollectionIds },
-          authors: { some: { userId: { in: adminUserIds } } },
-          isPublished: true
+          authors: { some: { userId: { in: adminUserIds } } }
         },
         select: {
           id: true,

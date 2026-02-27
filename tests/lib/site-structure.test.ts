@@ -101,7 +101,7 @@ describe('Site Structure Utilities', () => {
     })
 
     describe('Published Content Filtering', () => {
-      it('should filter out unpublished collections by default', () => {
+      it('should show all collections regardless of isPublished (collections are purely organizational)', () => {
         const collections = [
           createCollection('col-1', 'Published', 'published', [
             createCollectionSkript(
@@ -121,8 +121,7 @@ describe('Site Structure Utilities', () => {
 
         const result = buildSiteStructure(collections)
 
-        expect(result).toHaveLength(1)
-        expect(result[0].title).toBe('Published')
+        expect(result).toHaveLength(2)
       })
 
       it('should filter out unpublished skripts by default', () => {

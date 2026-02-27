@@ -199,7 +199,6 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
       const collection = await prisma.collection.findFirst({
         where: {
           id: item.contentId,
-          ...(isOwner ? {} : { isPublished: true })
         },
         include: {
           collectionSkripts: {
