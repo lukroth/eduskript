@@ -18,7 +18,14 @@ import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
 import { EditModal } from '@/components/dashboard/edit-modal'
 import { CreatePageModal } from '@/components/dashboard/create-page-modal'
 import { SkriptAccessManager } from '@/components/permissions/SkriptAccessManager'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookA, BookOpen, FileText, FilePenLine, GripVertical, Trash2, Users, Wand2, Film } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookA, BookOpen, FileText, FilePenLine, GripVertical, Trash2, Users, Wand2, Film, Loader2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { AIEditModal } from '@/components/ai'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -157,6 +164,12 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
       return next
     })
   }, [])
+
+  // Move page dialog state
+  const [movePageId, setMovePageId] = useState<string | null>(null)
+  const [moveSkripts, setMoveSkripts] = useState<Array<{ id: string; title: string; slug: string }>>([])
+  const [moveLoading, setMoveLoading] = useState(false)
+  const [moveInFlight, setMoveInFlight] = useState(false)
 
   // Pages list with local reordering
   const [pages, setPages] = useState<SkriptPage[]>(skript.pages || [])
@@ -392,6 +405,52 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
       if (!response.ok) setPages(oldPages)
     } catch {
       setPages(oldPages)
+    }
+  }
+
+  const handleOpenMoveDialog = async (pageId: string) => {
+    setMovePageId(pageId)
+    setMoveLoading(true)
+    try {
+      const res = await fetch('/api/skripts/list')
+      if (res.ok) {
+        const data = await res.json()
+        // Exclude the current skript
+        setMoveSkripts(data.filter((s: { id: string }) => s.id !== skript.id))
+      }
+    } catch (error) {
+      console.error('Error fetching skripts:', error)
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
+  const handleMovePage = async (targetSkriptId: string, targetSlug: string) => {
+    if (!movePageId) return
+    setMoveInFlight(true)
+    try {
+      const res = await fetch('/api/pages/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: movePageId, targetSkriptId }),
+      })
+      if (res.ok) {
+        setMovePageId(null)
+        // If we moved the currently-viewed page, navigate to the target skript
+        if (movePageId === page.id) {
+          router.push(`/dashboard/skripts/${targetSlug}/pages`)
+        } else {
+          router.refresh()
+        }
+      } else {
+        const data = await res.json()
+        alert.showError(data.error || 'Failed to move page')
+      }
+    } catch (error) {
+      console.error('Error moving page:', error)
+      alert.showError('Failed to move page')
+    } finally {
+      setMoveInFlight(false)
     }
   }
 
@@ -794,7 +853,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
                       handlePageReorder(newPages)
                     }}
                     onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null) }}
-                    className={`flex items-center gap-1 rounded-md text-sm transition-colors ${
+                    className={`group flex items-center gap-1 rounded-md text-sm transition-colors ${
                       p.id === page.id ? 'bg-primary/10' : 'hover:bg-muted'
                     }`}
                   >
@@ -813,6 +872,15 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
                         <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
                       )}
                     </Link>
+                    {canEdit && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenMoveDialog(p.id) }}
+                        className="p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-muted transition-all flex-shrink-0"
+                        title="Move to another skript"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </Fragment>
               ))}
@@ -1249,6 +1317,42 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
           router.refresh()
         }}
       />
+
+      {/* Move page to another skript dialog */}
+      <Dialog open={movePageId !== null} onOpenChange={(open) => { if (!open) setMovePageId(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move page to another skript</DialogTitle>
+            <DialogDescription>
+              Referenced files will be copied to the target skript.
+            </DialogDescription>
+          </DialogHeader>
+          {moveLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : moveSkripts.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No other skripts available.</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto -mx-2">
+              {moveSkripts.map((s) => (
+                <button
+                  key={s.id}
+                  disabled={moveInFlight}
+                  onClick={() => handleMovePage(s.id, s.slug)}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-muted rounded-md transition-colors disabled:opacity-50"
+                >
+                  <BookOpen className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                  <span className="truncate">{s.title}</span>
+                  {moveInFlight && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
