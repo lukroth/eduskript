@@ -1005,7 +1005,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
               type="page"
               itemId={page.id}
               isPublished={page.isPublished}
-              onToggle={() => {}}
+              onToggle={() => router.refresh()}
               showText={false}
               size="sm"
             />
