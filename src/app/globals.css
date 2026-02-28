@@ -1786,3 +1786,40 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   border-radius: 4px;
   margin: 2px 0;
 }
+
+/* ===== Text Highlight Styles ===== */
+:root {
+  --text-highlight-yellow: rgba(250, 204, 21, 0.4);
+  --text-highlight-green: rgba(74, 222, 128, 0.35);
+  --text-highlight-blue: rgba(96, 165, 250, 0.35);
+  --text-highlight-pink: rgba(249, 168, 212, 0.4);
+}
+
+.dark {
+  --text-highlight-yellow: rgba(250, 204, 21, 0.3);
+  --text-highlight-green: rgba(74, 222, 128, 0.25);
+  --text-highlight-blue: rgba(96, 165, 250, 0.25);
+  --text-highlight-pink: rgba(249, 168, 212, 0.3);
+}
+
+mark.text-highlight {
+  border-radius: 2px;
+  padding: 0 1px;
+  cursor: pointer;
+}
+
+mark.text-highlight-yellow {
+  background-color: var(--text-highlight-yellow);
+}
+
+mark.text-highlight-green {
+  background-color: var(--text-highlight-green);
+}
+
+mark.text-highlight-blue {
+  background-color: var(--text-highlight-blue);
+}
+
+mark.text-highlight-pink {
+  background-color: var(--text-highlight-pink);
+}

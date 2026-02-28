@@ -7,6 +7,7 @@
 
 import type { AnnotationData, CodeEditorData } from './types'
 import type { Spacer } from '@/types/spacer'
+import type { TextHighlightsData } from '@/lib/text-highlights/types'
 
 /**
  * Data adapter interface for type-safe data handling
@@ -235,6 +236,31 @@ export const spacersAdapter: DataAdapter<SpacersData> = {
 }
 
 /**
+ * Text highlights data adapter
+ * Handles text passage highlights for study purposes
+ */
+export const textHighlightsAdapter: DataAdapter<TextHighlightsData> = {
+  key: 'text-highlights',
+
+  serialize: (data) => JSON.stringify(data),
+
+  deserialize: (raw) => JSON.parse(raw) as TextHighlightsData,
+
+  // Merge by combining highlights from both, deduping by id
+  merge: (local, remote) => {
+    const localIds = new Set(local.highlights.map(h => h.id))
+    return {
+      highlights: [
+        ...local.highlights,
+        ...remote.highlights.filter(h => !localIds.has(h.id)),
+      ],
+    }
+  },
+
+  validate: (data) => Array.isArray(data.highlights),
+}
+
+/**
  * Registry of all adapters by key
  */
 export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
@@ -244,6 +270,7 @@ export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
   preferences: preferencesAdapter as DataAdapter<unknown>,
   snaps: snapsAdapter as DataAdapter<unknown>,
   spacers: spacersAdapter as DataAdapter<unknown>,
+  'text-highlights': textHighlightsAdapter as DataAdapter<unknown>,
 }
 
 /**

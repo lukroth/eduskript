@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react'
 import { AnnotationLayer } from '@/components/annotations/annotation-layer'
+import { HighlightLayer } from '@/components/text-highlights/highlight-layer'
 import { TeacherBroadcastProvider } from '@/contexts/teacher-broadcast-context'
 import type { Prisma } from '@prisma/client'
 
@@ -46,7 +47,9 @@ export function AnnotationWrapper({ pageId, content, children, publicAnnotations
   return (
     <TeacherBroadcastProvider pageId={pageId}>
       <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
-        {children}
+        <HighlightLayer pageId={pageId}>
+          {children}
+        </HighlightLayer>
       </AnnotationLayer>
     </TeacherBroadcastProvider>
   )
