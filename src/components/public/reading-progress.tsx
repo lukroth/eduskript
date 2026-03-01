@@ -189,7 +189,7 @@ export function ReadingProgress() {
   const chapterFills = getChapterFills(chapters, progress)
 
   return (
-    <div className="fixed top-0 left-0 w-full z-50 flex items-start gap-[2px] px-[2px] bg-gray-100/80 dark:bg-gray-900/80 backdrop-blur-sm">
+    <div className="fixed top-0 left-0 w-full z-50 flex items-start gap-[2px] px-[2px]">
       {chapters.map((chapter, i) => {
         const isActive = i === activeIndex
         const isHovered = i === hoveredIndex
@@ -198,7 +198,7 @@ export function ReadingProgress() {
         return (
           <div
             key={chapter.id}
-            className="relative flex-shrink-0 transition-all duration-200 ease-out cursor-pointer"
+            className="relative flex-shrink-0 transition-all duration-200 ease-out cursor-pointer opacity-80"
             style={{
               flexBasis: `${chapter.widthPercent}%`,
               flexGrow: 0,
