@@ -523,7 +523,17 @@ export const CodeEditor = memo(function CodeEditor({
     if (!isLoading && savedData && !hasLoadedData.current) {
       hasLoadedData.current = true
 
-      if (savedData.files) setFiles(savedData.files)
+      if (savedData.files) {
+        // Merge saved files with default files by name: saved content wins per-file,
+        // but new files from markdown (e.g. a newly added caesar.py stub) are preserved.
+        const savedByName = new Map(savedData.files.map((f: PythonFile) => [f.name, f]))
+        const merged = defaultData.files.map(f => savedByName.get(f.name) || f)
+        // Also append any saved files not in the default set (student-created files)
+        for (const f of savedData.files) {
+          if (!merged.some(m => m.name === f.name)) merged.push(f)
+        }
+        setFiles(merged)
+      }
       if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
       if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
       if (savedData.lineWrapping !== undefined) setLineWrapping(savedData.lineWrapping)

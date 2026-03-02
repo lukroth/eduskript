@@ -266,6 +266,7 @@ export function createMarkdownComponents(
 
   // Code editor component
   function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
+
     const language = (props['dataLanguage'] as string) || (props['data-language'] as string) || 'python'
     const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
     const filesJson = (props['dataFiles'] as string) || (props['data-files'] as string)
