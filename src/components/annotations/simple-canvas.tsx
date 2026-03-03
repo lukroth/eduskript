@@ -693,66 +693,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         const lengthPerPoint = pointCount > 1 ? totalLength / (pointCount - 1) : 0
         const durationPerPoint = pointCount > 1 ? durationMs / (pointCount - 1) : 0
 
-        // DEBUG: Log stroke data to diagnose iPad rendering artifacts.
-        // Look for: very close points, pressure spikes, or self-intersecting outline.
-        // Remove once root cause is found.
-        {
-          const distances: number[] = []
-          const pressures: number[] = []
-          let minDist = Infinity, maxDist = 0
-          let minPressure = Infinity, maxPressure = 0
-          let nearZeroDistCount = 0
-          const suspiciousPoints: Array<{ i: number; dist: number; pressure: number; prevPressure: number; x: number; y: number }> = []
-
-          for (let i = 0; i < points.length; i++) {
-            pressures.push(points[i].pressure)
-            if (points[i].pressure < minPressure) minPressure = points[i].pressure
-            if (points[i].pressure > maxPressure) maxPressure = points[i].pressure
-
-            if (i > 0) {
-              const dx = points[i].x - points[i-1].x
-              const dy = points[i].y - points[i-1].y
-              const dist = Math.sqrt(dx * dx + dy * dy)
-              distances.push(dist)
-              if (dist < minDist) minDist = dist
-              if (dist > maxDist) maxDist = dist
-              if (dist < 0.5) nearZeroDistCount++
-
-              // Flag points with large pressure jumps or very close spacing
-              const pressureDelta = Math.abs(points[i].pressure - points[i-1].pressure)
-              if (dist < 0.5 || pressureDelta > 0.3) {
-                suspiciousPoints.push({
-                  i,
-                  dist: Math.round(dist * 100) / 100,
-                  pressure: Math.round(points[i].pressure * 1000) / 1000,
-                  prevPressure: Math.round(points[i-1].pressure * 1000) / 1000,
-                  x: Math.round(points[i].x * 10) / 10,
-                  y: Math.round(points[i].y * 10) / 10,
-                })
-              }
-            }
-          }
-
-          const avgDist = distances.length > 0 ? distances.reduce((a, b) => a + b, 0) / distances.length : 0
-          console.log(
-            `[stroke-debug] ${pointCount} pts, ${durationMs}ms, ` +
-            `dist: min=${minDist.toFixed(2)} avg=${avgDist.toFixed(2)} max=${maxDist.toFixed(2)}, ` +
-            `pressure: ${minPressure.toFixed(3)}–${maxPressure.toFixed(3)}, ` +
-            `nearZero(<0.5px): ${nearZeroDistCount}/${distances.length}`
-          )
-          if (suspiciousPoints.length > 0) {
-            console.log(`[stroke-debug] suspicious points (close or pressure-jump):`, suspiciousPoints.slice(0, 20))
-          }
-          // Log raw points for the first few strokes to inspect in full
-          if (telemetryStrokeCountRef.current < 3) {
-            console.log(`[stroke-debug] raw points:`, JSON.stringify(points.map(p => [
-              Math.round(p.x * 10) / 10,
-              Math.round(p.y * 10) / 10,
-              Math.round(p.pressure * 1000) / 1000,
-            ])))
-          }
-        }
-
         // Determine which section this stroke belongs to based on first point
         const firstPoint = currentPathRef.current[0]
         const sectionId = determineSectionFromY(firstPoint.y, headingPositions) || 'unknown'
@@ -803,11 +743,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         // Notify parent with debouncing handled at parent level
         const data = JSON.stringify(pathsRef.current)
-
-        // Log storage statistics
-        const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
-        const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
-
         onUpdate?.(data)
       }
     }, [mode, strokeColor, strokeWidth, onUpdate, onPenStateChange, onTelemetry, headingPositions, redrawCanvas, updateEraserCursor, hideEraserCursor])
