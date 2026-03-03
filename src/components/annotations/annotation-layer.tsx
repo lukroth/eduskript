@@ -2141,6 +2141,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         const sectionElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
         const positions: HeadingPosition[] = []
         const paperRect = paperElement.getBoundingClientRect()
+        // Divide by CSS transform scale to get unscaled coordinates (same as recalculateHeadingPositions)
+        const scale = (paperRect.height / paperElement.offsetHeight) || 1
 
         sectionElements.forEach((element) => {
           const sectionId = element.getAttribute('data-section-id')
@@ -2149,11 +2151,12 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
           if (sectionId) {
             const rect = element.getBoundingClientRect()
+            const unscaledOffsetY = (rect.top - paperRect.top) / scale
 
             // Add top reference point
             positions.push({
               sectionId,
-              offsetY: rect.top - paperRect.top,
+              offsetY: unscaledOffsetY,
               headingText: headingText || ''
             })
 
@@ -2161,7 +2164,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             if (isDynamicHeight) {
               positions.push({
                 sectionId: `${sectionId}-end`,
-                offsetY: rect.bottom - paperRect.top,
+                offsetY: (rect.bottom - paperRect.top) / scale,
                 headingText: ''
               })
             }
@@ -2587,7 +2590,41 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }
   }, [stylusModeActive, mode])
 
-  // Calculate scroll limits based on main content bounds
+  // CSS transform: scale() doesn't affect layout, so the scroll container has no idea
+  // the content grew. This helper injects an invisible spacer sibling of <main> that
+  // forces the scroll container to have the correct scrollable dimensions, and overrides
+  // the overflow-x:clip on <main> that would otherwise hide the scaled content.
+  const updateZoomSpacer = useCallback((zoomLevel: number) => {
+    const container = scrollContainerRef.current
+    const main = mainRef.current
+    if (!container || !main) return
+
+    let spacer = document.getElementById('zoom-spacer')
+
+    if (zoomLevel <= 1) {
+      spacer?.remove()
+      main.style.overflowX = ''
+      main.style.maxWidth = ''
+      return
+    }
+
+    if (!spacer) {
+      spacer = document.createElement('div')
+      spacer.id = 'zoom-spacer'
+      spacer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none'
+      spacer.ariaHidden = 'true'
+      container.style.position = 'relative'
+      container.appendChild(spacer)
+    }
+
+    spacer.style.width = `${main.scrollWidth * zoomLevel}px`
+    spacer.style.height = `${main.scrollHeight * zoomLevel}px`
+
+    // Override the @media (max-width:1024px) overflow-x:clip that would clip scaled content
+    main.style.overflowX = 'visible'
+    main.style.maxWidth = 'none'
+  }, [])
+
   // Helper function to apply zoom transform using RAF (no re-renders)
   // With native scroll, we only need to handle zoom - scroll is handled by browser
   const applyZoom = useCallback((newZoom: number, focalX?: number, focalY?: number) => {
@@ -2607,6 +2644,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         mainRef.current.style.transform = `scale(${newZoom})`
         renderedZoomRef.current = newZoom
       }
+
+      updateZoomSpacer(newZoom)
 
       // Adjust scroll position to keep focal point stationary
       if (scrollContainerRef.current && focalX !== undefined && focalY !== undefined) {
@@ -2631,17 +2670,18 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       rafIdRef.current = null
     })
-  }, [])
+  }, [updateZoomSpacer])
 
   // Handle zoom reset
   const handleResetZoom = useCallback(() => {
     applyZoom(1.0)
     setZoom(1.0)
+    updateZoomSpacer(1.0)
     // Scroll to top
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0
     }
-  }, [applyZoom])
+  }, [applyZoom, updateZoomSpacer])
 
   // Custom pinch-zoom handling (native scroll handles single-finger pan)
   const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -2721,10 +2761,11 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       if (mainRef.current) {
         mainRef.current.style.transform = `scale(${newZoom})`
       }
+      updateZoomSpacer(newZoom)
       container.scrollLeft = Math.max(0, newScrollX)
       container.scrollTop = Math.max(0, newScrollY)
     }
-  }, [])
+  }, [updateZoomSpacer])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Remove ended touches
