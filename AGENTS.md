@@ -40,6 +40,8 @@ We use pnpm.
 - `pnpm db:local` - Start local PostgreSQL in Docker (background)
 - `pnpm db:local:stop` - Stop local PostgreSQL and remove containers
 
+**NEVER create migration files manually.** Always use `prisma migrate dev --name <name>` to generate migrations. This command requires an interactive terminal — if it fails due to non-interactive mode, ask the user to run it themselves. Do not write SQL migration files by hand or create migration directories manually under any circumstances.
+
 ### Direct Database Queries
 For ad-hoc database queries, use `psql` (requires `postgresql-client` package):
 

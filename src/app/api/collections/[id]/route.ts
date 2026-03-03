@@ -90,6 +90,24 @@ export async function PATCH(
       return NextResponse.json({ error: 'You do not have permission to edit this collection' }, { status: 403 })
     }
 
+    // Check if slug is already used by another of this user's collections
+    if (slug && slug !== existingCollection.slug) {
+      const slugExists = await prisma.collection.findFirst({
+        where: {
+          slug,
+          NOT: { id },
+          authors: { some: { userId: session.user.id } }
+        }
+      })
+
+      if (slugExists) {
+        return NextResponse.json(
+          { error: 'You already have a collection with this slug' },
+          { status: 409 }
+        )
+      }
+    }
+
     const collection = await prisma.collection.update({
       where: { id },
       data: {

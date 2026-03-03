@@ -36,16 +36,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if slug already exists (globally, since no more user-scoped slugs)
+    // Check slug uniqueness scoped to this user's collections
     const existingCollection = await prisma.collection.findFirst({
-      where: {
-        slug: normalizedSlug,
-      }
+      where: { slug: normalizedSlug, authors: { some: { userId: session.user.id } } }
     })
 
     if (existingCollection) {
       return NextResponse.json(
-        { error: 'A collection with this slug already exists' },
+        { error: `You already have a collection with the slug "${normalizedSlug}"` },
         { status: 409 }
       )
     }

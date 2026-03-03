@@ -46,7 +46,6 @@ describe('Collections API', () => {
     title: 'Test Collection',
     slug: 'test-collection',
     description: 'A test collection',
-    isPublished: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     authors: [
@@ -167,7 +166,7 @@ describe('Collections API', () => {
 
         expect(response.status).toBe(409)
         const data = await response.json()
-        expect(data.error).toContain('already exists')
+        expect(data.error).toContain('already have a collection')
       })
 
       it('should normalize slug before checking for conflicts', async () => {
@@ -180,9 +179,9 @@ describe('Collections API', () => {
         })
         await POST(request)
 
-        // Should check with normalized slug
+        // Should check with normalized slug scoped to user
         expect(prisma.collection.findFirst).toHaveBeenCalledWith({
-          where: { slug: 'test-collection' },
+          where: { slug: 'test-collection', authors: { some: { userId: 'user-123' } } },
         })
       })
     })

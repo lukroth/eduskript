@@ -7,7 +7,6 @@ import { Layout, Eye, BookOpen, FileText, Plus, Edit, ChevronDown, ChevronRight,
 import { PublishToggle } from './publish-toggle'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
 import { useState } from 'react'
 
 interface PageItem {
@@ -63,34 +62,27 @@ export function PageBuilder({
   const frontpageUrl = context.type === 'organization' && context.organizationId
     ? `/dashboard/org/${context.organizationId}/frontpage`
     : '/dashboard/frontpage'
-  const { data: session } = useSession()
   const [seeding, setSeeding] = useState(false)
   const [seedError, setSeedError] = useState('')
   const [seedSuccess, setSeedSuccess] = useState('')
 
   const handleSeedData = async () => {
-    if (!confirm('This will create example collections and content. Continue?')) {
-      return
-    }
-
     setSeeding(true)
     setSeedError('')
     setSeedSuccess('')
 
     try {
-      const response = await fetch('/api/admin/seed-example-data', {
+      const response = await fetch('/api/seed-example-content', {
         method: 'POST',
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to seed data')
+        throw new Error(data.error || 'Failed to create example content')
       }
 
-      setSeedSuccess(`Example data seeded! Created ${data.data.skripts} skripts with ${data.data.pages} pages.`)
-
-      // Trigger refresh of content library
+      setSeedSuccess('Example content created!')
       onRefresh?.()
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : 'An error occurred')
@@ -198,44 +190,74 @@ export function PageBuilder({
               )}
             >
               {items.length === 0 ? (
-                <div className="text-center">
-                  <Layout className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                    Start building your page
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Drag collections from the content library to organize your public page
-                  </p>
-
-                  {session?.user?.isAdmin && (
-                    <div className="mt-6 space-y-3">
-                      <div className="border-t border-border pt-4">
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Need some example content to get started?
-                        </p>
-                        <Button
-                          onClick={handleSeedData}
-                          disabled={seeding}
-                          variant="outline"
-                          size="sm"
-                        >
-                          {seeding ? 'Seeding...' : 'Insert Example Data'}
-                        </Button>
-                      </div>
-
-                      {seedError && (
-                        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                          {seedError}
-                        </div>
-                      )}
-
-                      {seedSuccess && (
-                        <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
-                          {seedSuccess}
-                        </div>
-                      )}
+                <div className="text-center max-w-lg mx-auto">
+                  {seedError && (
+                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive mb-4">
+                      {seedError}
                     </div>
                   )}
+
+                  {seedSuccess && (
+                    <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600 mb-4">
+                      {seedSuccess}
+                    </div>
+                  )}
+
+                  <h3 className="text-lg font-medium text-muted-foreground mb-6">
+                    How would you like to start?
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Explore with examples */}
+                    <button
+                      onClick={handleSeedData}
+                      disabled={seeding}
+                      className={cn(
+                        "flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed",
+                        "hover:border-primary hover:bg-primary/5 transition-colors text-left",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                    >
+                      <BookOpen className="w-8 h-8 text-primary" />
+                      <div className="text-center">
+                        <p className="font-medium text-sm">
+                          {seeding ? 'Creating...' : 'Explore with examples'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Get a sample collection with pages showcasing markdown, math, callouts, and interactive code
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Start from scratch */}
+                    <button
+                      onClick={() => {
+                        const title = prompt('Collection name:')
+                        if (!title?.trim()) return
+                        const slug = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+                        fetch('/api/collections', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ title: title.trim(), slug, description: '' })
+                        }).then(res => {
+                          if (res.ok) onRefresh?.()
+                          else res.json().then(d => window.alert(d.error || 'Failed to create collection'))
+                        })
+                      }}
+                      className={cn(
+                        "flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed",
+                        "hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                      )}
+                    >
+                      <Plus className="w-8 h-8 text-primary" />
+                      <div className="text-center">
+                        <p className="font-medium text-sm">Start from scratch</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Create an empty collection and build your content step by step
+                        </p>
+                      </div>
+                    </button>
+                  </div>
 
                   {provided.placeholder}
                 </div>

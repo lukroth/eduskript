@@ -144,18 +144,22 @@ export async function PATCH(
       )
     }
 
-    // Check if slug is already used (but not by this skript)
+    // Check if slug is already used by another of this user's skripts
     if (slug && slug !== existingSkript.slug) {
       const slugExists = await prisma.skript.findFirst({
         where: {
           slug,
-          NOT: { id }
+          NOT: { id },
+          OR: [
+            { authors: { some: { userId: session.user.id } } },
+            { collectionSkripts: { some: { collection: { authors: { some: { userId: session.user.id } } } } } }
+          ]
         }
       })
 
       if (slugExists) {
         return NextResponse.json(
-          { error: 'Slug already exists' },
+          { error: 'You already have a skript with this slug' },
           { status: 409 }
         )
       }

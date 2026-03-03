@@ -252,7 +252,7 @@ describe('Skripts API', () => {
 
         expect(response.status).toBe(409)
         const data = await response.json()
-        expect(data.error).toContain('already exists')
+        expect(data.error).toContain('already have a skript')
       })
     })
 

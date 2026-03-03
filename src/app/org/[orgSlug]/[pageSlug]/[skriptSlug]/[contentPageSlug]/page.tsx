@@ -385,7 +385,6 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
         title: collection.title,
         slug: collection.slug,
         accentColor: collection.accentColor,
-        isPublished: collection.isPublished,
         collectionSkripts: [{
           order: collectionSkript?.order ?? 0,
           skript: {

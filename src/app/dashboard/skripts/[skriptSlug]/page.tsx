@@ -53,7 +53,8 @@ export default async function SkriptPage({ params }: SkriptPageProps) {
     data: {
       title: 'Introduction',
       slug: 'introduction',
-      content: '',
+      content: `# Introduction\n\nThis is your first page. Start writing here!\n`,
+      isPublished: true,
       skriptId: skript.id,
       order: 0,
     }

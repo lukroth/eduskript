@@ -35,8 +35,20 @@ export async function generateMetadata({ params }: SkriptPageProps): Promise<Met
       return { title: 'Organization Not Found' }
     }
 
-    const skript = await prisma.skript.findUnique({
-      where: { slug: skriptSlug },
+    const adminMembers = await prisma.organizationMember.findMany({
+      where: { organizationId: organization.id, role: { in: ['owner', 'admin'] } },
+      select: { userId: true }
+    })
+    const orgAdminIds = adminMembers.map(m => m.userId)
+
+    const skript = await prisma.skript.findFirst({
+      where: {
+        slug: skriptSlug,
+        OR: [
+          { authors: { some: { userId: { in: orgAdminIds } } } },
+          { collectionSkripts: { some: { collection: { authors: { some: { userId: { in: orgAdminIds } } } } } } }
+        ]
+      },
       select: { title: true }
     })
 
@@ -93,18 +105,19 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
   })
   const adminUserIds = adminMembers.map(m => m.userId)
 
-  // Find skript by unique slug, verify an org admin is an author
-  const skript = await prisma.skript.findUnique({
-    where: { slug: skriptSlug },
+  // Find skript by slug scoped to org admins
+  const skript = await prisma.skript.findFirst({
+    where: {
+      slug: skriptSlug,
+      OR: [
+        { authors: { some: { userId: { in: adminUserIds } } } },
+        { collectionSkripts: { some: { collection: { authors: { some: { userId: { in: adminUserIds } } } } } } }
+      ]
+    },
     include: {
-      authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } },
       collectionSkripts: {
         include: {
-          collection: {
-            include: {
-              authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } }
-            }
-          }
+          collection: true
         },
         orderBy: { order: 'asc' },
         take: 1,
@@ -123,13 +136,6 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
   })
 
   if (!skript) {
-    notFound()
-  }
-
-  // Verify an org admin is an author
-  const isOrgAuthor = skript.authors.length > 0 ||
-    skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
-  if (!isOrgAuthor) {
     notFound()
   }
 

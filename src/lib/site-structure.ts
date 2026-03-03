@@ -64,7 +64,6 @@ interface RawCollection {
   title: string
   slug: string
   accentColor?: string | null
-  isPublished?: boolean
   collectionSkripts: RawCollectionSkript[]
 }
 

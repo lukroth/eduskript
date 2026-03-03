@@ -65,16 +65,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if slug is already taken globally
+    // Check slug uniqueness scoped to this user's skripts
     const existingSkript = await prisma.skript.findFirst({
       where: {
-        slug: normalizedSlug
+        slug: normalizedSlug,
+        OR: [
+          { authors: { some: { userId: session.user.id } } },
+          { collectionSkripts: { some: { collection: { authors: { some: { userId: session.user.id } } } } } }
+        ]
       }
     })
 
     if (existingSkript) {
       return NextResponse.json(
-        { error: 'A skript with this slug already exists' },
+        { error: `You already have a skript with the slug "${normalizedSlug}"` },
         { status: 409 }
       )
     }

@@ -205,7 +205,7 @@ export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilder
     }
 
     loadPageLayout()
-  }, [pageLayoutEndpoint])
+  }, [pageLayoutEndpoint, refreshTrigger])
 
   const handleItemsChange = async (items: PageItem[], changedCollectionIds?: Set<string>) => {
     // Update UI state immediately

@@ -36,7 +36,6 @@ vi.mock('@/lib/prisma', () => ({
     },
     skript: {
       findFirst: vi.fn(),
-      findUnique: vi.fn(),
     },
     orgPageLayout: {
       findUnique: vi.fn(),
@@ -152,7 +151,7 @@ describe('cached-queries', () => {
 
   describe('getPublishedPage', () => {
     it('should return null when skript not found', async () => {
-      vi.mocked(prisma.skript.findUnique).mockResolvedValue(null)
+      vi.mocked(prisma.skript.findFirst).mockResolvedValue(null)
 
       const result = await getPublishedPage('teacher-1', 'algebra', 'intro', 'john')
 
@@ -160,15 +159,8 @@ describe('cached-queries', () => {
     })
 
     it('should return null when skript is not published', async () => {
-      vi.mocked(prisma.skript.findUnique).mockResolvedValue({
-        id: 'skript-1',
-        title: 'Algebra',
-        slug: 'algebra',
-        isPublished: false,
-        authors: [{ userId: 'teacher-1' }],
-        collectionSkripts: [],
-        pages: [],
-      })
+      // findFirst with isPublished: true in where clause returns null for unpublished skripts
+      vi.mocked(prisma.skript.findFirst).mockResolvedValue(null)
 
       const result = await getPublishedPage('teacher-1', 'algebra', 'intro', 'john')
 
@@ -187,7 +179,7 @@ describe('cached-queries', () => {
         examSettings: null,
       }
 
-      vi.mocked(prisma.skript.findUnique).mockResolvedValue({
+      vi.mocked(prisma.skript.findFirst).mockResolvedValue({
         id: 'skript-1',
         title: 'Algebra',
         slug: 'algebra',
@@ -217,7 +209,7 @@ describe('cached-queries', () => {
     })
 
     it('should return null when page slug not found', async () => {
-      vi.mocked(prisma.skript.findUnique).mockResolvedValue({
+      vi.mocked(prisma.skript.findFirst).mockResolvedValue({
         id: 'skript-1',
         title: 'Algebra',
         slug: 'algebra',
@@ -390,7 +382,7 @@ describe('getOrgPublishedPage - Access Control', () => {
   })
 
   it('should return null when skript not found', async () => {
-    vi.mocked(prisma.skript.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.skript.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.organizationMember.findMany).mockResolvedValue([
       { userId: 'admin-1' }
     ])
@@ -404,15 +396,8 @@ describe('getOrgPublishedPage - Access Control', () => {
     vi.mocked(prisma.organizationMember.findMany).mockResolvedValue([
       { userId: 'admin-1' }
     ])
-    vi.mocked(prisma.skript.findUnique).mockResolvedValue({
-      id: 'skript-1',
-      title: 'Algebra',
-      slug: 'algebra',
-      isPublished: false,
-      authors: [{ userId: 'admin-1' }],
-      collectionSkripts: [],
-      pages: [],
-    })
+    // findFirst with isPublished: true in where clause returns null for unpublished skripts
+    vi.mocked(prisma.skript.findFirst).mockResolvedValue(null)
 
     const result = await getOrgPublishedPage('org-1', 'my-org', 'algebra', 'intro')
 
@@ -435,7 +420,7 @@ describe('getOrgPublishedPage - Access Control', () => {
       { userId: 'admin-1' }
     ])
 
-    vi.mocked(prisma.skript.findUnique).mockResolvedValue({
+    vi.mocked(prisma.skript.findFirst).mockResolvedValue({
       id: 'skript-1',
       title: 'Algebra',
       slug: 'algebra',
@@ -479,7 +464,7 @@ describe('getOrgPublishedPage - Access Control', () => {
       { userId: 'admin-1' }
     ])
 
-    vi.mocked(prisma.skript.findUnique).mockResolvedValue({
+    vi.mocked(prisma.skript.findFirst).mockResolvedValue({
       id: 'skript-1',
       title: 'Secret Skript',
       slug: 'secret-skript',

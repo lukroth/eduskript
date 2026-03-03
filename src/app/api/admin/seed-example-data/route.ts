@@ -39,6 +39,7 @@ export async function POST(request: Request) {
         pageSlug: 'teacher',
         accountType: 'teacher',
         hashedPassword: hashedPassword,
+        emailVerified: new Date(),
         requirePasswordReset: false,
       },
     })

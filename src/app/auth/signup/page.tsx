@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Check, X } from 'lucide-react'
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -19,6 +20,7 @@ export default function SignUpPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorDetails, setErrorDetails] = useState<string[]>([])
   const [success, setSuccess] = useState('')
   const [showVerificationMessage, setShowVerificationMessage] = useState(false)
   const router = useRouter()
@@ -47,6 +49,7 @@ export default function SignUpPage() {
     e.preventDefault()
     setIsLoading(true)
     setError('')
+    setErrorDetails([])
     setSuccess('')
 
     if (formData.password !== formData.confirmPassword) {
@@ -68,7 +71,7 @@ export default function SignUpPage() {
       })
 
       const data = await response.json()
-      
+
       if (response.ok) {
         if (data.requiresEmailVerification) {
           setSuccess(data.message)
@@ -77,7 +80,17 @@ export default function SignUpPage() {
           router.push('/auth/signin?message=Account created successfully')
         }
       } else {
-        setError(data.error || 'An error occurred')
+        // Format rate-limit messages with human-readable time
+        if (data.retryAfter) {
+          const mins = Math.ceil(data.retryAfter / 60)
+          setError(`Too many registration attempts. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`)
+        } else {
+          setError(data.error || 'An error occurred')
+        }
+        // Show detailed password validation errors
+        if (data.details) {
+          setErrorDetails(data.details)
+        }
       }
     } catch {
       setError('An error occurred. Please try again.')
@@ -240,6 +253,9 @@ export default function SignUpPage() {
                   onChange={handleChange}
                   required
                 />
+                {formData.password.length > 0 && (
+                  <PasswordRequirements password={formData.password} />
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -254,7 +270,16 @@ export default function SignUpPage() {
                 />
               </div>
               {error && (
-                <div className="text-red-600 text-sm text-center">{error}</div>
+                <div className="text-red-600 text-sm text-center">
+                  <p>{error}</p>
+                  {errorDetails.length > 0 && (
+                    <ul className="mt-2 text-left list-disc list-inside space-y-0.5">
+                      {errorDetails.map((detail, i) => (
+                        <li key={i}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
               <Button
                 type="submit"
@@ -281,5 +306,31 @@ export default function SignUpPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function PasswordRequirements({ password }: { password: string }) {
+  const rules = [
+    { label: '8+ characters', met: password.length >= 8 },
+    { label: 'Lowercase letter', met: /[a-z]/.test(password) },
+    { label: 'Uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'Number', met: /[0-9]/.test(password) },
+  ]
+
+  return (
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      {rules.map((rule) => (
+        <li key={rule.label} className="flex items-center gap-1.5">
+          {rule.met ? (
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0" />
+          ) : (
+            <X className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
+          )}
+          <span className={rule.met ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+            {rule.label}
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }

@@ -33,12 +33,11 @@ describe('Site Structure Utilities', () => {
     title: string,
     slug: string,
     collectionSkripts: ReturnType<typeof createCollectionSkript>[],
-    options?: { isPublished?: boolean; accentColor?: string }
+    options?: { accentColor?: string }
   ) => ({
     id,
     title,
     slug,
-    isPublished: options?.isPublished ?? true,
     accentColor: options?.accentColor ?? null,
     collectionSkripts,
   })
@@ -101,22 +100,22 @@ describe('Site Structure Utilities', () => {
     })
 
     describe('Published Content Filtering', () => {
-      it('should show all collections regardless of isPublished (collections are purely organizational)', () => {
+      it('should show all collections (collections are purely organizational, no publish status)', () => {
         const collections = [
-          createCollection('col-1', 'Published', 'published', [
+          createCollection('col-1', 'Collection A', 'collection-a', [
             createCollectionSkript(
               createSkript('skript-1', 'Skript 1', 'skript-1', [
                 createPage('page-1', 'Page 1', 'page-1'),
               ])
             ),
-          ], { isPublished: true }),
-          createCollection('col-2', 'Unpublished', 'unpublished', [
+          ]),
+          createCollection('col-2', 'Collection B', 'collection-b', [
             createCollectionSkript(
               createSkript('skript-2', 'Skript 2', 'skript-2', [
                 createPage('page-2', 'Page 2', 'page-2'),
               ])
             ),
-          ], { isPublished: false }),
+          ]),
         ]
 
         const result = buildSiteStructure(collections)

@@ -121,9 +121,7 @@ const page = await prisma.page.findUnique({
   include: { skript: { include: { collectionSkripts: { include: { collection: true } } } } }
 })
 
-const isPublic = page?.isPublished &&
-  page?.skript?.isPublished &&
-  page?.skript?.collectionSkripts?.some(cs => cs.collection.isPublished)
+const isPublic = page?.isPublished && page?.skript?.isPublished
 ```
 
 ## Admin Override

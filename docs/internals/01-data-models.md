@@ -39,7 +39,6 @@ model Collection {
   title       String
   slug        String
   description String?
-  isPublished Boolean @default(false)
 }
 
 model Skript {

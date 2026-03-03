@@ -119,7 +119,6 @@ export default async function OrgPublicPage({ params }: PageProps) {
         title: collection.title,
         slug: collection.slug,
         accentColor: collection.accentColor,
-        isPublished: collection.isPublished,
         collectionSkripts: [{
           order: skript.order,
           skript: {

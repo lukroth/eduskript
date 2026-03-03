@@ -49,8 +49,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       return { title: 'Teacher Not Found' }
     }
 
-    const skript = await prisma.skript.findUnique({
-      where: { slug: skriptSlug },
+    const skript = await prisma.skript.findFirst({
+      where: {
+        slug: skriptSlug,
+        OR: [
+          { authors: { some: { userId: teacher.id } } },
+          { collectionSkripts: { some: { collection: { authors: { some: { userId: teacher.id } } } } } }
+        ]
+      },
       select: { title: true, description: true }
     })
 
@@ -118,19 +124,20 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
     notFound()
   }
 
-  // Find skript by unique slug, verify teacher authorship
-  const skript = await prisma.skript.findUnique({
-    where: { slug: skriptSlug },
+  // Find skript by slug scoped to teacher
+  const skript = await prisma.skript.findFirst({
+    where: {
+      slug: skriptSlug,
+      OR: [
+        { authors: { some: { userId: teacher.id } } },
+        { collectionSkripts: { some: { collection: { authors: { some: { userId: teacher.id } } } } } }
+      ]
+    },
     include: {
       frontPage: true,
-      authors: { where: { userId: teacher.id }, select: { userId: true } },
       collectionSkripts: {
         include: {
-          collection: {
-            include: {
-              authors: { where: { userId: teacher.id }, select: { userId: true } }
-            }
-          }
+          collection: true
         },
         orderBy: { order: 'asc' },
         take: 1
@@ -144,13 +151,6 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
   })
 
   if (!skript) {
-    notFound()
-  }
-
-  // Verify teacher is an author
-  const isTeacherAuthor = skript.authors.length > 0 ||
-    skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
-  if (!isTeacherAuthor) {
     notFound()
   }
 
@@ -168,7 +168,6 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
         title: collection.title,
         slug: collection.slug,
         accentColor: collection.accentColor,
-        isPublished: collection.isPublished,
         collectionSkripts: [{
           order: collectionSkript.order,
           skript: {

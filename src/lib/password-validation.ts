@@ -32,11 +32,11 @@ export function validatePassword(password: string): PasswordValidationResult {
   let score = 0
 
   // Minimum length check (REQUIRED)
-  if (!password || password.length < 12) {
-    errors.push('Password must be at least 12 characters long')
+  if (!password || password.length < 8) {
+    errors.push('Password must be at least 8 characters long')
   } else {
     score++ // +1 for meeting minimum length
-    if (password.length >= 16) score++ // +1 for exceeding minimum
+    if (password.length >= 12) score++ // +1 for exceeding minimum
   }
 
   // Character variety checks
@@ -111,7 +111,7 @@ export function validatePassword(password: string): PasswordValidationResult {
   }
 
   return {
-    valid: errors.length === 0 && password.length >= 12,
+    valid: errors.length === 0 && password.length >= 8,
     errors,
     strength,
     score
