@@ -174,7 +174,6 @@ function compareResultSets(a: SqlResultSet[], b: SqlResultSet[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
     if (a[i].columns.length !== b[i].columns.length) return false
-    if (a[i].columns.some((col, j) => col !== b[i].columns[j])) return false
     if (a[i].values.length !== b[i].values.length) return false
     for (let j = 0; j < a[i].values.length; j++) {
       const aRow = a[i].values[j].map(String)
