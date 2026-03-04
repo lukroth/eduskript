@@ -132,13 +132,13 @@ function parseImports(code: string): ParsedImport[] {
   // from module import name1, name2 / from module import *
   const fromImportRegex = /^from\s+(\w+)\s+import\s+(.+)$/gm
   while ((match = fromImportRegex.exec(code)) !== null) {
-    const module = match[1]
+    const mod = match[1]
     const namesStr = match[2].split('#')[0].trim()
     if (namesStr === '*') {
-      imports.push({ module, alias: null, names: '*' })
+      imports.push({ module: mod, alias: null, names: '*' })
     } else {
       const names = namesStr.split(',').map(n => n.trim()).filter(Boolean)
-      imports.push({ module, alias: null, names })
+      imports.push({ module: mod, alias: null, names })
     }
   }
 
