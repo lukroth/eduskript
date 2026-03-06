@@ -512,6 +512,7 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
             onMouseDown={e => e.stopPropagation()}
             // autofocus only for brand-new empty notes
             // eslint-disable-next-line jsx-a11y/no-autofocus
+            // eslint-disable-next-line react-hooks/purity
             autoFocus={note.content === '' && Date.now() - note.createdAt < 3000}
             spellCheck
           />
