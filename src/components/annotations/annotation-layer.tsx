@@ -1967,20 +1967,38 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       spacerDiv.style.height = `${spacer.height}px`
 
       targetChild.after(spacerDiv)
+
+      // For checkered pattern, adjust square size to evenly fill the width
+      if (spacer.pattern === 'checkered') {
+        const width = spacerDiv.offsetWidth
+        if (width > 0) {
+          const targetSize = 20
+          const cols = Math.round(width / targetSize)
+          if (cols > 0) {
+            const size = width / cols
+            spacerDiv.style.backgroundSize = `${size}px ${size}px`
+          }
+        }
+      }
     }
 
     // Recalculate heading positions since content shifted
     recalculateHeadingPositions()
   }, [allSpacersToInject, children, recalculateHeadingPositions, getMarkdownContainer])
 
+  // Track ID of the most recently created spacer so the floating panel auto-opens
+  const [lastCreatedSpacerId, setLastCreatedSpacerId] = useState<string | null>(null)
+
   // Spacer CRUD operations
   const handleAddSpacer = useCallback((afterBlockIndex: number) => {
+    const id = crypto.randomUUID()
     const newSpacer: Spacer = {
-      id: crypto.randomUUID(),
+      id,
       afterBlockIndex,
       height: 80,
       pattern: spacerPattern,
     }
+    setLastCreatedSpacerId(id)
     const current = spacersData?.spacers || []
     updateSpacersData({ spacers: [...current, newSpacer] })
   }, [spacerPattern, spacersData, updateSpacersData])
@@ -2091,8 +2109,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     return bestIndex
   }, [spacerGapPositions])
 
-  // Click-to-place: find the nearest gap and insert a spacer
-  const handleSpacerPlacement = useCallback((e: React.MouseEvent) => {
+  // Click/tap-to-place: find the nearest gap and insert a spacer
+  // Uses PointerEvent to support both touch and stylus input
+  const handleSpacerPlacement = useCallback((e: React.PointerEvent) => {
     if (mode !== 'spacer') return
     const index = findNearestGap(e.clientY)
     if (index === null) return
@@ -2101,8 +2120,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     setSpacerInsertIndex(null)
   }, [mode, handleAddSpacer, findNearestGap])
 
-  // Hover: highlight nearest gap
-  const handleSpacerHover = useCallback((e: React.MouseEvent) => {
+  // Hover/move: highlight nearest gap
+  const handleSpacerHover = useCallback((e: React.PointerEvent) => {
     if (mode !== 'spacer') return
     setSpacerInsertIndex(findNearestGap(e.clientY))
   }, [mode, findNearestGap])
@@ -3343,13 +3362,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         onStudentSelect={setSelectedStudent}
         lastSelectedStudent={lastSelectedStudent}
         onClearLastSelectedStudent={() => setLastSelectedStudent(null)}
-        spacerPattern={spacerPattern}
-        onSpacerPatternChange={setSpacerPattern}
-        spacerDeleteAnnotations={spacerDeleteAnnotations}
-        onSpacerDeleteAnnotationsChange={handleSpacerDeleteAnnotationsChange}
       />
 
-      {/* Spacer click-to-place overlay - portaled into paper, captures clicks when spacer mode active */}
+      {/* Spacer click-to-place overlay - portaled into paper, captures pointer events (touch + stylus) */}
       {paperElement && mode === 'spacer' && createPortal(
         <div
           style={{
@@ -3358,10 +3373,11 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             zIndex: 42, // Above content, below toolbar
             cursor: 'crosshair',
             pointerEvents: 'auto',
+            touchAction: 'none', // Prevent browser scroll on touch
           }}
-          onClick={handleSpacerPlacement}
-          onMouseMove={handleSpacerHover}
-          onMouseLeave={() => setSpacerInsertIndex(null)}
+          onPointerUp={handleSpacerPlacement}
+          onPointerMove={handleSpacerHover}
+          onPointerLeave={() => setSpacerInsertIndex(null)}
         >
           {/* All gap indicators - subtle lines at every possible insertion point */}
           {spacerGapPositions.map((gap) => (
@@ -3379,14 +3395,16 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         paperElement
       )}
 
-      {/* Spacer controls - adds border, resize handle, delete button to injected spacer elements */}
-      {spacers.length > 0 && (
+      {/* Spacer controls - resize handles, floating panel (only when spacer tool active) */}
+      {spacers.length > 0 && mode === 'spacer' && (
         <SpacersDisplay
           spacers={spacers}
           onUpdateSpacer={handleUpdateSpacer}
           onRemoveSpacer={handleRemoveSpacer}
           zoom={zoom}
           active={mode === 'spacer'}
+          lastCreatedSpacerId={lastCreatedSpacerId}
+          onLastCreatedConsumed={() => setLastCreatedSpacerId(null)}
         />
       )}
 

@@ -805,41 +805,17 @@ article.prose-theme > div > :first-child {
   border-radius: 4px;
 }
 
-/* Delete button (×) - top right corner of active spacer */
-.spacer-delete-btn {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: hsl(var(--destructive));
-  color: hsl(var(--destructive-foreground));
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.8;
-  transition: opacity 0.1s;
-  z-index: 46;
-}
-.spacer-delete-btn:hover {
-  opacity: 1;
-}
-
-/* Resize handle - bottom edge of active spacer */
+/* Resize handle - bottom edge of spacer */
 .spacer-resize-handle {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 24px;
   cursor: ns-resize;
   background: linear-gradient(transparent, hsl(var(--primary) / 0.15));
   z-index: 46;
+  touch-action: none;
 }
 .spacer-resize-handle::after {
   content: '';
@@ -852,6 +828,7 @@ article.prose-theme > div > :first-child {
   border-radius: 2px;
   background: hsl(var(--primary) / 0.4);
 }
+
 
 /* Spacer insertion indicator shown during placement mode.
  * All gaps shown as subtle lines; the nearest gap is highlighted via inline styles. */

@@ -3,17 +3,18 @@
 /**
  * SpacersDisplay - Manages spacer interaction controls
  *
- * Adds/removes CSS classes and event listeners on the injected spacer DOM
- * elements. No React overlay needed — all controls are DOM-manipulated.
+ * When `active` (spacer tool selected): spacers get accented border, resize handles,
+ * and a floating side panel (left gutter, like highlighter UI) with pattern picker + delete.
  *
- * When `active` is true (spacer tool selected), all spacers get:
- * - Accented dashed border
- * - Delete button (top-right ×)
- * - Resize handle (bottom edge drag)
+ * Resize handles respond to both touch and stylus (pointer events).
+ * When not active, resize handles are still available via touch only.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import type { Spacer } from '@/types/spacer'
+import { useEffect, useRef, useCallback, useState, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
+import { SeparatorHorizontal, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { Spacer, SpacerPattern } from '@/types/spacer'
 
 interface SpacersDisplayProps {
   spacers: Spacer[]
@@ -22,10 +23,19 @@ interface SpacersDisplayProps {
   zoom: number
   active: boolean  // True when spacer tool is selected
   readOnly?: boolean
+  lastCreatedSpacerId?: string | null  // Auto-open panel for newly created spacer
+  onLastCreatedConsumed?: () => void   // Signal that we've consumed the lastCreatedSpacerId
 }
 
 const MIN_SPACER_HEIGHT = 20
 const MAX_SPACER_HEIGHT = 800
+
+const SPACER_PATTERNS: { key: SpacerPattern; label: string }[] = [
+  { key: 'blank', label: 'Blank' },
+  { key: 'checkered', label: 'Grid' },
+  { key: 'lines', label: 'Lines' },
+  { key: 'dots', label: 'Dots' },
+]
 
 export function SpacersDisplay({
   spacers,
@@ -34,6 +44,8 @@ export function SpacersDisplay({
   zoom,
   active,
   readOnly = false,
+  lastCreatedSpacerId,
+  onLastCreatedConsumed,
 }: SpacersDisplayProps) {
   // Track resize state in a ref (shared across pointer event handlers)
   const resizeRef = useRef<{
@@ -42,11 +54,37 @@ export function SpacersDisplay({
     startHeight: number
   } | null>(null)
 
-  // Keep latest values in refs for window event listeners (updated in effects)
+  // Which spacer's floating panel is open
+  const [panelSpacerId, setPanelSpacerId] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // Keep latest values in refs for window event listeners
   const zoomRef = useRef(zoom)
   const onUpdateRef = useRef(onUpdateSpacer)
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { onUpdateRef.current = onUpdateSpacer }, [onUpdateSpacer])
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!panelSpacerId) return
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (panelRef.current?.contains(e.target as Node)) return
+      // Check if clicking on a spacer element
+      const spacerEl = (e.target as HTMLElement).closest?.('[data-spacer-id]')
+      if (spacerEl) {
+        const clickedId = spacerEl.getAttribute('data-spacer-id')
+        if (clickedId === panelSpacerId) return
+        // Clicked a different spacer — switch panel
+        setPanelSpacerId(clickedId)
+        return
+      }
+      setPanelSpacerId(null)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [panelSpacerId])
 
   // Window-level pointermove/pointerup for resize (set up once)
   useEffect(() => {
@@ -82,13 +120,22 @@ export function SpacersDisplay({
     }
   }, [])
 
-  // Function to attach controls to all spacer DOM elements
+  // Attach controls to spacer DOM elements
   const attachControls = useCallback(() => {
     // Remove all existing controls first
     document.querySelectorAll('.spacer-element').forEach(el => {
       el.classList.remove('spacer-active')
       el.querySelectorAll('.spacer-controls').forEach(c => c.remove())
     })
+
+    // Close panel when spacer tool is deactivated
+    if (!active) setPanelSpacerId(null)
+
+    // Auto-open panel for newly created spacer
+    if (lastCreatedSpacerId && active) {
+      setPanelSpacerId(lastCreatedSpacerId)
+      onLastCreatedConsumed?.()
+    }
 
     if (readOnly || !active) return []
 
@@ -99,23 +146,25 @@ export function SpacersDisplay({
       if (!el) continue
 
       el.classList.add('spacer-active')
+      el.style.zIndex = '43' // Above the placement overlay (z-index 42)
+      el.style.position = 'relative'
 
       // Controls wrapper
       const controls = document.createElement('div')
       controls.className = 'spacer-controls'
       controls.style.cssText = 'position:absolute;inset:0;pointer-events:none;'
 
-      // Delete button
-      const deleteBtn = document.createElement('button')
-      deleteBtn.className = 'spacer-delete-btn'
-      deleteBtn.innerHTML = '×'
-      deleteBtn.title = 'Remove spacer'
-      deleteBtn.style.pointerEvents = 'auto'
-      const handleDelete = (e: Event) => {
+      // Clickable body overlay above the placement overlay (z-index 42)
+      // so tapping an existing spacer opens the panel instead of creating a new one
+      const bodyOverlay = document.createElement('div')
+      bodyOverlay.className = 'spacer-body-overlay'
+      bodyOverlay.style.cssText = 'position:absolute;inset:0;z-index:43;pointer-events:auto;cursor:pointer;'
+      const handleBodyTap = (e: Event) => {
         e.stopPropagation()
-        onRemoveSpacer(spacer.id)
+        setPanelSpacerId(spacer.id)
       }
-      deleteBtn.addEventListener('click', handleDelete)
+      bodyOverlay.addEventListener('pointerup', handleBodyTap)
+      controls.appendChild(bodyOverlay)
 
       // Resize handle
       const resizeHandle = document.createElement('div')
@@ -132,30 +181,27 @@ export function SpacersDisplay({
         }
       }
       resizeHandle.addEventListener('pointerdown', handleResizeStart)
-
-      controls.appendChild(deleteBtn)
       controls.appendChild(resizeHandle)
-      el.style.position = 'relative'
+
       el.appendChild(controls)
 
       cleanupFns.push(() => {
-        deleteBtn.removeEventListener('click', handleDelete)
         resizeHandle.removeEventListener('pointerdown', handleResizeStart)
+        bodyOverlay.removeEventListener('pointerup', handleBodyTap)
         controls.remove()
         el.classList.remove('spacer-active')
+        el.style.zIndex = ''
       })
     }
 
     return cleanupFns
-  }, [spacers, active, readOnly, onRemoveSpacer])
+  }, [spacers, active, readOnly, lastCreatedSpacerId, onLastCreatedConsumed])
 
   // Attach controls when spacers or active state changes.
-  // Uses a small delay to run after the DOM injection effect has completed,
-  // since both react to spacers changes but injection must happen first.
+  // Uses a small delay to run after the DOM injection effect has completed.
   useEffect(() => {
     const timer = setTimeout(() => {
       const cleanupFns = attachControls()
-      // Store for cleanup on next run
       cleanupRef.current = cleanupFns
     }, 0)
 
@@ -168,5 +214,104 @@ export function SpacersDisplay({
 
   const cleanupRef = useRef<Array<() => void>>([])
 
-  return null
+  // Find the spacer data for the panel
+  const panelSpacer = panelSpacerId ? spacers.find(s => s.id === panelSpacerId) : null
+
+  return panelSpacer
+    ? createPortal(
+        <SpacerSidePanel
+          ref={panelRef}
+          spacer={panelSpacer}
+          getSourceRect={() => {
+            const el = document.querySelector(`[data-spacer-id="${CSS.escape(panelSpacer.id)}"]`)
+            return el?.getBoundingClientRect() ?? null
+          }}
+          onPatternChange={(pattern) => onUpdateSpacer(panelSpacer.id, { pattern })}
+          onDelete={() => {
+            onRemoveSpacer(panelSpacer.id)
+            setPanelSpacerId(null)
+          }}
+        />,
+        document.body,
+      )
+    : null
 }
+
+// --- Floating side panel for spacer controls (pattern picker + delete) ---
+
+interface SpacerSidePanelProps {
+  spacer: Spacer
+  getSourceRect: () => DOMRect | null
+  onPatternChange: (pattern: SpacerPattern) => void
+  onDelete: () => void
+}
+
+const SpacerSidePanel = forwardRef<HTMLDivElement, SpacerSidePanelProps>(
+  function SpacerSidePanel({ spacer, getSourceRect, onPatternChange, onDelete }, ref) {
+    const [pos, setPos] = useState({ left: 8, top: 0 })
+
+    useEffect(() => {
+      const update = () => {
+        const paper = document.getElementById('paper')
+        const sourceRect = getSourceRect()
+        const paperLeft = paper ? paper.getBoundingClientRect().left : 0
+
+        setPos({
+          left: Math.max(8, paperLeft + 8),
+          top: sourceRect ? sourceRect.top + sourceRect.height / 2 : pos.top,
+        })
+      }
+      update()
+
+      const scrollContainer = document.getElementById('scroll-container')
+      scrollContainer?.addEventListener('scroll', update)
+      window.addEventListener('resize', update)
+      return () => {
+        scrollContainer?.removeEventListener('scroll', update)
+        window.removeEventListener('resize', update)
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pos.top fallback only used on initial render
+    }, [getSourceRect])
+
+    return (
+      <div
+        ref={ref}
+        className="fixed flex flex-col items-center gap-1.5 rounded-lg border border-border bg-popover p-1.5 shadow-lg select-none"
+        style={{
+          left: pos.left,
+          top: pos.top,
+          transform: 'translateY(-50%)',
+          zIndex: 45,
+        }}
+      >
+        <SeparatorHorizontal className="h-4 w-4 text-muted-foreground/60" />
+        <div className="w-4 h-px bg-border" />
+        {SPACER_PATTERNS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            className={cn(
+              'h-6 w-6 rounded border transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-ring spacer-preview',
+              key === spacer.pattern
+                ? 'border-foreground/50 scale-110'
+                : 'border-black/10 dark:border-white/10',
+            )}
+            title={label}
+            onClick={() => onPatternChange(key)}
+          >
+            <div className={cn('w-full h-full rounded-sm spacer-element', `spacer-${key}`)} />
+          </button>
+        ))}
+        <div className="w-4 h-px bg-border" />
+        <button
+          type="button"
+          className="flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground/60 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+          title="Remove spacer"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    )
+  },
+)
