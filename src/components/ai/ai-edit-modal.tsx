@@ -182,11 +182,6 @@ export function AIEditModal({
                     {isComplete ? 'Review Changes' : 'Generating Changes'}
                   </h2>
                 </div>
-                {!isComplete && (
-                  <Button variant="ghost" size="sm" onClick={handleCancel}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
               <p className="text-sm text-muted-foreground mb-2">
                 {plan?.overallSummary || proposal?.overallSummary}

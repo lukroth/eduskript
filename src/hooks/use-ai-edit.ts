@@ -115,6 +115,9 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
         let buffer = ''
         const edits: PageEdit[] = []
         let overallSummary = ''
+        // Persist across chunks - event: and data: lines may arrive in separate chunks
+        let eventType = ''
+        let eventData = ''
 
         while (true) {
           const { done, value } = await reader.read()
@@ -127,9 +130,6 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
           buffer = lines.pop() || '' // Keep incomplete line in buffer
 
           log(`Processing chunk: ${lines.length} lines, buffer remaining: ${buffer.length} chars`)
-
-          let eventType = ''
-          let eventData = ''
 
           for (const line of lines) {
             if (line.trim()) {
