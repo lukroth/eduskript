@@ -141,13 +141,20 @@ export default function DataCubeCanvas() {
   // Update 3D cube when dimensions change
   useEffect(() => {
     const scene = sceneRef.current
+    const img = imageRef.current
     if (!scene) return
 
-    // Remove existing cubes and edges
+    // Remove existing cubes, edges, and image plane
     const objectsToRemove = scene.children.filter(
       (child) => child instanceof THREE.Mesh || child.type === 'LineSegments'
     )
-    objectsToRemove.forEach((obj) => scene.remove(obj))
+    objectsToRemove.forEach((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose()
+        if (obj.material instanceof THREE.Material) obj.material.dispose()
+      }
+      scene.remove(obj)
+    })
 
     const cubeSize = 0.5
     const cubeDistance = cubeSize + 0.1
@@ -194,7 +201,53 @@ export default function DataCubeCanvas() {
         }
       }
     }
-  }, [width, height, colorDepth])
+
+    // Add quantized image on top of the cuboid
+    if (img && imageSrc) {
+      const offscreen = document.createElement('canvas')
+      offscreen.width = width
+      offscreen.height = height
+      const offCtx = offscreen.getContext('2d', { willReadFrequently: true })
+      if (offCtx) {
+        offCtx.imageSmoothingEnabled = false
+        offCtx.drawImage(img, 0, 0, width, height)
+
+        if (colorDepth < 8) {
+          const imageData = offCtx.getImageData(0, 0, width, height)
+          quantizeImageData(imageData.data, colorDepth)
+          offCtx.putImageData(imageData, 0, 0)
+        }
+
+        const texture = new THREE.CanvasTexture(offscreen)
+        texture.magFilter = THREE.NearestFilter
+        texture.minFilter = THREE.NearestFilter
+        texture.colorSpace = THREE.SRGBColorSpace
+        texture.flipY = false
+
+        // Plane covers the top face of the cuboid
+        const planeWidth = (width - 1) * cubeDistance + cubeSize
+        const planeHeight = (height - 1) * cubeDistance + cubeSize
+        const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight)
+        const planeMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.8,
+        })
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial)
+
+        // Position on top of the cuboid, rotated to face up (XZ plane)
+        const topY = (colorDepth * 3 - 1) * cubeDistance - offsetY + cubeSize / 2 + 0.05
+        const centerX = ((width - 1) * cubeDistance) / 2 - offsetX
+        const centerZ = ((height - 1) * cubeDistance) / 2 - offsetZ
+        plane.position.set(centerX, topY, centerZ)
+        plane.rotation.x = -Math.PI / 2
+        plane.scale.x = -1
+
+        scene.add(plane)
+      }
+    }
+  }, [width, height, colorDepth, imageSrc])
 
   // Update 2D canvas when dimensions or image changes
   useEffect(() => {
