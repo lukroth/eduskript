@@ -101,6 +101,10 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   // Scroll sync
   const scrollSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isScrollingSyncRef = useRef(false)
+  // Track what content the editor last emitted via onChange, so we can
+  // distinguish internal changes (which should NOT be dispatched back)
+  // from external changes (image resize, version restore) that must be.
+  const lastEmittedContentRef = useRef(content || '')
 
   // Calculate visibility based on width
   const showEditor = editorWidth > 0
@@ -531,6 +535,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
             EditorView.updateListener.of((update: ViewUpdate) => {
               if (update.docChanged) {
                 const newContent = update.state.doc.toString()
+                lastEmittedContentRef.current = newContent
                 onChange(newContent)
               }
 
@@ -596,13 +601,30 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               },
               '.cm-scroller': {
                 minHeight: '100%',
-                overflowX: 'hidden', // Prevent horizontal overflow
               },
               '.cm-line': {
-                wordBreak: 'break-word', // Break long words
+                overflowWrap: 'break-word', // Standard property, safer than word-break for CM
               },
             }),
             EditorView.lineWrapping, // Add line wrapping extension
+            // Catch CM tile tree crashes ("parents.pop() is undefined") and recover
+            // by forcing a full re-measure. Without this, the editor becomes unusable
+            // after the error (offset cursor, phantom lines, visual corruption).
+            EditorView.exceptionSink.of((error) => {
+              const msg = error?.message || ''
+              if (msg.includes('pop') || msg.includes('No tile at position') || msg.includes('undefined has no properties')) {
+                console.warn('[CodeMirror] Tile tree error caught, forcing re-measure:', msg)
+                // Schedule recovery after the current call stack clears
+                setTimeout(() => {
+                  if (editorViewRef.current) {
+                    editorViewRef.current.requestMeasure()
+                    editorViewRef.current.dispatch({})
+                  }
+                }, 0)
+              } else {
+                console.error('[CodeMirror] Unhandled error:', error)
+              }
+            }),
           ],
         })
 
@@ -647,18 +669,25 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, isDark]) // Only re-initialize when mounted state or theme changes
 
-  // Update editor font size dynamically
+  // Update editor font size dynamically.
+  // Must use requestMeasure() after DOM change so CM recalculates tile positions.
   useEffect(() => {
     if (editorViewRef.current) {
       const cmContent = editorViewRef.current.dom.querySelector('.cm-content') as HTMLElement
       if (cmContent) {
         cmContent.style.fontSize = `${editorFontSize}px`
+        editorViewRef.current.requestMeasure()
       }
     }
   }, [editorFontSize])
 
-  // Update editor content when prop changes (e.g., from image resize in preview)
+  // Update editor content when prop changes from an EXTERNAL source
+  // (e.g., image resize in preview, version restore).
+  // Skip if editorContent matches what the editor last emitted via onChange —
+  // dispatching the editor's own output back into it corrupts the tile tree
+  // (causes "parents.pop() is undefined" errors, phantom lines, cursor drift).
   useEffect(() => {
+    if (editorContent === lastEmittedContentRef.current) return
     if (editorViewRef.current && editorContent !== editorViewRef.current.state.doc.toString()) {
       try {
         const view = editorViewRef.current
@@ -674,6 +703,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           },
         })
         view.dispatch(transaction)
+        lastEmittedContentRef.current = editorContent
 
         // Restore cursor to same line (clamped to new doc length)
         requestAnimationFrame(() => {
