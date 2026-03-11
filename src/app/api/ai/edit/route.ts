@@ -141,26 +141,35 @@ export async function POST(request: Request): Promise<Response> {
   for (let attempt = 1; attempt <= MAX_PLAN_RETRIES; attempt++) {
     const planMessage = await openai.chat.completions.create({
       model: process.env.OPENROUTER_MODEL ?? 'z-ai/glm-5',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'system', content: planPrompt }, { role: 'user', content: instruction }],
     })
 
     lastPlanText = planMessage.choices[0]?.message?.content ?? ''
+    const finishReason = planMessage.choices[0]?.finish_reason
 
-    log(`Plan attempt ${attempt}/${MAX_PLAN_RETRIES}, response length: ${lastPlanText.length}`)
+    log(`Plan attempt ${attempt}/${MAX_PLAN_RETRIES}, response length: ${lastPlanText.length}, finish_reason: ${finishReason}`)
+    if (lastPlanText.length > 0) {
+      log('Plan response preview:', lastPlanText.slice(0, 300))
+    }
 
     parseResult = parseJsonResponse(lastPlanText, isValidEditPlan)
 
     if (parseResult.success) break
 
-    if (attempt < MAX_PLAN_RETRIES) {
-      log(`Plan attempt ${attempt} failed (${lastPlanText.length === 0 ? 'empty response' : 'invalid JSON'}), retrying...`)
+    // Log why parsing failed so we can diagnose production issues
+    const failReason = lastPlanText.length === 0
+      ? 'empty response'
+      : !parseResult.success ? `parse error: ${parseResult.error}` : 'unknown'
+    log(`Plan attempt ${attempt} failed: ${failReason}`)
+
+    if (attempt >= MAX_PLAN_RETRIES) {
+      log('All plan attempts exhausted, last response:', lastPlanText.slice(0, 500))
     }
   }
 
   // 10. Handle plan failure — no job created
   if (!parseResult || !parseResult.success) {
-    log('All plan attempts failed')
     return Response.json({
       success: true,
       jobId: null,
