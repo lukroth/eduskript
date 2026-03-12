@@ -946,6 +946,10 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
                 loading={fileListLoading}
                 isAdmin={session?.user?.isAdmin}
                 onVideoAdded={refreshFileList}
+                onUploadComplete={() => {
+                  refreshFileList()
+                  setActiveSkriptTab('videos')
+                }}
               />
             </div>
           )}

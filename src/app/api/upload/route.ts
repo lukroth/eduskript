@@ -235,6 +235,7 @@ export async function GET(request: NextRequest) {
           poster: metadata?.poster as string | undefined,
           blurDataURL: metadata?.blurDataURL as string | undefined,
           aspectRatio: typeof metadata?.aspectRatio === 'number' ? metadata.aspectRatio : undefined,
+          status: (metadata?.status as string | undefined) ?? 'ready',
         },
       }
     })

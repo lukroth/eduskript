@@ -167,6 +167,9 @@ model User {
   // Cross-domain auth tokens
   crossDomainTokens CrossDomainToken[]
 
+  // Uploaded videos
+  uploadedVideos Video[] @relation("UploadedVideos")
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -374,18 +377,23 @@ model File {
 // Video storage for hosted video files (Mux, etc.)
 // Uses JSONB for provider-specific metadata (flexible for future providers)
 model Video {
-  id        String   @id @default(cuid())
-  filename  String   // e.g., "lecture.mp4"
-  provider  String   @default("mux")  // "mux", future: "bunny", "cloudflare"
-  metadata  Json     // Provider-specific: { playbackId, poster, blurDataURL, aspectRatio }
+  id           String   @id @default(cuid())
+  filename     String   // e.g., "lecture.mp4"
+  provider     String   @default("mux")  // "mux", future: "bunny", "cloudflare"
+  metadata     Json     // Provider-specific: { playbackId, poster, blurDataURL, aspectRatio, status }
+  uploadedById String?  @map("uploaded_by_id")
+  muxUploadId  String?  @unique @map("mux_upload_id")  // For webhook lookup after direct upload
+  muxAssetId   String?  @unique @map("mux_asset_id")   // For webhook lookup when asset ready
 
-  skripts   Skript[] @relation("SkriptVideos")  // Many-to-many
+  uploadedBy User?    @relation("UploadedVideos", fields: [uploadedById], references: [id], onDelete: SetNull)
+  skripts    Skript[] @relation("SkriptVideos")  // Many-to-many
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([filename, provider])
+  @@unique([filename, provider, uploadedById])
   @@index([filename])
+  @@index([uploadedById])
   @@map("videos")
 }
 

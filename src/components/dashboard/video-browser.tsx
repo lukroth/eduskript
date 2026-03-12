@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Film, Copy, Check, Search, Plus, X, Loader2, Link } from 'lucide-react'
+import { Film, Copy, Check, Search, Plus, X, Loader2, Link, Upload, AlertCircle } from 'lucide-react'
 import type { VideoInfo } from '@/lib/skript-files'
+import { VideoUploadModal } from './video-upload-modal'
 
 interface VideoBrowserProps {
   videos: VideoInfo[]
@@ -10,13 +11,15 @@ interface VideoBrowserProps {
   className?: string
   isAdmin?: boolean
   onVideoAdded?: () => void
+  onUploadComplete?: () => void
 }
 
-export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded }: VideoBrowserProps) {
+export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded, onUploadComplete }: VideoBrowserProps) {
   const [query, setQuery] = useState('')
   const [copiedFilename, setCopiedFilename] = useState<string | null>(null)
   const [copiedPlaybackId, setCopiedPlaybackId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
   const [addFilename, setAddFilename] = useState('')
   const [addPlaybackId, setAddPlaybackId] = useState('')
   const [addAspectRatio, setAddAspectRatio] = useState('')
@@ -48,6 +51,12 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
   }
 
   const handleDragStart = (e: React.DragEvent, video: VideoInfo) => {
+    // Don't allow dragging non-ready videos
+    const status = video.metadata.status
+    if (status && status !== 'ready') {
+      e.preventDefault()
+      return
+    }
     e.dataTransfer.setData('application/Eduskript-mux-video', JSON.stringify(video))
     e.dataTransfer.effectAllowed = 'copy'
   }
@@ -91,6 +100,29 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
     }
   }
 
+  const getStatusIndicator = (video: VideoInfo) => {
+    const status = video.metadata.status
+    if (!status || status === 'ready') return null
+
+    if (status === 'waiting' || status === 'processing') {
+      return (
+        <span className="flex-shrink-0" title={`Video is ${status}`}>
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+        </span>
+      )
+    }
+
+    if (status === 'errored') {
+      return (
+        <span className="flex-shrink-0" title="Video processing failed">
+          <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+        </span>
+      )
+    }
+
+    return null
+  }
+
   if (loading) {
     return (
       <div className={`p-4 ${className}`}>
@@ -107,14 +139,26 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
       <div className={`p-4 text-center text-sm text-muted-foreground ${className}`}>
         <Film className="w-8 h-8 mx-auto mb-2 opacity-40" />
         <p>No videos available.</p>
-        <p className="mt-1 text-xs">Upload videos via the Mux dashboard and they&apos;ll appear here.</p>
+        <p className="mt-1 text-xs">Click the upload button to add a video.</p>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Upload Video
+        </button>
+        <VideoUploadModal
+          open={showUploadModal}
+          onOpenChange={setShowUploadModal}
+          onUploadComplete={onUploadComplete}
+        />
       </div>
     )
   }
 
   return (
     <div className={`flex flex-col ${className}`}>
-      {/* Search + Add button */}
+      {/* Search + Upload + Admin Add buttons */}
       <div className="px-2 pt-2 pb-1 flex items-center gap-1.5">
         <div className="flex-1 flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
           <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
@@ -126,11 +170,20 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
             className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
           />
         </div>
+        {/* Upload button for all teachers */}
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="flex-shrink-0 p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          title="Upload video"
+        >
+          <Upload className="w-3.5 h-3.5" />
+        </button>
+        {/* Admin manual add form toggle */}
         {isAdmin && (
           <button
             onClick={() => setShowAddForm(f => !f)}
             className="flex-shrink-0 p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            title="Add video entry"
+            title="Add video entry manually"
           >
             {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
           </button>
@@ -184,63 +237,74 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">No matches</p>
           ) : (
-            filtered.map(video => (
-              <div
-                key={video.filename}
-                draggable
-                onDragStart={e => handleDragStart(e, video)}
-                className="group flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors cursor-grab active:cursor-grabbing"
-                title={`Drag to insert ${video.filename}`}
-              >
-                {/* Poster or fallback */}
-                {video.metadata.poster ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={video.metadata.poster}
-                    alt=""
-                    className="w-12 h-8 object-cover rounded flex-shrink-0 bg-muted"
-                  />
-                ) : (
-                  <div className="w-12 h-8 flex items-center justify-center rounded flex-shrink-0 bg-muted">
-                    <Film className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                )}
+            filtered.map(video => {
+              const status = video.metadata.status
+              const isReady = !status || status === 'ready'
+              return (
+                <div
+                  key={video.filename}
+                  draggable={isReady}
+                  onDragStart={e => handleDragStart(e, video)}
+                  className={`group flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors ${
+                    isReady ? 'cursor-grab active:cursor-grabbing' : 'cursor-default opacity-60'
+                  }`}
+                  title={isReady ? `Drag to insert ${video.filename}` : `Video is ${status}`}
+                >
+                  {/* Poster or fallback */}
+                  {video.metadata.poster ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={video.metadata.poster}
+                      alt=""
+                      className="w-12 h-8 object-cover rounded flex-shrink-0 bg-muted"
+                    />
+                  ) : (
+                    <div className="w-12 h-8 flex items-center justify-center rounded flex-shrink-0 bg-muted">
+                      <Film className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  )}
 
-                <span className="flex-1 min-w-0 truncate font-medium text-xs">{video.filename}</span>
+                  <span className="flex-1 min-w-0 truncate font-medium text-xs">{video.filename}</span>
 
-                <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
-                  {video.provider}
-                </span>
+                  {/* Status indicator for non-ready videos */}
+                  {getStatusIndicator(video)}
 
-                {/* Copy playback ID button */}
-                {video.metadata.playbackId && (
+                  {isReady && (
+                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
+                      {video.provider}
+                    </span>
+                  )}
+
+                  {/* Copy playback ID button */}
+                  {video.metadata.playbackId && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleCopyPlaybackId(video.metadata.playbackId!) }}
+                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent"
+                      title="Copy Mux Playback ID"
+                    >
+                      {copiedPlaybackId === video.metadata.playbackId ? (
+                        <Check className="w-3.5 h-3.5 text-green-600" />
+                      ) : (
+                        <Link className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Copy filename button */}
                   <button
-                    onClick={e => { e.stopPropagation(); handleCopyPlaybackId(video.metadata.playbackId!) }}
+                    onClick={e => { e.stopPropagation(); handleCopyFilename(video.filename) }}
                     className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent"
-                    title="Copy Mux Playback ID"
+                    title="Copy filename to clipboard"
                   >
-                    {copiedPlaybackId === video.metadata.playbackId ? (
+                    {copiedFilename === video.filename ? (
                       <Check className="w-3.5 h-3.5 text-green-600" />
                     ) : (
-                      <Link className="w-3.5 h-3.5 text-muted-foreground" />
+                      <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                     )}
                   </button>
-                )}
-
-                {/* Copy filename button */}
-                <button
-                  onClick={e => { e.stopPropagation(); handleCopyFilename(video.filename) }}
-                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent"
-                  title="Copy filename to clipboard"
-                >
-                  {copiedFilename === video.filename ? (
-                    <Check className="w-3.5 h-3.5 text-green-600" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                  )}
-                </button>
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
         </div>
       )}
@@ -248,6 +312,12 @@ export function VideoBrowser({ videos, loading, className, isAdmin, onVideoAdded
       <p className="px-3 py-1.5 text-xs text-muted-foreground border-t">
         Drag a video into the editor to insert it
       </p>
+
+      <VideoUploadModal
+        open={showUploadModal}
+        onOpenChange={setShowUploadModal}
+        onUploadComplete={onUploadComplete}
+      />
     </div>
   )
 }

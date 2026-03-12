@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error, session } = await requireAdmin()
   if (error) return error
 
   const body = await request.json()
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Build metadata matching the expected VideoInfo shape
-  const metadata: Record<string, unknown> = { playbackId }
+  const metadata: Record<string, unknown> = { playbackId, status: 'ready' }
   if (aspectRatio) metadata.aspectRatio = Number(aspectRatio)
 
   // Mux generates poster/thumbnail URLs from playbackId
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       filename: filename.trim(),
       provider: 'mux',
       metadata,
+      uploadedById: session!.user.id,
     },
   })
 

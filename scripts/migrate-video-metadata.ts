@@ -110,8 +110,8 @@ async function migrateVideoMetadata(dryRun: boolean = false) {
         created++
       } else {
         // Check if video already exists
-        const existing = await prisma.video.findUnique({
-          where: { filename_provider: { filename, provider: 'mux' } }
+        const existing = await prisma.video.findFirst({
+          where: { filename, provider: 'mux' }
         })
 
         if (existing) {
