@@ -102,7 +102,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
   const [slug, setSlug] = useState(page.slug || '')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState(page.content || '')
-  const [isPublished] = useState(page.isPublished || false)
+
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -668,7 +668,6 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
           slug: slug.trim(),
           description: description.trim(),
           content: contentRef.current,
-          isPublished,
           pageType,
           examSettings: pageType === 'exam' ? examSettings : null
         })
@@ -694,7 +693,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
       alert.showError('Failed to save page')
     }
     setIsSaving(false)
-  }, [title, slug, description, isPublished, pageType, examSettings, page.id, page.slug, skript.slug, router, loadVersions, alert])
+  }, [title, slug, description, pageType, examSettings, page.id, page.slug, skript.slug, router, loadVersions, alert])
 
   // Handle version restoration
   const handleRestoreVersion = async (versionId: string, versionContent: string) => {
