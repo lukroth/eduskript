@@ -456,11 +456,8 @@ export function createMarkdownComponents(
 
   // QuizOptionComponent - wrapper that preserves props for parent Question to read
   // Note: uses "correct" instead of "is" because "is" is a reserved React attribute
-  function QuizOptionComponent({ children, correct, is, feedback }: React.HTMLAttributes<HTMLElement> & { correct?: string; is?: string; feedback?: string }) {
-    // Return an Option component that the Question can read props from
-    // Support both "correct" (new) and "is" (legacy) attribute names
-    const isValue = correct || is
-    return <Option is={isValue as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
+  function QuizOptionComponent({ children, correct, feedback }: React.HTMLAttributes<HTMLElement> & { correct?: string; feedback?: string }) {
+    return <Option correct={correct as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
   }
 
   // Image component - for use as <Image src="..." /> in markdown

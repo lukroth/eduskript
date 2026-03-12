@@ -169,7 +169,7 @@ Interactive multiple choice using \`<Question>\` and \`<Option>\` HTML tags:
 
 \`\`\`markdown
 <Question id="q1" type="single">
-<Option is="correct">4</Option>
+<Option correct="true">4</Option>
 <Option feedback="Too low">3</Option>
 <Option feedback="Too high">5</Option>
 </Question>
@@ -180,7 +180,7 @@ Interactive multiple choice using \`<Question>\` and \`<Option>\` HTML tags:
 - \`type="single"\` — Single choice (default)
 
 **Option attributes:**
-- \`is="correct"\` — Marks the correct answer
+- \`correct="true"\` — Marks the correct answer
 - \`feedback="..."\` — Shown when this wrong option is selected
 
 **Do NOT use** the \`:::quiz\` fence syntax — it is not implemented.`)
@@ -215,6 +215,7 @@ export function getCondensedSyntaxReference(): string {
 **Tabs:** HTML syntax only:
   \`<tabs-container data-items='["Tab1", "Tab2"]'><tab-item>Content1</tab-item><tab-item>Content2</tab-item></tabs-container>\`
 
-**Quiz:** \`<Question id="q1" type="single"><Option is="correct">Right</Option><Option feedback="Nope">Wrong</Option></Question>\`
+**Quiz:** \`<Question id="q1" type="single"><Option correct="true">Right</Option><Option feedback="Nope">Wrong</Option></Question>\`
+  - Use \`correct="true"\` to mark the correct answer
   - Do NOT use \`:::quiz\` syntax — it is not implemented`
 }

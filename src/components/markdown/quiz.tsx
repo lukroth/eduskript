@@ -23,10 +23,10 @@ interface QuestionProps {
 interface OptionProps {
   children: ReactNode
   feedback?: string
-  is?: 'true' | 'false'
+  correct?: 'true' | 'false'
 }
 
-// Parse is prop to boolean
+// Parse correct prop to boolean
 const isCorrect = (value: 'true' | 'false' | undefined): boolean => value === 'true'
 
 // Inner component that renders after data is loaded
@@ -139,7 +139,7 @@ function QuestionInner({
 
             const optionProps = element.props
             const isSelected = selected.includes(index)
-            const optionIsCorrect = isCorrect(optionProps.is)
+            const optionIsCorrect = isCorrect(optionProps.correct)
             const showResult = isSubmitted && showFeedback
 
             return (
@@ -375,7 +375,7 @@ function extractOptionsInfo(children: ReactNode, type: 'single' | 'multiple' | '
         const element = child as ReactElement<OptionProps>
         if (element.props) {
           // Check if this option is marked as correct
-          if (element.props.is === 'true') {
+          if (element.props.correct === 'true') {
             correctIndices.push(index)
           }
           // Extract text content for option label

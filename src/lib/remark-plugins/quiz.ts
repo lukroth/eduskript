@@ -71,7 +71,7 @@ export function remarkQuiz() {
         // Note: use "correct" instead of "is" because "is" is a reserved React attribute
         const optionElements: RootContent[] = options.map(opt => ({
           type: 'html',
-          value: `<quiz-option${opt.is ? ` correct="${opt.is}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</quiz-option>`
+          value: `<quiz-option${opt.correct ? ` correct="${opt.correct}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</quiz-option>`
         } as RootContent))
 
         // Build attributes string with all Question props
@@ -124,7 +124,7 @@ function serializeNode(node: any): string {
 }
 
 interface ParsedOption {
-  is?: string
+  correct?: string
   feedback?: string
   content: string
 }
@@ -183,11 +183,16 @@ function parseQuestionBlock(content: string): { attrs: QuestionAttributes; optio
     const optAttrs = match[1]
     const optContent = match[2].trim()
 
-    const isMatch = optAttrs.match(/is=["']([^"']+)["']/)
+    // TODO(2026-07): Remove legacy "is" fallback once all existing content uses correct="true"
+    const correctMatch = optAttrs.match(/correct=["']([^"']+)["']/) || optAttrs.match(/is=["']([^"']+)["']/)
     const feedbackMatch = optAttrs.match(/feedback=["']([^"']+)["']/)
 
+    // Normalize: is="correct" (legacy) and correct="true" both mean correct
+    const correctRaw = correctMatch?.[1]
+    const isCorrectOption = correctRaw === 'true' || correctRaw === 'correct'
+
     options.push({
-      is: isMatch?.[1],
+      correct: isCorrectOption ? 'true' : correctRaw,
       feedback: feedbackMatch?.[1],
       content: optContent
     })

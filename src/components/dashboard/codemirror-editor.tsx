@@ -908,7 +908,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
   // Insert quiz question block
   const insertQuiz = () => {
-    const quizTemplate = `<Question id="${generateId()}">\n  <Option is="correct">Correct answer</Option>\n  <Option>Wrong answer</Option>\n</Question>\n`
+    const quizTemplate = `<Question id="${generateId()}">\n  <Option correct="true">Correct answer</Option>\n  <Option>Wrong answer</Option>\n</Question>\n`
 
     if (editorViewRef.current && !useSimpleEditor) {
       const view = editorViewRef.current
