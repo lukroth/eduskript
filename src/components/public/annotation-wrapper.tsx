@@ -50,7 +50,7 @@ export function AnnotationWrapper({ pageId, content, children, publicAnnotations
     <StickyNotesProvider>
       <TeacherBroadcastProvider pageId={pageId}>
         <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
-          <StickyNotesLayer pageId={pageId}>
+          <StickyNotesLayer pageId={pageId} isExamStudent={isExamStudent}>
             <HighlightLayer pageId={pageId}>
               {children}
             </HighlightLayer>

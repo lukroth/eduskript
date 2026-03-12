@@ -96,6 +96,7 @@ import { repositionStrokes, repositionSnaps } from '@/lib/annotations/reposition
 import { useLayout } from '@/contexts/layout-context'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useStickyNotesContext } from '@/contexts/sticky-notes-context'
+import { LayerVisibilityProvider } from '@/contexts/layer-visibility-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
 import { useStudentWork } from '@/hooks/use-student-work'
 import { parseStrokes, type AnimatedStroke } from '@/hooks/use-stroke-animation'
@@ -529,7 +530,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   } = useTeacherBroadcast(isStudent ? pageId : '')
 
   // Sticky notes: placement mode and count come from StickyNotesContext (provided above us in annotation-wrapper)
-  const { placementMode: stickyNotePlacementMode, setPlacementMode: setStickyNotePlacementMode, noteCount: stickyNoteCount } = useStickyNotesContext()
+  const { placementMode: stickyNotePlacementMode, setPlacementMode: setStickyNotePlacementMode, noteCount: stickyNoteCount, clearStickyNotes } = useStickyNotesContext()
 
   // For teachers: also load personal annotations when broadcasting to class/student
   // This allows them to see their personal annotations as a reference layer
@@ -546,6 +547,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     'spacers',
     emptySpacersData,
     {} // No targeting = personal spacers
+  )
+  // Personal snaps hook (needed when broadcasting, so we can clear personal snaps independently)
+  const { updateData: updatePersonalSnapsData } = useSyncedUserData<SnapsData>(
+    shouldLoadPersonalAsReference ? pageId : '',
+    'snaps',
+    emptySnapsData,
+    {} // No targeting = personal snaps
   )
 
   // Layer visibility state
@@ -575,7 +583,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const prevViewModeRef = useRef(viewMode)
   useEffect(() => {
     if (isTeacher && prevViewModeRef.current === 'my-view' && viewMode !== 'my-view') {
-      // Teacher just switched from personal to class/student view
+      // Teacher just switched from personal to class/student/page-broadcast view
       // Auto-hide personal reference layer (controls button state in broadcast mode)
       setLayerVisibility(prev => {
         const next = { ...prev, personal: false }
@@ -605,6 +613,12 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (isTeacher && prevViewModeRef.current === 'class-broadcast' && viewMode === 'student-view') {
       classBroadcastCanvasRef.current = canvasDataRef.current
       log('Stored class broadcast canvas for reference:', canvasDataRef.current?.length ?? 0, 'chars')
+    }
+    // Sync page-broadcast reference hook when switching away from page-broadcast
+    // The main useSyncedUserData hook saves to IndexedDB/server, but pageBroadcastData
+    // (a separate hook instance) doesn't know about it — update its React state directly
+    if (isTeacher && prevViewModeRef.current === 'page-broadcast' && viewMode !== 'page-broadcast') {
+      updatePageBroadcastDataRef.current?.()
     }
     prevViewModeRef.current = viewMode
   }, [isTeacher, viewMode])
@@ -644,6 +658,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }
     return getDefaultVisibility(layerId)
   }, [layerVisibility, getDefaultVisibility])
+
+  // Expose layer visibility to child components (sticky notes, highlights, etc.)
+  const layerVisibilityContextValue = useMemo(() => ({ isLayerVisible }), [isLayerVisible])
 
   // "My annotations" visibility - controls personal annotations (person icon)
   // When in broadcast mode, this controls the 'personal' reference layer
@@ -728,7 +745,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const hasClassSnapsContent = teacherClassSnaps.length > 0
   const hasIndividualSnapsContent = teacherIndividualSnapFeedback !== null
 
-  // Check if there are public annotations or snaps (from server or from current user's page broadcasts)
   const hasPublicContent = publicAnnotations.length > 0 || publicSnaps.length > 0
 
   // Use synced user data service for telemetry (lightweight, sampled)
@@ -873,6 +889,12 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     pageBroadcastSyncOptions
   )
 
+  // Ref to sync pageBroadcastData when switching away from page-broadcast mode.
+  // Captures current canvas state and pushes it into the reference hook so the
+  // public reference layer shows fresh data without a re-fetch.
+  // Declared here, assigned after canvasDataRef etc. are defined (see below).
+  const updatePageBroadcastDataRef = useRef<(() => void) | null>(null)
+
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
   const [hasAnnotations, setHasAnnotations] = useState(false)
@@ -909,17 +931,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const hasClassBroadcastAnnotations = useMemo(() => {
     // When actively editing class broadcast, use local state for immediate feedback
     if (viewMode === 'class-broadcast') {
-      return hasAnnotations
+      return hasAnnotations || (spacersData?.spacers?.length ?? 0) > 0 || (snapsData?.snaps?.length ?? 0) > 0 || stickyNoteCount > 0
     }
     // Otherwise use the hook data or fallback ref
     const broadcastData = classBroadcastData?.canvasData || classBroadcastCanvasRef.current
     return !!(broadcastData && broadcastData.length > 0 && broadcastData !== '[]')
-  }, [classBroadcastData, viewMode, hasAnnotations])
+  }, [classBroadcastData, viewMode, hasAnnotations, spacersData?.spacers?.length, snapsData?.snaps?.length, stickyNoteCount])
 
   const hasStudentFeedbackAnnotations = useMemo(() => {
     // When actively editing student feedback, use local state for immediate feedback
     if (viewMode === 'student-view') {
-      return hasAnnotations
+      return hasAnnotations || (spacersData?.spacers?.length ?? 0) > 0 || (snapsData?.snaps?.length ?? 0) > 0 || stickyNoteCount > 0
     }
     // When in class-broadcast, check classStudents state (updated immediately when drawing)
     if (studentForFeedback) {
@@ -934,17 +956,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     return !!(studentFeedbackData?.canvasData &&
       studentFeedbackData.canvasData.length > 0 &&
       studentFeedbackData.canvasData !== '[]')
-  }, [studentFeedbackData, viewMode, hasAnnotations, studentForFeedback, classStudents])
+  }, [studentFeedbackData, viewMode, hasAnnotations, studentForFeedback, classStudents, spacersData?.spacers?.length, snapsData?.snaps?.length, stickyNoteCount])
 
-  // Track if page has page-broadcast annotations (using local state when actively editing)
+  // Track if page has page-broadcast content (annotations, spacers, snaps, sticky notes)
   const hasPageBroadcastAnnotations = useMemo(() => {
     // When actively editing page broadcast, use local state
     if (viewMode === 'page-broadcast') {
-      return hasAnnotations
+      return hasAnnotations || (spacersData?.spacers?.length ?? 0) > 0 || (snapsData?.snaps?.length ?? 0) > 0 || stickyNoteCount > 0
     }
-    // Otherwise check server-passed public annotations
+    // Otherwise check server-passed public content
     return hasPublicContent
-  }, [viewMode, hasAnnotations, hasPublicContent])
+  }, [viewMode, hasAnnotations, hasPublicContent, spacersData?.spacers?.length, snapsData?.snaps?.length, stickyNoteCount])
 
   // Badge visibility logic:
   // 1. Toolbar hover: show ALL badges (including active layer)
@@ -992,8 +1014,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       classBroadcastCanvasRef.current = ''
 
       await updateClassBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
-      // Also clear spacers for this class broadcast
+      // Also clear spacers, snaps, and sticky notes for this class broadcast
       updateSpacersData({ spacers: [] })
+      updateSnapsData({ snaps: [] })
+      clearStickyNotes()
       // If currently viewing class broadcast, also clear local state
       if (viewMode === 'class-broadcast') {
         setCanvasData('')
@@ -1007,7 +1031,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         c.id === selectedClass.id ? { ...c, hasAnnotationsOnPage: false } : c
       ))
     }
-  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode, updateSpacersData])
+  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode, updateSpacersData, updateSnapsData, clearStickyNotes])
 
   // Delete student feedback annotations specifically
   // Works for both selected student and last selected student (in class-broadcast mode)
@@ -1026,8 +1050,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (updateStudentFeedbackData) {
       await updateStudentFeedbackData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
     }
-    // Also clear spacers for this student feedback
+    // Also clear spacers, snaps, and sticky notes for this student feedback
     updateSpacersData({ spacers: [] })
+    updateSnapsData({ snaps: [] })
+    clearStickyNotes()
 
     // If currently drawing on this student, also clear local canvas
     if (viewMode === 'student-view') {
@@ -1040,7 +1066,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     setClassStudents(prev => prev.map(s =>
       s.id === studentForFeedback.id ? { ...s, hasAnnotationsOnPage: false } : s
     ))
-  }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode, updateSpacersData])
+  }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode, updateSpacersData, updateSnapsData, clearStickyNotes])
 
   // Delete page broadcast annotations (for page authors)
   const deletePageBroadcastData = useCallback(async () => {
@@ -1050,8 +1076,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (updatePageBroadcastData) {
       await updatePageBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
     }
-    // Also clear spacers for page broadcast
+    // Also clear spacers, snaps, and sticky notes for page broadcast
     updateSpacersData({ spacers: [] })
+    updateSnapsData({ snaps: [] })
+    clearStickyNotes()
 
     // If currently viewing page broadcast, also clear local state
     if (viewMode === 'page-broadcast') {
@@ -1059,7 +1087,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       setHasAnnotations(false)
       canvasRef.current?.clear()
     }
-  }, [viewMode, updatePageBroadcastData, updateSpacersData])
+  }, [viewMode, updatePageBroadcastData, updateSpacersData, updateSnapsData, clearStickyNotes])
 
   // Build list of available layers for the toolbar UI
   // This includes reference layers AND the currently active/editable layer
@@ -1160,6 +1188,20 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const pageVersionRef = useRef<string>('')
   const headingPositionsRef = useRef<HeadingPosition[]>([])
   const currentPaddingLeftRef = useRef<number>(0)
+
+  // Assign the function now that refs are in scope
+  // eslint-disable-next-line react-hooks/immutability -- Intentional: sync ref with latest values each render
+  updatePageBroadcastDataRef.current = () => {
+    const headingOffsets = Object.fromEntries(
+      headingPositionsRef.current.map(h => [h.sectionId, h.offsetY])
+    )
+    updatePageBroadcastData({
+      canvasData: canvasDataRef.current || '',
+      headingOffsets,
+      pageVersion: pageVersionRef.current,
+      paddingLeft: currentPaddingLeftRef.current,
+    } as AnnotationData)
+  }
 
   // Save state tracking
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -1295,6 +1337,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (viewMode === 'page-broadcast') return [] // Author is editing, don't show server-passed snaps
     if (!isLayerVisible('public')) return []
     if (!publicSnaps.length) return []
+    // When pageBroadcastData has loaded, SSR snaps may be stale — trust the hook
+    if (pageBroadcastData !== null && (!pageBroadcastData.canvasData || pageBroadcastData.canvasData === '[]')) return []
 
     return publicSnaps.flatMap(publicSnap => {
       const snapsData = publicSnap.data as { snaps?: Snap[] } | null
@@ -1308,7 +1352,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         isTeacherSnap: true as const, // Display like teacher snaps (read-only for visitors)
       }))
     })
-  }, [publicSnaps, isLayerVisible, viewMode])
+  }, [publicSnaps, isLayerVisible, viewMode, pageBroadcastData])
 
   // Combine all teacher snaps for students (including public snaps for all visitors)
   const allTeacherSnaps = useMemo(() => {
@@ -2368,8 +2412,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       // Clear user data
       await deleteAnnotationData()
 
-      // Also clear spacers for the same target
+      // Also clear spacers, snaps, and sticky notes for the same target
       updateSpacersData({ spacers: [] })
+      updateSnapsData({ snaps: [] })
+      clearStickyNotes()
 
       // Clear canvas
       if (canvasRef.current) {
@@ -2378,7 +2424,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     } catch {
       // Ignore clearing errors
     }
-  }, [deleteAnnotationData, setAnnotationVersionMismatch, updateSpacersData])
+  }, [deleteAnnotationData, setAnnotationVersionMismatch, updateSpacersData, updateSnapsData, clearStickyNotes])
 
   // Handle layer delete (only for active layer)
   const handleLayerDelete = useCallback((layerId: string) => {
@@ -2415,16 +2461,27 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       await deletePersonalAnnotationData()
 
-      // Also clear personal spacers
+      // Also clear personal spacers, snaps, and sticky notes
       if (shouldLoadPersonalAsReference && updatePersonalSpacersData) {
         updatePersonalSpacersData({ spacers: [] })
       } else {
         updateSpacersData({ spacers: [] })
       }
+      if (shouldLoadPersonalAsReference && updatePersonalSnapsData) {
+        updatePersonalSnapsData({ snaps: [] })
+      } else {
+        updateSnapsData({ snaps: [] })
+      }
+      // clearStickyNotes() targets the ACTIVE layer's sticky notes, so only call
+      // it when personal IS the active layer. In broadcast mode there's no separate
+      // personal sticky-notes hook, so we can't clear them independently.
+      if (!shouldLoadPersonalAsReference) {
+        clearStickyNotes()
+      }
     } catch (err) {
       console.error('Failed to clear personal annotations:', err)
     }
-  }, [deletePersonalAnnotationData, shouldLoadPersonalAsReference, setAnnotationVersionMismatch, updatePersonalSpacersData, updateSpacersData])
+  }, [deletePersonalAnnotationData, shouldLoadPersonalAsReference, setAnnotationVersionMismatch, updatePersonalSpacersData, updateSpacersData, updatePersonalSnapsData, updateSnapsData, clearStickyNotes])
 
   // Register clear callback with global provider for SyncStatusButton
   useEffect(() => {
@@ -2891,7 +2948,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       {/* Content wrapper */}
       <div ref={contentRef} style={{ position: 'relative' }}>
-        {children}
+        <LayerVisibilityProvider value={layerVisibilityContextValue}>
+          {children}
+        </LayerVisibilityProvider>
       </div>
 
       {/* Canvas portaled directly into #paper - always matches paper bounds */}
@@ -3275,6 +3334,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                 }
 
                 // Fall back to server-passed publicAnnotations (for non-logged-in users or first load)
+                // If synced hook has loaded (non-null), it's the source of truth — don't fall back to SSR
+                if (pageBroadcastData !== null) return null
                 if (publicAnnotations.length === 0) return null
 
                 return publicAnnotations.map((annotation, index) => {
@@ -3320,7 +3381,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         mode={mode}
         onModeChange={setMode}
         onClear={handleClearAll}
-        hasAnnotations={hasAnnotations}
+        hasAnnotations={hasAnnotations || (spacersData?.spacers?.length ?? 0) > 0 || (snapsData?.snaps?.length ?? 0) > 0 || stickyNoteCount > 0}
         activePen={activePen}
         onPenChange={handlePenChange}
         penColors={penColors}

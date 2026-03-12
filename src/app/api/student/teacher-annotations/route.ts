@@ -9,11 +9,12 @@
  * Returns annotations, snaps, and code highlights for each broadcast type.
  *
  * QUERY PATTERN:
- * We run 6 separate queries (could be optimized to fewer with UNION or subqueries):
+ * We run separate queries (could be optimized to fewer with UNION or subqueries):
  * 1. classMembership - get student's enrolled classes
- * 2-4. class broadcasts: annotations, snaps, code-highlights-*
- * 5-6. individual: annotations, snaps
- * 7. individual code-highlights-*
+ * 2-5. class broadcasts: annotations, snaps, spacers, sticky-notes
+ * 6. class code-highlights-*
+ * 7-10. individual: annotations, snaps, spacers, sticky-notes
+ * 11. individual code-highlights-*
  *
  * CODE HIGHLIGHTS ADAPTER PATTERN:
  * Unlike annotations/snaps which use fixed adapter names, code highlights use
@@ -140,6 +141,21 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch class sticky notes broadcasts
+    const classStickyNotes = await prisma.userData.findMany({
+      where: {
+        targetType: 'class',
+        targetId: { in: classIds },
+        adapter: 'sticky-notes',
+        itemId: pageId,
+      },
+      select: {
+        targetId: true,
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Fetch class code highlights broadcasts (adapter pattern: code-highlights-{id})
     const classCodeHighlights = await prisma.userData.findMany({
       where: {
@@ -203,6 +219,22 @@ export async function GET(request: NextRequest) {
           className: membership?.class.name ?? 'Unknown Class',
           data: spacer.data,
           updatedAt: spacer.updatedAt.getTime(),
+        }
+      })
+
+    // Map class sticky notes with class info, filtering out empty note arrays
+    const classStickyNotesWithInfo = classStickyNotes
+      .filter(record => {
+        const data = record.data as { notes?: unknown[] } | null
+        return data?.notes && data.notes.length > 0
+      })
+      .map(record => {
+        const membership = memberships.find(m => m.classId === record.targetId)
+        return {
+          classId: record.targetId,
+          className: membership?.class.name ?? 'Unknown Class',
+          data: record.data,
+          updatedAt: record.updatedAt.getTime(),
         }
       })
 
@@ -279,6 +311,26 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch individual sticky notes targeted at this student
+    const individualStickyNotes = await prisma.userData.findFirst({
+      where: {
+        targetType: 'student',
+        targetId: userId,
+        adapter: 'sticky-notes',
+        itemId: pageId,
+      },
+      select: {
+        data: true,
+        updatedAt: true,
+        user: {
+          select: {
+            name: true,
+            pageSlug: true,
+          },
+        },
+      },
+    })
+
     // Fetch individual code highlight feedback targeted at this student
     const individualCodeHighlights = await prisma.userData.findMany({
       where: {
@@ -307,6 +359,10 @@ export async function GET(request: NextRequest) {
     const spacerFeedbackData = individualSpacerFeedback?.data as { spacers?: unknown[] } | null
     const hasValidSpacerFeedback = spacerFeedbackData?.spacers && spacerFeedbackData.spacers.length > 0
 
+    // Filter out empty individual sticky notes
+    const stickyNotesData = individualStickyNotes?.data as { notes?: unknown[] } | null
+    const hasValidStickyNotes = stickyNotesData?.notes && stickyNotesData.notes.length > 0
+
     // Filter and map individual code highlights feedback
     const individualCodeHighlightsWithInfo = individualCodeHighlights
       .filter(record => {
@@ -329,6 +385,7 @@ export async function GET(request: NextRequest) {
       classSnaps: classSnapsWithInfo,
       classSpacers: classSpacersWithInfo,
       classCodeHighlights: classCodeHighlightsWithInfo,
+      classStickyNotes: classStickyNotesWithInfo,
       individualFeedback: individualFeedback && hasValidFeedback
         ? {
             data: individualFeedback.data,
@@ -350,6 +407,13 @@ export async function GET(request: NextRequest) {
           }
         : null,
       individualCodeHighlights: individualCodeHighlightsWithInfo,
+      individualStickyNotes: hasValidStickyNotes && individualStickyNotes
+        ? {
+            data: individualStickyNotes.data,
+            updatedAt: individualStickyNotes.updatedAt.getTime(),
+            teacherName: individualStickyNotes.user?.name || individualStickyNotes.user?.pageSlug || 'Teacher',
+          }
+        : null,
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

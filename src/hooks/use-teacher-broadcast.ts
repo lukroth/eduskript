@@ -70,15 +70,24 @@ export interface TeacherIndividualCodeHighlights {
   updatedAt: number
 }
 
+export interface TeacherClassStickyNotes {
+  classId: string
+  className: string
+  data: unknown
+  updatedAt: number
+}
+
 export interface TeacherBroadcastData {
   classAnnotations: TeacherClassAnnotation[]
   classSnaps: TeacherClassSnaps[]
   classSpacers: TeacherClassSpacers[]
   classCodeHighlights: TeacherClassCodeHighlights[]
+  classStickyNotes: TeacherClassStickyNotes[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
   individualSpacerFeedback: TeacherIndividualFeedback | null
   individualCodeHighlights: TeacherIndividualCodeHighlights[]
+  individualStickyNotes: TeacherIndividualFeedback | null
 }
 
 interface TeacherBroadcastResult {
@@ -86,10 +95,12 @@ interface TeacherBroadcastResult {
   classSnaps: TeacherClassSnaps[]
   classSpacers: TeacherClassSpacers[]
   classCodeHighlights: TeacherClassCodeHighlights[]
+  classStickyNotes: TeacherClassStickyNotes[]
   individualFeedback: TeacherIndividualFeedback | null
   individualSnapFeedback: TeacherIndividualFeedback | null
   individualSpacerFeedback: TeacherIndividualFeedback | null
   individualCodeHighlights: TeacherIndividualCodeHighlights[]
+  individualStickyNotes: TeacherIndividualFeedback | null
   isLoading: boolean
   error: string | null
   refetch: () => Promise<void>
@@ -115,10 +126,12 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
   const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
   const [classSpacers, setClassSpacers] = useState<TeacherClassSpacers[]>([])
   const [classCodeHighlights, setClassCodeHighlights] = useState<TeacherClassCodeHighlights[]>([])
+  const [classStickyNotes, setClassStickyNotes] = useState<TeacherClassStickyNotes[]>([])
   const [individualFeedback, setIndividualFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualSnapFeedback, setIndividualSnapFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualSpacerFeedback, setIndividualSpacerFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [individualCodeHighlights, setIndividualCodeHighlights] = useState<TeacherIndividualCodeHighlights[]>([])
+  const [individualStickyNotes, setIndividualStickyNotes] = useState<TeacherIndividualFeedback | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -149,20 +162,24 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
         classSnapsCount: data.classSnaps?.length ?? 0,
         classSpacersCount: data.classSpacers?.length ?? 0,
         classCodeHighlightsCount: data.classCodeHighlights?.length ?? 0,
+        classStickyNotesCount: data.classStickyNotes?.length ?? 0,
         hasIndividualFeedback: !!data.individualFeedback,
         hasIndividualSnapFeedback: !!data.individualSnapFeedback,
         hasIndividualSpacerFeedback: !!data.individualSpacerFeedback,
         individualCodeHighlightsCount: data.individualCodeHighlights?.length ?? 0,
+        hasIndividualStickyNotes: !!data.individualStickyNotes,
         individualFeedbackTeacherName: data.individualFeedback?.teacherName,
       })
       setClassAnnotations(data.classAnnotations || [])
       setClassSnaps(data.classSnaps || [])
       setClassSpacers(data.classSpacers || [])
       setClassCodeHighlights(data.classCodeHighlights || [])
+      setClassStickyNotes(data.classStickyNotes || [])
       setIndividualFeedback(data.individualFeedback || null)
       setIndividualSnapFeedback(data.individualSnapFeedback || null)
       setIndividualSpacerFeedback(data.individualSpacerFeedback || null)
       setIndividualCodeHighlights(data.individualCodeHighlights || [])
+      setIndividualStickyNotes(data.individualStickyNotes || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teacher annotations')
     } finally {
@@ -210,10 +227,12 @@ export function useTeacherBroadcast(pageId: string): TeacherBroadcastResult {
     classSnaps,
     classSpacers,
     classCodeHighlights,
+    classStickyNotes,
     individualFeedback,
     individualSnapFeedback,
     individualSpacerFeedback,
     individualCodeHighlights,
+    individualStickyNotes,
     isLoading,
     error,
     refetch: fetchAnnotations,

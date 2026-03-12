@@ -72,6 +72,7 @@ export {
 } from './hooks'
 
 // React provider and synced hooks
+export type { SyncedUserDataOptions } from './provider'
 export {
   UserDataProvider,
   useUserDataContext,

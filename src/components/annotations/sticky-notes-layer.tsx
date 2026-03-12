@@ -3,7 +3,7 @@
 /**
  * Sticky Notes Layer
  *
- * Allows students to place personal sticky notes anywhere on a lesson page.
+ * Allows users to place sticky notes anywhere on a lesson page.
  * Notes are:
  * - Absolutely positioned within the `.paper` container
  * - Draggable by their header bar
@@ -11,16 +11,19 @@
  * - Minimizable / color-coded / deletable
  * - Persisted and synced via useSyncedUserData (same mechanism as drawn annotations)
  *
+ * Broadcasting support:
+ * - Teachers can broadcast sticky notes to a class, student, or public page
+ *   using the same viewMode / syncOptions pattern as annotations and spacers.
+ * - Students receive broadcast notes as read-only (no drag, resize, edit, or delete).
+ * - Broadcast notes are visually distinguished with a Radio icon in the header.
+ *
  * Architecture:
  * - StickyNotesLayer wraps page children and portals note cards into `.paper`
  * - Placement mode is activated via the AnnotationToolbar (shared via StickyNotesContext)
  * - Note positions are stored as absolute pixel offsets from the paper top/left
- *
- * Sync: uses componentId 'sticky-notes' with no targetType/targetId, so it is
- * personal to the logged-in user and syncs across devices (IndexedDB + server).
  */
 
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { nanoid } from 'nanoid'
 import {
@@ -31,9 +34,14 @@ import {
   Palette,
   GripVertical,
   ChevronsDownUp,
+  Radio,
 } from 'lucide-react'
-import { useSyncedUserData } from '@/lib/userdata'
+import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata'
 import { useStickyNotesContext } from '@/contexts/sticky-notes-context'
+import { useTeacherClass } from '@/contexts/teacher-class-context'
+import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
+import { useLayerVisibility } from '@/contexts/layer-visibility-context'
+import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -132,20 +140,130 @@ const COLOR_CONFIG: Record<NoteColor, {
 interface StickyNotesLayerProps {
   pageId: string
   children: ReactNode
+  /** Whether user is a student in an exam session */
+  isExamStudent?: boolean
 }
 
-export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
+export function StickyNotesLayer({ pageId, children, isExamStudent }: StickyNotesLayerProps) {
+  const { data: session } = useSession()
+  const { viewMode, isTeacher, selectedClass, selectedStudent } = useTeacherClass()
+  const isStudent = session?.user?.accountType === 'student' || isExamStudent
+  const { isLayerVisible } = useLayerVisibility()
+
+  // Layer key for own notes (mirrors annotation-layer's activeLayerKey logic)
+  const ownLayerKey = useMemo(() => {
+    if (viewMode === 'page-broadcast') return 'page-broadcast'
+    if (isTeacher && viewMode === 'class-broadcast') return 'class-broadcast'
+    if (isTeacher && viewMode === 'student-view') return 'student-feedback'
+    return 'my-annotations'
+  }, [isTeacher, viewMode])
+
+  // Compute targeting (same pattern as annotation-layer syncOptions)
+  const syncOptions: SyncedUserDataOptions = useMemo(() => {
+    if (viewMode === 'page-broadcast') {
+      return { targetType: 'page' as const, targetId: pageId }
+    }
+    if (!isTeacher) return {}
+    if (viewMode === 'class-broadcast' && selectedClass) {
+      return { targetType: 'class' as const, targetId: selectedClass.id }
+    }
+    if (viewMode === 'student-view' && selectedStudent) {
+      return { targetType: 'student' as const, targetId: selectedStudent.id }
+    }
+    return {} // my-view: personal notes
+  }, [isTeacher, viewMode, selectedClass, selectedStudent, pageId])
+
+  // Active layer: personal or broadcast depending on viewMode
   const { data, updateData } = useSyncedUserData<StickyNotesData>(
     pageId,
     'sticky-notes',
     INITIAL_DATA,
+    syncOptions,
   )
+
   // Keep a ref so event callbacks always see latest data without stale closures.
   const dataRef = useRef(data)
   useEffect(() => { dataRef.current = data }, [data])
 
+  // For students: receive broadcast sticky notes from teachers
+  const {
+    classStickyNotes: teacherClassStickyNotes,
+    individualStickyNotes: teacherIndividualStickyNotes,
+  } = useTeacherBroadcast(isStudent ? pageId : '')
+
+  // For unauthenticated visitors: fetch public (page-broadcast) sticky notes directly.
+  // The /api/user-data/[adapter]/[itemId]?targetType=page endpoint allows anon access.
+  const [publicNotes, setPublicNotes] = useState<StickyNote[]>([])
+  const isLoggedIn = !!session?.user
+  useEffect(() => {
+    if (isLoggedIn || !pageId) return
+    fetch(`/api/user-data/sticky-notes/${encodeURIComponent(pageId)}?targetType=page`)
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const d = json?.data as StickyNotesData | null
+        if (d?.notes?.length) setPublicNotes(d.notes)
+      })
+      .catch(() => {}) // Silently ignore — not critical
+  }, [isLoggedIn, pageId])
+
+  // For teachers: load page-broadcast sticky notes as a read-only reference layer
+  // when NOT actively editing page-broadcast (mirrors pageBroadcastData in annotation-layer).
+  const pageBroadcastSyncOptions: SyncedUserDataOptions = useMemo(() => {
+    return { targetType: 'page' as const, targetId: pageId }
+  }, [pageId])
+  const { data: pageBroadcastStickyNotes } = useSyncedUserData<StickyNotesData>(
+    isTeacher && viewMode !== 'page-broadcast' ? pageId : '',
+    'sticky-notes',
+    INITIAL_DATA,
+    pageBroadcastSyncOptions,
+  )
+
+  // Collect broadcast notes per layer so visibility can be checked independently
+  const broadcastNotesByLayer: { layerKey: string; notes: StickyNote[] }[] = useMemo(() => {
+    const layers: { layerKey: string; notes: StickyNote[] }[] = []
+
+    // Unauthenticated visitors: public notes only
+    if (!isLoggedIn) {
+      if (publicNotes.length) layers.push({ layerKey: 'public', notes: publicNotes })
+      return layers
+    }
+
+    // Teachers: show page-broadcast sticky notes as read-only reference
+    // (when not actively editing page-broadcast — the hook returns '' key in that case)
+    if (isTeacher) {
+      const pbNotes = pageBroadcastStickyNotes?.notes
+      if (pbNotes?.length) {
+        layers.push({ layerKey: 'public', notes: pbNotes })
+      }
+      return layers
+    }
+
+    // Students: class broadcasts + individual feedback
+    if (isStudent) {
+      for (const broadcast of teacherClassStickyNotes) {
+        const d = broadcast.data as StickyNotesData | null
+        if (d?.notes?.length) {
+          layers.push({ layerKey: `class-${broadcast.classId}`, notes: d.notes })
+        }
+      }
+      if (teacherIndividualStickyNotes) {
+        const d = teacherIndividualStickyNotes.data as StickyNotesData | null
+        if (d?.notes?.length) {
+          layers.push({ layerKey: 'individual', notes: d.notes })
+        }
+      }
+    }
+    return layers
+  }, [isLoggedIn, isTeacher, isStudent, publicNotes, pageBroadcastStickyNotes, teacherClassStickyNotes, teacherIndividualStickyNotes])
+
   // Placement mode is driven by the toolbar via StickyNotesContext
-  const { placementMode, setPlacementMode, setNoteCount } = useStickyNotesContext()
+  const { placementMode, setPlacementMode, setNoteCount, setClearHandler } = useStickyNotesContext()
+
+  // Register clear handler so annotation-layer can clear sticky notes when deleting a layer
+  useEffect(() => {
+    setClearHandler(() => updateData({ notes: [] }))
+    return () => setClearHandler(null)
+  }, [setClearHandler, updateData])
   const [paperEl, setPaperEl] = useState<HTMLElement | null>(null)
 
   // Find #paper once mounted (annotation-layer already sets position:relative on it)
@@ -174,12 +292,11 @@ export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
   const handlePlacementClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const x = e.nativeEvent.offsetX
     const y = e.nativeEvent.offsetY
-    const paperWidth = (e.currentTarget as HTMLDivElement).offsetWidth
 
     const newNote: StickyNote = {
       id: nanoid(),
-      x: Math.max(8, Math.min(x - DEFAULT_WIDTH / 2, paperWidth - DEFAULT_WIDTH - 8)),
-      y: Math.max(8, y - 20),
+      x: x - DEFAULT_WIDTH / 2,
+      y: y - 20,
       content: '',
       color: 'yellow',
       minimized: false,
@@ -211,9 +328,10 @@ export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
   const notes = data?.notes ?? []
 
   // Report current note count to context so toolbar can show a badge
+  const totalBroadcastNotes = broadcastNotesByLayer.reduce((sum, l) => sum + l.notes.length, 0)
   useEffect(() => {
-    setNoteCount(notes.length)
-  }, [notes.length, setNoteCount])
+    setNoteCount(notes.length + totalBroadcastNotes)
+  }, [notes.length, totalBroadcastNotes, setNoteCount])
 
   return (
     <>
@@ -250,8 +368,8 @@ export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
         paperEl,
       )}
 
-      {/* Note cards portalled into paper so they scroll with content */}
-      {paperEl && notes.map(note =>
+      {/* Own note cards portalled into paper so they scroll with content */}
+      {paperEl && isLayerVisible(ownLayerKey) && notes.map(note =>
         createPortal(
           <StickyNoteCard
             key={note.id}
@@ -261,6 +379,21 @@ export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
             onDelete={() => deleteNote(note.id)}
           />,
           paperEl,
+        )
+      )}
+
+      {/* Broadcast notes from teacher (read-only), filtered by layer visibility */}
+      {paperEl && broadcastNotesByLayer.map(layer =>
+        isLayerVisible(layer.layerKey) && layer.notes.map(note =>
+          createPortal(
+            <StickyNoteCard
+              key={`broadcast-${note.id}`}
+              note={note}
+              paperEl={paperEl}
+              readOnly
+            />,
+            paperEl,
+          )
         )
       )}
     </>
@@ -274,11 +407,13 @@ export function StickyNotesLayer({ pageId, children }: StickyNotesLayerProps) {
 interface StickyNoteCardProps {
   note: StickyNote
   paperEl: HTMLElement
-  onUpdate: (updates: Partial<StickyNote>) => void
-  onDelete: () => void
+  onUpdate?: (updates: Partial<StickyNote>) => void
+  onDelete?: () => void
+  /** When true, note is non-interactive (broadcast notes for students) */
+  readOnly?: boolean
 }
 
-function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardProps) {
+function StickyNoteCard({ note, paperEl, onUpdate, onDelete, readOnly }: StickyNoteCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -300,6 +435,7 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
   // ---- Drag ----------------------------------------------------------------
 
   const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return
     if ((e.target as HTMLElement).closest('textarea,button,input')) return
     e.preventDefault()
 
@@ -311,11 +447,8 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
     setIsDragging(true)
 
     const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startMouseX
-      const dy = ev.clientY - startMouseY
-      const paperRect = paperEl.getBoundingClientRect()
-      const newX = Math.max(0, Math.min(startNoteX + dx, paperRect.width - note.width - 4))
-      const newY = Math.max(0, startNoteY + dy)
+      const newX = startNoteX + ev.clientX - startMouseX
+      const newY = startNoteY + ev.clientY - startMouseY
       if (cardRef.current) {
         cardRef.current.style.left = `${newX}px`
         cardRef.current.style.top = `${newY}px`
@@ -323,12 +456,9 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
     }
 
     const onUp = (ev: MouseEvent) => {
-      const dx = ev.clientX - startMouseX
-      const dy = ev.clientY - startMouseY
-      const paperRect = paperEl.getBoundingClientRect()
-      onUpdate({
-        x: Math.max(0, Math.min(startNoteX + dx, paperRect.width - note.width - 4)),
-        y: Math.max(0, startNoteY + dy),
+      onUpdate?.({
+        x: startNoteX + ev.clientX - startMouseX,
+        y: startNoteY + ev.clientY - startMouseY,
       })
       setIsDragging(false)
       document.removeEventListener('mousemove', onMove)
@@ -337,11 +467,12 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [note.x, note.y, note.width, onUpdate, paperEl])
+  }, [readOnly, note.x, note.y, onUpdate])
 
   // ---- Resize --------------------------------------------------------------
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return
     e.preventDefault()
     e.stopPropagation()
 
@@ -363,7 +494,7 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
     }
 
     const onUp = (ev: MouseEvent) => {
-      onUpdate({
+      onUpdate?.({
         width: Math.max(MIN_WIDTH, startW + ev.clientX - startMouseX),
         height: Math.max(MIN_HEIGHT, startH + ev.clientY - startMouseY),
       })
@@ -374,15 +505,16 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [note.width, note.height, onUpdate])
+  }, [readOnly, note.width, note.height, onUpdate])
 
   // ---- Content -------------------------------------------------------------
 
   const handleContentChange = (value: string) => {
+    if (readOnly) return
     setLocalContent(value)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      onUpdate({ content: value })
+      onUpdate?.({ content: value })
     }, 600)
   }
 
@@ -403,6 +535,7 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
         'sticky-note-enter',
         cfg.bg,
         cfg.border,
+        readOnly ? 'opacity-90' : '',
         (isDragging || isResizing) ? 'shadow-2xl select-none ' + cfg.ring : 'hover:shadow-xl',
       )}
       style={{
@@ -417,13 +550,16 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
         className={cn(
           'flex items-center gap-1 px-2 py-1.5 select-none shrink-0',
           cfg.header,
-          'cursor-grab active:cursor-grabbing',
+          readOnly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
           'border-b',
           cfg.border,
         )}
-        onMouseDown={handleDragStart}
+        onMouseDown={readOnly ? undefined : handleDragStart}
       >
-        <GripVertical className="w-3 h-3 opacity-30 shrink-0" aria-hidden />
+        {readOnly
+          ? <span title="From teacher"><Radio className="w-3 h-3 opacity-50 shrink-0" aria-hidden /></span>
+          : <GripVertical className="w-3 h-3 opacity-30 shrink-0" aria-hidden />
+        }
         <StickyNoteIcon className="w-3 h-3 opacity-50 shrink-0" aria-hidden />
 
         {/* Preview of content when minimized / label when empty */}
@@ -434,45 +570,47 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
           {localContent.trim() || 'Note'}
         </span>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-0.5 ml-1 shrink-0" onMouseDown={e => e.stopPropagation()}>
-          {/* Color picker toggle */}
-          <button
-            onClick={() => setShowColorPicker(v => !v)}
-            className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
-            title="Change colour"
-            aria-label="Change note colour"
-          >
-            <Palette className="w-3 h-3" aria-hidden />
-          </button>
+        {/* Action buttons (hidden in read-only mode) */}
+        {!readOnly && (
+          <div className="flex items-center gap-0.5 ml-1 shrink-0" onMouseDown={e => e.stopPropagation()}>
+            {/* Color picker toggle */}
+            <button
+              onClick={() => setShowColorPicker(v => !v)}
+              className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
+              title="Change colour"
+              aria-label="Change note colour"
+            >
+              <Palette className="w-3 h-3" aria-hidden />
+            </button>
 
-          {/* Minimize / expand */}
-          <button
-            onClick={() => onUpdate({ minimized: !note.minimized })}
-            className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
-            title={note.minimized ? 'Expand' : 'Minimize'}
-            aria-label={note.minimized ? 'Expand note' : 'Minimize note'}
-          >
-            {note.minimized
-              ? <Plus className="w-3 h-3" aria-hidden />
-              : <Minus className="w-3 h-3" aria-hidden />
-            }
-          </button>
+            {/* Minimize / expand */}
+            <button
+              onClick={() => onUpdate?.({ minimized: !note.minimized })}
+              className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
+              title={note.minimized ? 'Expand' : 'Minimize'}
+              aria-label={note.minimized ? 'Expand note' : 'Minimize note'}
+            >
+              {note.minimized
+                ? <Plus className="w-3 h-3" aria-hidden />
+                : <Minus className="w-3 h-3" aria-hidden />
+              }
+            </button>
 
-          {/* Delete */}
-          <button
-            onClick={onDelete}
-            className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-100 hover:text-red-500 transition-all"
-            title="Delete note"
-            aria-label="Delete note"
-          >
-            <X className="w-3 h-3" aria-hidden />
-          </button>
-        </div>
+            {/* Delete */}
+            <button
+              onClick={onDelete}
+              className="w-5 h-5 rounded flex items-center justify-center opacity-40 hover:opacity-100 hover:text-red-500 transition-all"
+              title="Delete note"
+              aria-label="Delete note"
+            >
+              <X className="w-3 h-3" aria-hidden />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Colour picker row ─────────────────────────────────────────────── */}
-      {showColorPicker && (
+      {!readOnly && showColorPicker && (
         <div
           className={cn('flex items-center gap-1.5 px-2.5 py-2 shrink-0 border-b', cfg.border)}
           onMouseDown={e => e.stopPropagation()}
@@ -480,7 +618,7 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
           {NOTE_COLORS.map(c => (
             <button
               key={c}
-              onClick={() => { onUpdate({ color: c }); setShowColorPicker(false) }}
+              onClick={() => { onUpdate?.({ color: c }); setShowColorPicker(false) }}
               className={cn(
                 'w-5 h-5 rounded-full border-2 transition-all duration-100 hover:scale-110',
                 colors[c].dot,
@@ -506,26 +644,29 @@ function StickyNoteCard({ note, paperEl, onUpdate, onDelete }: StickyNoteCardPro
               'text-foreground',
             )}
             style={{ height: note.height }}
-            placeholder="Write your note…"
+            placeholder={readOnly ? '' : 'Write your note…'}
             value={localContent}
             onChange={e => handleContentChange(e.target.value)}
             onMouseDown={e => e.stopPropagation()}
+            readOnly={readOnly}
             // autofocus only for brand-new empty notes
             // eslint-disable-next-line jsx-a11y/no-autofocus
             // eslint-disable-next-line react-hooks/purity
-            autoFocus={note.content === '' && Date.now() - note.createdAt < 3000}
-            spellCheck
+            autoFocus={!readOnly && note.content === '' && Date.now() - note.createdAt < 3000}
+            spellCheck={!readOnly}
           />
 
-          {/* Resize handle */}
-          <div
-            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-30 hover:opacity-70 flex items-end justify-end pb-0.5 pr-0.5 transition-opacity"
-            onMouseDown={handleResizeStart}
-            title="Resize"
-            aria-label="Resize note"
-          >
-            <ChevronsDownUp className="w-2.5 h-2.5 rotate-[135deg]" aria-hidden />
-          </div>
+          {/* Resize handle (hidden in read-only mode) */}
+          {!readOnly && (
+            <div
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-30 hover:opacity-70 flex items-end justify-end pb-0.5 pr-0.5 transition-opacity"
+              onMouseDown={handleResizeStart}
+              title="Resize"
+              aria-label="Resize note"
+            >
+              <ChevronsDownUp className="w-2.5 h-2.5 rotate-[135deg]" aria-hidden />
+            </div>
+          )}
         </div>
       )}
     </div>
