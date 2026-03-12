@@ -105,12 +105,13 @@ const SINGLE_PAGE_EDIT_PROMPT = `You are an AI assistant that helps educators ed
 Generate the complete updated content for a specific page based on the edit summary provided.
 
 ## Rules
-1. Output ONLY the markdown content - no JSON wrapping, no explanations
-2. Include the COMPLETE page content, not just the changed parts
-3. Keep the same markdown formatting style as the original
-4. Preserve existing images, callouts, and special syntax unless the edit requires changing them
-5. Match the language of the content (German or English)
-6. Start your response directly with the page content`
+1. Output ONLY the raw markdown content - no JSON wrapping, no explanations
+2. NEVER wrap your response in a markdown code fence (e.g., \`\`\`markdown ... \`\`\`). Your output IS the markdown, not a code block containing markdown.
+3. Include the COMPLETE page content, not just the changed parts
+4. Keep the same markdown formatting style as the original
+5. Preserve existing images, callouts, and special syntax unless the edit requires changing them
+6. Match the language of the content (German or English)
+7. Start your response directly with the page content (e.g., start with a heading like # Title)`
 
 // New page creation prompt
 const NEW_PAGE_PROMPT = `You are an AI assistant that helps educators create educational content.
@@ -119,10 +120,11 @@ const NEW_PAGE_PROMPT = `You are an AI assistant that helps educators create edu
 Create the complete content for a new page based on the description provided.
 
 ## Rules
-1. Output ONLY the markdown content - no JSON wrapping, no explanations
-2. Use proper markdown formatting including headings, lists, code blocks as appropriate
-3. Match the language and style of the existing skript content
-4. Start your response directly with the page content`
+1. Output ONLY the raw markdown content - no JSON wrapping, no explanations
+2. NEVER wrap your response in a markdown code fence (e.g., \`\`\`markdown ... \`\`\`). Your output IS the markdown, not a code block containing markdown.
+3. Use proper markdown formatting including headings, lists, code blocks as appropriate
+4. Match the language and style of the existing skript content
+5. Start your response directly with the page content (e.g., start with a heading like # Title)`
 
 /**
  * Assembles the complete system prompt for chat conversations.

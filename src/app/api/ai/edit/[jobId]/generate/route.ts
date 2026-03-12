@@ -231,6 +231,11 @@ export async function POST(
       proposedContent = (editMessage.choices[0]?.message?.content ?? '').trim()
     }
 
+    // Strip markdown code fence wrapper if the model wrapped its response in one
+    if (/^```(?:markdown)?\s*\n/i.test(proposedContent) && /\n```\s*$/.test(proposedContent)) {
+      proposedContent = proposedContent.replace(/^```(?:markdown)?\s*\n/i, '').replace(/\n```\s*$/, '')
+    }
+
     // 5. Build edit result
     const edit = {
       index: pageIndex,
