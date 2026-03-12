@@ -191,12 +191,12 @@ export function StickyNotesLayer({ pageId, children, isExamStudent }: StickyNote
     individualStickyNotes: teacherIndividualStickyNotes,
   } = useTeacherBroadcast(isStudent ? pageId : '')
 
-  // For unauthenticated visitors: fetch public (page-broadcast) sticky notes directly.
-  // The /api/user-data/[adapter]/[itemId]?targetType=page endpoint allows anon access.
+  // For students and unauthenticated visitors: fetch public (page-broadcast) sticky notes.
+  // Teachers use the pageBroadcastStickyNotes hook instead (supports live sync).
   const [publicNotes, setPublicNotes] = useState<StickyNote[]>([])
   const isLoggedIn = !!session?.user
   useEffect(() => {
-    if (isLoggedIn || !pageId) return
+    if (isTeacher || !pageId) return
     fetch(`/api/user-data/sticky-notes/${encodeURIComponent(pageId)}?targetType=page`)
       .then(res => res.ok ? res.json() : null)
       .then(json => {
@@ -204,7 +204,7 @@ export function StickyNotesLayer({ pageId, children, isExamStudent }: StickyNote
         if (d?.notes?.length) setPublicNotes(d.notes)
       })
       .catch(() => {}) // Silently ignore — not critical
-  }, [isLoggedIn, pageId])
+  }, [isTeacher, pageId])
 
   // For teachers: load page-broadcast sticky notes as a read-only reference layer
   // when NOT actively editing page-broadcast (mirrors pageBroadcastData in annotation-layer).
@@ -238,8 +238,11 @@ export function StickyNotesLayer({ pageId, children, isExamStudent }: StickyNote
       return layers
     }
 
-    // Students: class broadcasts + individual feedback
+    // Students: public notes + class broadcasts + individual feedback
     if (isStudent) {
+      if (publicNotes.length) {
+        layers.push({ layerKey: 'public', notes: publicNotes })
+      }
       for (const broadcast of teacherClassStickyNotes) {
         const d = broadcast.data as StickyNotesData | null
         if (d?.notes?.length) {
