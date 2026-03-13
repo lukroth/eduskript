@@ -85,6 +85,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, User, Users, MessageSquare, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
+import { AnnotationSvgLayer } from './annotation-svg-layer'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
 import { useSyncedUserData, useUserDataContext, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import type { AnnotationData, StrokeTelemetry, TelemetryData } from '@/lib/userdata/types'
@@ -119,7 +120,7 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   canvasData,
   paperWidth,
   pageHeight,
-  headingPositions,
+  headingPositions: _headingPositions,
   zoom,
   zIndex = 38, // Below main canvas (40), above code editor buttons (z-30)
   className = '',
@@ -221,9 +222,6 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
     }
   }, [newStrokes])
 
-  const establishedData = useMemo(() => JSON.stringify(establishedStrokes), [establishedStrokes])
-  const newData = useMemo(() => JSON.stringify(newStrokes), [newStrokes])
-
   return (
     <div
       className={className}
@@ -235,18 +233,13 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
         zIndex,
       }}
     >
-      {/* Main canvas with established strokes - key forces remount when strokes change */}
-      <SimpleCanvas
-        key={establishedData}
+      {/* SVG layer with established strokes - React diffs paths naturally */}
+      <AnnotationSvgLayer
+        strokes={establishedStrokes}
         width={paperWidth}
         height={pageHeight}
-        mode="view"
-        initialData={establishedData}
-        headingPositions={headingPositions}
-        zoom={zoom}
-        readOnly
       />
-      {/* Overlay canvas for new strokes with CSS fade-in */}
+      {/* Overlay for new strokes with CSS fade-in */}
       {newStrokes.length > 0 && (
         <div
           ref={overlayRef}
@@ -259,14 +252,10 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
           }}
           onTransitionEnd={handleTransitionEnd}
         >
-          <SimpleCanvas
+          <AnnotationSvgLayer
+            strokes={newStrokes}
             width={paperWidth}
             height={pageHeight}
-            mode="view"
-            initialData={newData}
-            headingPositions={headingPositions}
-            zoom={zoom}
-            readOnly
           />
         </div>
       )}
@@ -899,6 +888,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const [pageVersion, setPageVersion] = useState<string>('')
   const [hasAnnotations, setHasAnnotations] = useState(false)
   const [canvasData, setCanvasData] = useState<string>('')
+  // Memoized parsed strokes for SVG rendering of committed strokes
+  const parsedStrokes = useMemo(() => parseStrokes(canvasData), [canvasData])
   // Layer badges visibility - hidden by default, shown when hovering layers dropdown in toolbar
   const [showLayerBadges, setShowLayerBadges] = useState(false)
 
@@ -2967,6 +2958,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             zIndex: 40, // Above code editor buttons (z-30), below snap overlay (z-10000)
           }}
         >
+          {/* SVG layer: committed strokes rendered as resolution-independent paths */}
+          <AnnotationSvgLayer
+            strokes={parsedStrokes}
+            width={paperWidth}
+            height={pageHeight}
+          />
+          {/* Canvas: handles pointer events and renders in-progress stroke */}
           <SimpleCanvas
             ref={canvasRef}
             width={paperWidth}
@@ -3031,14 +3029,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   opacity: 0.5,
                 }}
               >
-                <SimpleCanvas
+                <AnnotationSvgLayer
+                  strokes={parseStrokes(repositionedCanvasData)}
                   width={paperWidth}
                   height={pageHeight}
-                  mode="view"
-                  initialData={repositionedCanvasData}
-                  headingPositions={headingPositions}
-                  zoom={zoom}
-                  readOnly
                 />
                 {/* Badge for personal reference layer */}
                 {shouldShowReferenceBadge('personal') && (
@@ -3088,14 +3082,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   opacity: 0.5,
                 }}
               >
-                <SimpleCanvas
+                <AnnotationSvgLayer
+                  strokes={parseStrokes(repositionedCanvasData)}
                   width={paperWidth}
                   height={pageHeight}
-                  mode="view"
-                  initialData={repositionedCanvasData}
-                  headingPositions={headingPositions}
-                  zoom={zoom}
-                  readOnly
                 />
                 {/* Badge for class broadcast reference layer */}
                 {shouldShowReferenceBadge(layerId) && (
@@ -3143,14 +3133,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   opacity: 0.5,
                 }}
               >
-                <SimpleCanvas
+                <AnnotationSvgLayer
+                  strokes={parseStrokes(repositionedCanvasData)}
                   width={paperWidth}
                   height={pageHeight}
-                  mode="view"
-                  initialData={repositionedCanvasData}
-                  headingPositions={headingPositions}
-                  zoom={zoom}
-                  readOnly
                 />
                 {/* Badge for student feedback reference layer */}
                 {shouldShowReferenceBadge('individual-feedback') && (
@@ -3198,14 +3184,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                   opacity: 0.85, // Slightly reduced to show depth, but no color distortion
                 }}
               >
-                <SimpleCanvas
+                <AnnotationSvgLayer
+                  strokes={parseStrokes(repositionedCanvasData)}
                   width={paperWidth}
                   height={pageHeight}
-                  mode="view"
-                  initialData={repositionedCanvasData}
-                  headingPositions={headingPositions}
-                  zoom={zoom}
-                  readOnly
                 />
                 {/* Floating badges to identify student work - shown on toolbar hover or while drawing */}
                 {shouldShowReferenceBadge('student-work') && (

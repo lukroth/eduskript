@@ -720,8 +720,9 @@ article.prose-theme > div > :first-child {
   -webkit-touch-callout: none;
 }
 
-/* Invert annotation canvas and color picker in dark mode */
-.dark .annotation-canvas {
+/* Invert annotation canvas/SVG and color picker in dark mode */
+.dark .annotation-canvas,
+.dark .annotation-svg {
   filter: invert(1) hue-rotate(180deg);
 }
 
