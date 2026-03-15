@@ -17,14 +17,18 @@ export function generateSyntaxReference(): string {
 
 All custom tags and attributes must be **lowercase** with **string values**. This is not MDX — no PascalCase tags or JSX expressions.
 
+**Self-closing tags** are supported and preferred for components without children: \`<modcalc />\`, \`<colorsliders />\`. Do NOT expand them to open+close pairs.
+
 **Correct:**
 \`\`\`html
-<question id="q1" type="single">
-<dijkstravisualizer initialnodecount="7" initialdirected="false"></dijkstravisualizer>
+<modcalc />
+<dijkstravisualizer initialnodecount="7" initialdirected="false" />
+<question id="q1" type="single">...</question>
 \`\`\`
 
 **Wrong:**
 \`\`\`html
+<modcalc></modcalc>                       <!-- use self-closing instead -->
 <Question id="q1" type="single">          <!-- PascalCase tag -->
 <dijkstravisualizer initialNodeCount={7}>  <!-- camelCase attr, JSX expression -->
 \`\`\``)
@@ -239,8 +243,9 @@ export function getCondensedSyntaxReference(): string {
   return `## Supported Markdown Syntax
 
 **HTML component rules:** All custom tags and attributes must be lowercase with string values. No PascalCase, no JSX expressions.
-  - Correct: \`<question id="q1" type="single">\`
-  - Wrong: \`<Question initialCount={7}>\` (PascalCase tag, JSX expression)
+  - Use self-closing tags for components without children: \`<modcalc />\`, \`<colorsliders />\`
+  - Correct: \`<modcalc />\`, \`<question id="q1" type="single">\`
+  - Wrong: \`<modcalc></modcalc>\` (use self-closing), \`<Question initialCount={7}>\` (PascalCase, JSX)
 
 **Callouts:** \`> [!type] Title on same line\` - CRITICAL: title MUST be on same line as [!type]
   - Types: ${baseTypes.join(', ')}
