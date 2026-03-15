@@ -76,6 +76,7 @@ SELECT * FROM users LIMIT 5;
 | Excalidraw | `![](file.excalidraw)` | `<excali src="file">` |
 | Quiz | — | `<question type="choice">...<answer>` |
 | Tabs | — | `<tabs-container>...<tab-item>` |
+| Custom CSS | — | `<style>.my-class { ... }</style>` |
 
 ---
 

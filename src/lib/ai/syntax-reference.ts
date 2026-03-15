@@ -146,6 +146,27 @@ $$
 
 Excalidraw diagrams: Reference \`.excalidraw\` files directly. The system auto-detects light/dark SVG variants.`)
 
+  // Custom CSS
+  sections.push(`## Custom CSS
+
+Use \`<style>\` blocks to add scoped CSS for custom styling:
+
+\`\`\`html
+<style>
+.my-table td, .my-table th {
+  padding: 0.4rem 1rem;
+  text-align: center;
+}
+</style>
+
+<table class="my-table">
+<thead><tr><th>Header</th></tr></thead>
+<tbody><tr><td>Data</td></tr></tbody>
+</table>
+\`\`\`
+
+Inline \`style="..."\` attributes also work on any element.`)
+
   // Videos
   sections.push(`## Videos (Mux)
 
@@ -234,6 +255,8 @@ export function getCondensedSyntaxReference(): string {
 **Math:** \`$inline$\` and \`$$display$$\` (KaTeX)
 
 **Images:** \`![alt](img.png)\` or \`<img src="img.png" alt="alt" style="width: 50%" data-align="left" data-wrap="true" />\`
+
+**Custom CSS:** \`<style>.my-class { ... }</style>\` — scoped CSS blocks are supported. Inline \`style="..."\` also works on any element.
 
 **Tabs:** HTML syntax only:
   \`<tabs-container data-items='["Tab1", "Tab2"]'><tab-item>Content1</tab-item><tab-item>Content2</tab-item></tabs-container>\`

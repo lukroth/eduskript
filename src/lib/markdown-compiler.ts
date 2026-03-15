@@ -80,6 +80,7 @@ export const sanitizeSchema = {
     'excali', // <excali> shorthand for excalidraw drawings
     'flex', // <flex> layout container
     'flex-item', // <flex-item> child of flex
+    'style', // <style> blocks for scoped CSS in markdown
     // SVG elements
     'svg', 'g', 'defs', 'symbol', 'use', 'title', 'desc',
     'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'path',
