@@ -12,6 +12,7 @@ Eduskript uses a **secure markdown pipeline** (not MDX). This means:
 - No JavaScript expressions (`{variable}` renders as literal text)
 - No import/export statements
 - Components use lowercase custom elements (`<code-editor>`, not `<CodeEditor>`)
+- Attributes are lowercase strings (`initialnodecount="7"`, not `initialNodeCount={7}`)
 
 - **Remark plugins**: Transform markdown AST (add syntax, modify structure)
 - **Rehype plugins**: Transform HTML AST (add attributes, wrap elements)

@@ -4,6 +4,11 @@ Eduskript extends markdown with interactive components.
 
 > [!tip] Component Syntax
 > Use fenced code blocks (` ```python editor `) or lowercase HTML elements (`<code-editor>`). PascalCase components like `<CodeEditor />` are not supported.
+>
+> **Attribute rules:** All attributes must be lowercase with string values. No JSX syntax.
+> - Correct: `<question id="q1" type="single">`
+> - Wrong: `<Question id="q1" type="single">` (PascalCase tag)
+> - Wrong: `<question initialCount={7}>` (JSX expression — use `initialcount="7"` instead)
 
 ---
 
@@ -69,7 +74,7 @@ SELECT * FROM users LIMIT 5;
 | SQL editor | ` ```sql editor db="..."` | `<code-editor data-language="sql" data-db="...">` |
 | YouTube | `![](youtube:VIDEO_ID)` | `<youtube-embed data-id="VIDEO_ID">` |
 | Excalidraw | `![](file.excalidraw)` | `<excali src="file">` |
-| Quiz | — | `<question type="choice">...<quiz-option>` |
+| Quiz | — | `<question type="choice">...<answer>` |
 | Tabs | — | `<tabs-container>...<tab-item>` |
 
 ---

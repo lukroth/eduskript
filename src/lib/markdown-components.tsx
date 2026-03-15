@@ -581,6 +581,7 @@ export function createMarkdownComponents(
     'excalidraw-image': ExcalidrawImageComponent,
     'question': QuizQuestionComponent,
     'quiz-option': QuizOptionComponent,
+    'answer': QuizOptionComponent,
     'stickme': StickMe,
     // <excali> component - shorthand for excalidraw drawings
     // Usage: <excali src="my-drawing" /> (no .excalidraw extension needed)
@@ -611,23 +612,7 @@ export function createMarkdownComponents(
     // <image> component for images with layout props (width, align, wrap, etc.)
     'image': ImageComponent,
 
-    // Legacy PascalCase mappings for backwards compatibility
-    CodeEditor: CodeEditorComponent,
-    Tabs: Object.assign(Tabs, { Tab: TabItem }),
-    Youtube,
-    MuxVideo: MuxVideoComponent,
-    Question: QuizQuestionComponent,
-    Option: QuizOptionComponent,
-    Image: ImageComponent,
-
     // Organization components
-    OurTeachers: function OurTeachersComponent(props: {
-      roles?: ('owner' | 'admin' | 'member')[]
-      limit?: number
-      className?: string
-    }) {
-      return <OurTeachers orgSlug={organizationSlug} {...props} />
-    },
     'ourteachers': function OurTeachersComponent(props: {
       roles?: ('owner' | 'admin' | 'member')[]
       limit?: number
@@ -637,32 +622,28 @@ export function createMarkdownComponents(
     },
 
     // Demo/marketing components
-    DemoEditor,
     'demoeditor': DemoEditor,
 
     // Educational interactive components
-    ColorSliders,
     'colorsliders': ColorSliders,
-    StickMe,
-    DijkstraVisualizer,
-    'dijkstravisualizer': DijkstraVisualizer,
+    'dijkstravisualizer': (props: Record<string, string>) => {
+      // HTML attributes arrive as lowercase strings — coerce to proper types
+      const nodeCount = props.initialnodecount ? Number(props.initialnodecount) : undefined
+      const directed = props.initialdirected != null ? props.initialdirected === 'true' : undefined
+      return <DijkstraVisualizer initialNodeCount={nodeCount} initialDirected={directed} />
+    },
 
     // YouTube timestamp links
-    YT,
     'yt': YT,
 
     // Math/crypto educational components
-    ModCalc,
     'modcalc': ModCalc,
 
     // Data visualization components
-    DataCubeVisualizer,
     'datacubevisualizer': DataCubeVisualizer,
 
     // Layout components
-    Flex,
     'flex': Flex,
-    FlexItem,
     'flex-item': FlexItem,
   }
 }

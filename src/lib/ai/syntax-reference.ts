@@ -12,6 +12,23 @@ import { calloutTypes } from '@/lib/remark-plugins/callouts'
 export function generateSyntaxReference(): string {
   const sections: string[] = []
 
+  // General rules
+  sections.push(`## HTML Component Rules
+
+All custom tags and attributes must be **lowercase** with **string values**. This is not MDX — no PascalCase tags or JSX expressions.
+
+**Correct:**
+\`\`\`html
+<question id="q1" type="single">
+<dijkstravisualizer initialnodecount="7" initialdirected="false"></dijkstravisualizer>
+\`\`\`
+
+**Wrong:**
+\`\`\`html
+<Question id="q1" type="single">          <!-- PascalCase tag -->
+<dijkstravisualizer initialNodeCount={7}>  <!-- camelCase attr, JSX expression -->
+\`\`\``)
+
   // Callouts
   const baseTypes = Object.entries(calloutTypes)
     .filter(([key, value]) => key === value)
@@ -165,23 +182,25 @@ console.log("Hello");
   // Quiz
   sections.push(`## Quizzes
 
-Interactive multiple choice using \`<Question>\` and \`<Option>\` HTML tags:
+Interactive multiple choice using \`<question>\` and \`<answer>\` HTML tags:
 
 \`\`\`markdown
-<Question id="q1" type="single">
-<Option correct="true">4</Option>
-<Option feedback="Too low">3</Option>
-<Option feedback="Too high">5</Option>
-</Question>
+<question id="q1" type="single">
+<answer correct="true">4</answer>
+<answer feedback="Too low">3</answer>
+<answer feedback="Too high">5</answer>
+</question>
 \`\`\`
 
-**Question attributes:**
+**question attributes:**
 - \`id="unique-id"\` — Optional, auto-generated if omitted
 - \`type="single"\` — Single choice (default)
 
-**Option attributes:**
+**answer attributes:**
 - \`correct="true"\` — Marks the correct answer
 - \`feedback="..."\` — Shown when this wrong option is selected
+
+**Migration:** If you encounter \`<Option>\`, \`<quiz-option>\`, or any PascalCase variant, convert them to \`<answer>\`.
 
 **Do NOT use** the \`:::quiz\` fence syntax — it is not implemented.`)
 
@@ -197,6 +216,10 @@ export function getCondensedSyntaxReference(): string {
     .map(([key]) => key)
 
   return `## Supported Markdown Syntax
+
+**HTML component rules:** All custom tags and attributes must be lowercase with string values. No PascalCase, no JSX expressions.
+  - Correct: \`<question id="q1" type="single">\`
+  - Wrong: \`<Question initialCount={7}>\` (PascalCase tag, JSX expression)
 
 **Callouts:** \`> [!type] Title on same line\` - CRITICAL: title MUST be on same line as [!type]
   - Types: ${baseTypes.join(', ')}
@@ -215,7 +238,8 @@ export function getCondensedSyntaxReference(): string {
 **Tabs:** HTML syntax only:
   \`<tabs-container data-items='["Tab1", "Tab2"]'><tab-item>Content1</tab-item><tab-item>Content2</tab-item></tabs-container>\`
 
-**Quiz:** \`<Question id="q1" type="single"><Option correct="true">Right</Option><Option feedback="Nope">Wrong</Option></Question>\`
+**Quiz:** \`<question id="q1" type="single"><answer correct="true">Right</answer><answer feedback="Nope">Wrong</answer></question>\`
   - Use \`correct="true"\` to mark the correct answer
+  - If you see \`<Option>\` or \`<quiz-option>\`, convert to \`<answer>\`
   - Do NOT use \`:::quiz\` syntax — it is not implemented`
 }

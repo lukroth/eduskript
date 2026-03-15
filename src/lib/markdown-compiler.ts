@@ -66,6 +66,7 @@ export const sanitizeSchema = {
     'excalidraw-image',
     'question',
     'quiz-option',
+    'answer',
     'stickme',
     'dijkstravisualizer',
     'colorsliders',
@@ -108,8 +109,10 @@ export const sanitizeSchema = {
     'excali': ['src', 'alt', 'width', 'align', 'wrap'],
     // <image> component attributes (src, alt, width, align, wrap, invert, saturate)
     'image': ['src', 'alt', 'width', 'align', 'wrap', 'invert', 'saturate'],
+    'dijkstravisualizer': ['initialnodecount', 'initialdirected'],
     'question': ['id', 'type', 'showfeedback', 'allowupdate', 'minvalue', 'maxvalue', 'step'],
     'quiz-option': ['correct', 'is', 'feedback'],
+    'answer': ['correct', 'is', 'feedback'],
     'yt': ['time', 'videoid', 'label'],
     'ourteachers': ['roles', 'limit', 'className'],
     'flex': ['gap', 'wrap', 'direction', 'justify', 'align', 'className'],

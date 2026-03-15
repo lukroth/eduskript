@@ -67,11 +67,11 @@ export function remarkQuiz() {
       if (result) {
         const { attrs, options } = result
 
-        // Create option elements (using quiz-option to avoid conflict with HTML <option>)
+        // Create answer elements
         // Note: use "correct" instead of "is" because "is" is a reserved React attribute
         const optionElements: RootContent[] = options.map(opt => ({
           type: 'html',
-          value: `<quiz-option${opt.correct ? ` correct="${opt.correct}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</quiz-option>`
+          value: `<answer${opt.correct ? ` correct="${opt.correct}"` : ''}${opt.feedback ? ` feedback="${escapeAttr(opt.feedback)}"` : ''}>${opt.content}</answer>`
         } as RootContent))
 
         // Build attributes string with all Question props

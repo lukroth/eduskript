@@ -63,8 +63,8 @@ When MDX is enabled:
 ```markdown
 <question id="q1" type="multiple" showfeedback="true">
   What is 2+2?
-  <quiz-option correct="true">4</quiz-option>
-  <quiz-option>5</quiz-option>
+  <answer correct="true">4</answer>
+  <answer>5</answer>
 </question>
 ```
 
