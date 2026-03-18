@@ -34,7 +34,8 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
           startOnLoad: false,
           theme: resolvedTheme === 'dark' ? 'dark' : 'default',
           securityLevel: 'strict',
-          fontFamily: 'inherit',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 14,
         })
 
         // Unique id per render to avoid collisions
@@ -78,7 +79,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
   return (
     <div
       ref={containerRef}
-      className="my-4 flex justify-center overflow-x-auto [&_svg]:max-w-full"
+      className="not-prose my-4 flex justify-center overflow-x-auto text-sm [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )
