@@ -28,6 +28,7 @@ import { YT } from '@/components/markdown/youtube'
 import { ModCalc } from '@/components/markdown/mod-calc'
 import { DataCubeVisualizer } from '@/components/markdown/data-cube-visualizer'
 import { Flex, FlexItem } from '@/components/markdown/flex'
+import { MermaidDiagram } from '@/components/markdown/mermaid-diagram'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -576,6 +577,7 @@ export function createMarkdownComponents(
     'code-editor': CodeEditorComponent,
     'tabs-container': TabsContainerComponent,
     'tab-item': TabItem,
+    'mermaid-diagram': MermaidDiagram,
     'youtube-embed': YoutubeEmbedComponent,
     'muxvideo': MuxVideoComponent,
     'excalidraw-image': ExcalidrawImageComponent,

@@ -102,6 +102,7 @@
     "mdast-util-from-markdown": "^2.0.2",
     "mdast-util-to-hast": "^13.2.1",
     "mdast-util-to-markdown": "^2.1.2",
+    "mermaid": "^11.13.0",
     "nanoid": "^5.1.6",
     "next": "16.0.7",
     "next-auth": "^4.24.13",

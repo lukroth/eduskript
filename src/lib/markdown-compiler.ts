@@ -80,6 +80,7 @@ export const sanitizeSchema = {
     'excali', // <excali> shorthand for excalidraw drawings
     'flex', // <flex> layout container
     'flex-item', // <flex-item> child of flex
+    'mermaid-diagram', // Mermaid diagram rendered client-side
     'style', // <style> blocks for scoped CSS in markdown
     // SVG elements
     'svg', 'g', 'defs', 'symbol', 'use', 'title', 'desc',
@@ -111,6 +112,7 @@ export const sanitizeSchema = {
     // <image> component attributes (src, alt, width, align, wrap, invert, saturate)
     'image': ['src', 'alt', 'width', 'align', 'wrap', 'invert', 'saturate'],
     'dijkstravisualizer': ['initialnodecount', 'initialdirected'],
+    'mermaid-diagram': ['dataDefinition', 'data-definition'],
     'question': ['id', 'type', 'showfeedback', 'allowupdate', 'minvalue', 'maxvalue', 'step'],
     'quiz-option': ['correct', 'is', 'feedback'],
     'answer': ['correct', 'is', 'feedback'],

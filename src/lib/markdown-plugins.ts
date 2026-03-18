@@ -17,6 +17,7 @@ import { remarkMuxVideo } from './remark-plugins/mux-video'
 import { remarkYoutube } from './remark-plugins/youtube'
 import { remarkQuiz } from './remark-plugins/quiz'
 import { remarkFileLinkResolver } from './remark-plugins/file-link-resolver'
+import { remarkMermaid } from './remark-plugins/mermaid'
 
 /**
  * Remark plugins - transform markdown AST
@@ -29,6 +30,7 @@ export const remarkPlugins: PluggableList = [
   remarkImageResolver,
   remarkExcalidraw,
   remarkMuxVideo,
+  remarkMermaid,
   remarkCodeEditor,
   remarkCallouts,
   remarkYoutube,
