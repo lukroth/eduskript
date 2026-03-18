@@ -1356,6 +1356,21 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   line-height: 1.7;
 }
 
+/* Prevent prose font styles from leaking into opt-out containers (e.g. mermaid diagrams) */
+.prose-theme .not-prose p,
+.prose-theme .not-prose li,
+.prose-theme .not-prose td,
+.prose-theme .not-prose blockquote,
+.prose-theme .not-prose h1,
+.prose-theme .not-prose h2,
+.prose-theme .not-prose h3,
+.prose-theme .not-prose h4,
+.prose-theme .not-prose h5,
+.prose-theme .not-prose h6 {
+  font-size: unset;
+  line-height: unset;
+}
+
 /* Scale headings proportionally using em units
  * em is relative to parent font size (which is --user-font-size on .prose-theme)
  * This works consistently across all browsers including Safari on iPad.
