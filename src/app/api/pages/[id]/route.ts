@@ -4,6 +4,9 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { CACHE_TAGS } from '@/lib/cached-queries'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('cache:invalidate')
 
 export async function PATCH(
   request: NextRequest,
@@ -120,6 +123,11 @@ export async function PATCH(
     })
 
     if (user?.pageSlug) {
+      log('Invalidating cache tags', {
+        pageSlug: user.pageSlug,
+        skriptSlug: existingPage.skript.slug,
+        page: updatedPage.slug,
+      })
       // Invalidate cached data for this page
       revalidateTag(CACHE_TAGS.pageBySlug(user.pageSlug, existingPage.skript.slug, updatedPage.slug), 'default')
 

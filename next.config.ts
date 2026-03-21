@@ -16,7 +16,22 @@ const nextConfig: NextConfig = {
         },
       ]
     }
-    return []
+    return [
+      {
+        // Public content pages: no browser cache, allow CDN caching with revalidation
+        source: '/:domain/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
+      {
+        // Dashboard pages: never cache
+        source: '/dashboard/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, must-revalidate' },
+        ],
+      },
+    ]
   },
   images: {
     // Disable server-side image optimization to prevent OOM on small instances.

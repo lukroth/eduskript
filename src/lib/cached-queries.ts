@@ -2,6 +2,9 @@ import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
 import { prisma } from './prisma'
 import { buildSiteStructure, type SiteStructure } from './site-structure'
+import { createLogger } from './logger'
+
+const log = createLogger('cache:queries')
 
 // Cache tags for granular invalidation
 // Note: pageSlug is the URL slug for a user's public page (e.g., eduskript.org/mypage)
@@ -27,6 +30,7 @@ export const CACHE_TAGS = {
 export const getTeacherByPageSlug = (pageSlug: string) =>
   unstable_cache(
     async () => {
+      log('MISS getTeacherByPageSlug', { pageSlug })
       return prisma.user.findFirst({
         where: { pageSlug },
         select: {
@@ -192,6 +196,7 @@ export const getAllPublishedCollections = (teacherId: string, pageSlug: string) 
 export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
   unstable_cache(
     async (): Promise<SiteStructure[]> => {
+      log('MISS getFullSiteStructure', { pageSlug })
       // Fetch page layout to determine collection order
       const pageLayout = await prisma.pageLayout.findFirst({
         where: {
@@ -279,6 +284,7 @@ export const getPublishedPage = (
 ) =>
   unstable_cache(
     async () => {
+      log('MISS getPublishedPage', { skriptSlug, contentPageSlug })
       // Skript slugs are scoped per-user, so query by slug + author
       const skript = await prisma.skript.findFirst({
         where: {

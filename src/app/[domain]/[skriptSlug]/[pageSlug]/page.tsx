@@ -31,13 +31,6 @@ interface PageProps {
 
 // Force dynamic rendering - this page uses headers() and cookies() for exam features
 export const dynamic = 'force-dynamic'
-export const dynamicParams = true // Allow new params to be generated on-demand
-
-// Empty generateStaticParams signals Next.js this route uses ISR
-// Pages are generated on first request and then cached
-export async function generateStaticParams() {
-  return []
-}
 
 // Generate metadata for SEO (uses cached queries)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
