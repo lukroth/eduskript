@@ -113,6 +113,7 @@ export const sanitizeSchema = {
     // <image> component attributes (src, alt, width, align, wrap, invert, saturate)
     'image': ['src', 'alt', 'width', 'align', 'wrap', 'invert', 'saturate'],
     'cipher-lab': ['cipher', 'cipherkey', 'text'],
+    'modcalc': ['formula'],
     'dijkstravisualizer': ['initialnodecount', 'initialdirected'],
     'mermaid-diagram': ['dataDefinition', 'data-definition'],
     'question': ['id', 'type', 'showfeedback', 'allowupdate', 'minvalue', 'maxvalue', 'step'],

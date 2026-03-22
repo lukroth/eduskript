@@ -1,12 +1,14 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
 import { useCallback } from 'react'
+import { Maximize2 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import type { SkriptFilesData } from '@/lib/skript-files'
 import { resolveFile, resolveUrl } from '@/lib/skript-files'
 import { ResizableWrapper } from './resizable-wrapper'
+import { ImageLightbox } from './image-lightbox'
 
 /**
  * Parse markdown links [text](url) in a string and return React elements
@@ -67,6 +69,7 @@ interface ContentImageProps {
 export function ContentImage({ src, alt = '', title, style, onWidthChange, originalSrc, align = 'center', wrap = false, invert, saturate, optimizeImages, files, sourceLineStart, sourceLineEnd }: ContentImageProps) {
   const filename = originalSrc || src
   const { resolvedTheme } = useTheme()
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   // Resolve the image URL and dimensions
   const isRelativePath = src && !src.startsWith('http') && !src.startsWith('/')
@@ -132,7 +135,16 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
       dataAttributes={dataAttributes}
     >
       {/* Image */}
-      <span className="block">
+      <span className="block relative group/img">
+        {!isMissing && (
+          <button
+            onClick={() => setLightboxOpen(true)}
+            className="absolute top-2 right-2 z-20 p-1.5 rounded-md bg-background/80 backdrop-blur-sm border border-border shadow-sm opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-accent cursor-zoom-in"
+            title="Fullscreen"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        )}
         {isMissing ? (
           <span className="flex items-center justify-center w-full h-32 bg-muted border border-dashed border-border rounded-md text-muted-foreground text-sm">
             Missing: {filename}
@@ -167,6 +179,19 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
         <span className="block mt-2 text-sm text-center text-muted-foreground italic">
           {parseMarkdownLinks(alt)}
         </span>
+      )}
+
+      {/* Lightbox */}
+      {!isMissing && (
+        <ImageLightbox open={lightboxOpen} onClose={() => setLightboxOpen(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc}
+            alt={alt || ''}
+            className="max-w-full max-h-[90vh] object-contain rounded-md"
+            style={invertFilter ? { filter: invertFilter } : undefined}
+          />
+        </ImageLightbox>
       )}
     </ResizableWrapper>
   )

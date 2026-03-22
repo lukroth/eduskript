@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback } from 'react'
-import { Pencil } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { Pencil, Maximize2 } from 'lucide-react'
 import type { SkriptFilesData } from '@/lib/skript-files'
 import { resolveExcalidraw, resolveFile } from '@/lib/skript-files'
 import { ResizableWrapper } from './resizable-wrapper'
+import { ImageLightbox } from './image-lightbox'
 
 interface ExcalidrawImageProps {
   src: string // Filename (e.g., "drawing.excalidraw")
@@ -24,6 +25,7 @@ interface ExcalidrawImageProps {
 export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align = 'center', wrap = false, files, sourceLineStart, sourceLineEnd }: ExcalidrawImageProps) {
   const filename = src
   const caption = alt || ''
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   // Resolve light/dark URLs and the original file ID
   const resolved = files ? resolveExcalidraw(files, src) : undefined
@@ -104,6 +106,15 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
         </button>
       )}
 
+      {/* Fullscreen button */}
+      <button
+        onClick={() => setLightboxOpen(true)}
+        className="absolute top-2 right-2 z-20 p-1.5 rounded-md bg-background/80 backdrop-blur-sm border border-border shadow-sm opacity-0 group-hover/excalidraw:opacity-100 transition-opacity hover:bg-accent cursor-zoom-in"
+        title="Fullscreen"
+      >
+        <Maximize2 className="w-3.5 h-3.5" />
+      </button>
+
       {/* Render both images, CSS controls visibility based on theme */}
       {/* Plain <img> intentional: SVGs don't benefit from Next.js Image optimization */}
       {lightSrc && (
@@ -135,6 +146,27 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align 
           {caption}
         </span>
       )}
+
+      {/* Lightbox */}
+      <ImageLightbox open={lightboxOpen} onClose={() => setLightboxOpen(false)}>
+        {/* Show theme-appropriate image in lightbox */}
+        {lightSrc && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={lightSrc}
+            alt={caption}
+            className="max-w-full max-h-[90vh] object-contain rounded-md dark:hidden"
+          />
+        )}
+        {darkSrc && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={darkSrc}
+            alt={caption}
+            className="max-w-full max-h-[90vh] object-contain rounded-md hidden dark:block"
+          />
+        )}
+      </ImageLightbox>
     </ResizableWrapper>
   )
 }

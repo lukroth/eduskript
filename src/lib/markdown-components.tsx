@@ -640,7 +640,7 @@ export function createMarkdownComponents(
     'yt': YT,
 
     // Math/crypto educational components
-    'modcalc': ModCalc,
+    'modcalc': (props: Record<string, string>) => <ModCalc formula={props.formula} />,
     'cipher-lab': (props: Record<string, string>) => {
       const cipher = props.cipher === 'vigenere' ? 'vigenere' as const : 'caesar' as const
       return <CipherLab cipher={cipher} defaultKey={props.cipherkey} text={props.text} />
