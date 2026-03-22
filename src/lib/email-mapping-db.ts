@@ -207,3 +207,17 @@ export function removeUnmappedEmail(classId: string, email: string): void {
   const filtered = existing.filter(e => e !== email.toLowerCase().trim())
   saveUnmappedEmailsForClass(classId, filtered)
 }
+
+/**
+ * Get reverse mappings: pseudonym → realEmail (for looking up by student pseudonym)
+ */
+export async function getReverseMappingsForClass(
+  classId: string
+): Promise<Record<string, string>> {
+  const mappings = await getEmailMappingsForClass(classId)
+  const reversed: Record<string, string> = {}
+  for (const [realEmail, pseudonym] of Object.entries(mappings)) {
+    reversed[pseudonym] = realEmail
+  }
+  return reversed
+}

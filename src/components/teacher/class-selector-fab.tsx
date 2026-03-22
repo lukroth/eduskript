@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
+import { getReverseMappingsForClass } from '@/lib/email-mapping-db'
 import { ChevronDown, Users, X, User, Radio } from 'lucide-react'
 
 interface ClassInfo {
@@ -34,6 +35,7 @@ export function ClassSelectorFAB() {
 
   const [classes, setClasses] = useState<ClassInfo[]>([])
   const [students, setStudents] = useState<StudentInfo[]>([])
+  const [resolvedEmails, setResolvedEmails] = useState<Record<string, string>>({})
   const [isFetchingClasses, setIsFetchingClasses] = useState(false)
   const [isFetchingStudents, setIsFetchingStudents] = useState(false)
 
@@ -62,7 +64,7 @@ export function ClassSelectorFAB() {
     fetchClasses()
   }, [isClassesOpen, classes.length, isTeacher, isLoading])
 
-  // Fetch students when a class is selected and targets dropdown opens
+  // Fetch students and resolved email mappings when a class is selected and targets dropdown opens
   useEffect(() => {
     if (!selectedClass || !isTargetsOpen) return
 
@@ -70,11 +72,15 @@ export function ClassSelectorFAB() {
       setIsFetchingStudents(true)
       setStudents([])
       try {
-        const res = await fetch(`/api/classes/${selectedClass.id}/students`)
+        const [res, mappings] = await Promise.all([
+          fetch(`/api/classes/${selectedClass.id}/students`),
+          getReverseMappingsForClass(selectedClass.id).catch(() => ({} as Record<string, string>)),
+        ])
         if (res.ok) {
           const data = await res.json()
           setStudents(data.students || [])
         }
+        setResolvedEmails(mappings)
       } catch (e) {
         console.error('Failed to fetch students:', e)
       } finally {
@@ -142,7 +148,10 @@ export function ClassSelectorFAB() {
 
   // Get display text for targets FAB
   const getTargetText = () => {
-    if (selectedStudent) return selectedStudent.displayName
+    if (selectedStudent) {
+      const resolved = selectedStudent.pseudonym ? resolvedEmails[selectedStudent.pseudonym] : null
+      return resolved || selectedStudent.displayName
+    }
     return 'Entire Class'
   }
 
@@ -190,18 +199,30 @@ export function ClassSelectorFAB() {
                   </div>
                 ) : (
                   <div className="py-1">
-                    {students.map((student) => (
-                      <button
-                        key={student.id}
-                        onClick={() => handleSelectStudent(student)}
-                        className={`w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors flex items-center gap-2 ${
-                          selectedStudent?.id === student.id ? 'bg-primary/10 text-primary' : ''
-                        }`}
-                      >
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium truncate">{student.displayName}</span>
-                      </button>
-                    ))}
+                    {students.map((student) => {
+                      const resolved = student.pseudonym ? resolvedEmails[student.pseudonym] : null
+                      return (
+                        <button
+                          key={student.id}
+                          onClick={() => handleSelectStudent(student)}
+                          className={`w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors flex items-center gap-2 ${
+                            selectedStudent?.id === student.id ? 'bg-primary/10 text-primary' : ''
+                          }`}
+                        >
+                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-medium truncate block">
+                              {resolved || student.displayName}
+                            </span>
+                            {resolved && (
+                              <span className="text-xs text-muted-foreground truncate block">
+                                {student.displayName}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>

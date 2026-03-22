@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
+import { getReverseMappingsForClass } from '@/lib/email-mapping-db'
 import { cn } from '@/lib/utils'
 
 interface ExamClass {
@@ -78,10 +79,19 @@ export function TeacherExamToolbar({
   const [examState, setExamState] = useState<ExamState>(null)
   const [studentCounts, setStudentCounts] = useState<StudentCounts | null>(null)
   const [students, setStudents] = useState<StudentStatus[]>([])
+  const [resolvedEmails, setResolvedEmails] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [reopeningStudent, setReopeningStudent] = useState<string | null>(null)
+
+  // Load resolved email mappings when class changes
+  useEffect(() => {
+    if (!selectedClass) { setResolvedEmails({}); return }
+    getReverseMappingsForClass(selectedClass.id)
+      .then(setResolvedEmails)
+      .catch(() => setResolvedEmails({}))
+  }, [selectedClass])
 
   // Auto-select first class if none selected and classes available
   useEffect(() => {
@@ -243,8 +253,10 @@ export function TeacherExamToolbar({
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  // Get display name for student (prefer name, fallback to pseudonym)
+  // Get display name for student (prefer resolved email, then name, then pseudonym)
   const getStudentDisplayName = (student: StudentStatus) => {
+    const resolved = student.studentPseudonym ? resolvedEmails[student.studentPseudonym] : null
+    if (resolved) return resolved
     if (student.name) return student.name
     if (student.studentPseudonym) return `Student ${student.studentPseudonym.slice(0, 8)}`
     return 'Unknown student'
