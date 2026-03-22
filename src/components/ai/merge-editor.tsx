@@ -82,6 +82,7 @@ export function MergeEditor({ original, proposed, onChange, className = '' }: Me
           basicSetup,
           markdown(),
           isDark ? oneDark : [],
+          EditorView.lineWrapping,
           EditorView.theme({
             '&': {
               fontSize: '13px',
@@ -193,6 +194,7 @@ export function SimpleEditor({ content, onChange, className = '' }: SimpleEditor
           basicSetup,
           markdown(),
           isDark ? oneDark : [],
+          EditorView.lineWrapping,
           EditorView.theme({
             '&': {
               fontSize: '13px',
