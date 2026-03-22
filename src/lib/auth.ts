@@ -414,7 +414,20 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Only refetch user data on update trigger (not on every session check)
+      // Always refresh billingPlan and isAdmin from DB — these gate UI access
+      // and can be changed by admins without the user re-authenticating
+      if (token.id && trigger !== 'update') {
+        const freshUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { billingPlan: true, isAdmin: true }
+        })
+        if (freshUser) {
+          token.billingPlan = freshUser.billingPlan
+          token.isAdmin = freshUser.isAdmin
+        }
+      }
+
+      // Only refetch full user data on update trigger (not on every session check)
       if (trigger === 'update' && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },

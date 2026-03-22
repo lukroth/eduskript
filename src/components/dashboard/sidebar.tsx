@@ -59,7 +59,7 @@ export function DashboardSidebar() {
   // Determine which navigation to show based on account type
   const isStudent = session?.user?.accountType === 'student'
   const isTeacher = session?.user?.accountType === 'teacher'
-  const isFreePlan = session?.user?.billingPlan === 'free' || !session?.user?.billingPlan
+  const isFreePlan = !session?.user?.isAdmin && (session?.user?.billingPlan === 'free' || !session?.user?.billingPlan)
 
   // Read localStorage immediately on mount — don't wait for session.
   // The render condition still gates on isStudent, but this way the data
