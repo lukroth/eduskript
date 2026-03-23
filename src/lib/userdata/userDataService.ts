@@ -17,6 +17,9 @@ export class UserDataService {
   private saveTimers: Map<string, NodeJS.Timeout> = new Map()
   private readonly DEFAULT_DEBOUNCE = 1000 // 1 second
 
+  // Pub/sub listeners keyed by cacheKey, used for cross-editor sync of shared data (e.g. Python imports)
+  private listeners: Map<string, Set<{ callback: (data: any, sourceId?: string) => void; id?: string }>> = new Map()
+
   private constructor() {
     // Private constructor for singleton
   }
@@ -85,6 +88,47 @@ export class UserDataService {
   }
 
   /**
+   * Subscribe to changes for a specific pageId + componentId.
+   * Callback fires after each save with the saved data and the sourceId of the saver.
+   * Returns an unsubscribe function.
+   */
+  public subscribe<T = any>(
+    pageId: string,
+    componentId: string,
+    callback: (data: T, sourceId?: string) => void,
+    options: {
+      targetType?: 'class' | 'student' | 'page' | null
+      targetId?: string | null
+      id?: string // Caller's unique ID, so it can filter self-notifications
+    } = {}
+  ): () => void {
+    const cacheKey = this.getCacheKey(pageId, componentId, options.targetType, options.targetId)
+    if (!this.listeners.has(cacheKey)) {
+      this.listeners.set(cacheKey, new Set())
+    }
+    const entry = { callback, id: options.id }
+    this.listeners.get(cacheKey)!.add(entry)
+    return () => {
+      this.listeners.get(cacheKey)?.delete(entry)
+    }
+  }
+
+  /**
+   * Notify all listeners for a given cache key
+   */
+  private notifyListeners<T>(cacheKey: string, data: T, sourceId?: string): void {
+    const set = this.listeners.get(cacheKey)
+    if (!set) return
+    for (const entry of set) {
+      try {
+        entry.callback(data, sourceId)
+      } catch (e) {
+        console.error('Listener error:', e)
+      }
+    }
+  }
+
+  /**
    * Save user data for a specific page component
    */
   public async save<T = any>(
@@ -94,6 +138,7 @@ export class UserDataService {
     options: SaveOptions & {
       targetType?: 'class' | 'student' | 'page' | null
       targetId?: string | null
+      sourceId?: string // ID of the editor instance that triggered this save
     } = {}
   ): Promise<void> {
     // Validate inputs to prevent IndexedDB DataError
@@ -102,7 +147,7 @@ export class UserDataService {
       return
     }
 
-    const { debounce = this.DEFAULT_DEBOUNCE, immediate = false, targetType, targetId } = options
+    const { debounce = this.DEFAULT_DEBOUNCE, immediate = false, targetType, targetId, sourceId } = options
     const cacheKey = this.getCacheKey(pageId, componentId, targetType, targetId)
 
     // Clear existing timer if any
@@ -114,13 +159,13 @@ export class UserDataService {
 
     // If immediate save requested, execute now
     if (immediate) {
-      await this.performSave(pageId, componentId, data, targetType, targetId)
+      await this.performSave(pageId, componentId, data, targetType, targetId, sourceId)
       return
     }
 
     // Otherwise, debounce the save
     const timer = setTimeout(async () => {
-      await this.performSave(pageId, componentId, data, targetType, targetId)
+      await this.performSave(pageId, componentId, data, targetType, targetId, sourceId)
       this.saveTimers.delete(cacheKey)
     }, debounce)
 
@@ -135,7 +180,8 @@ export class UserDataService {
     componentId: string,
     data: T,
     targetType?: 'class' | 'student' | 'page' | null,
-    targetId?: string | null
+    targetId?: string | null,
+    sourceId?: string
   ): Promise<void> {
     try {
       const existing = await this.get(pageId, componentId, { targetType, targetId })
@@ -156,6 +202,10 @@ export class UserDataService {
       }
 
       await db.userData.put(record)
+
+      // Notify subscribers (for cross-editor sync)
+      const cacheKey = this.getCacheKey(pageId, componentId, targetType, targetId)
+      this.notifyListeners(cacheKey, data, sourceId)
     } catch (error) {
       console.error('Failed to save user data:', error)
       throw error

@@ -427,7 +427,10 @@ export const CodeEditor = memo(function CodeEditor({
   const [skriptImports, setSkriptImports] = useState<GlobalImportsData>({ files: [] })
   const [globalImports, setGlobalImports] = useState<GlobalImportsData>({ files: [] })
 
-  // Load import files from IndexedDB on mount
+  // Stable per-instance ID for pub/sub self-filtering
+  const editorInstanceId = useRef(crypto.randomUUID()).current
+
+  // Load import files from IndexedDB on mount + subscribe for cross-editor sync
   useEffect(() => {
     if (!isPython) return
     const loadImports = async () => {
@@ -439,20 +442,41 @@ export const CodeEditor = memo(function CodeEditor({
       if (globalRecord?.data) setGlobalImports(globalRecord.data)
     }
     loadImports()
-  }, [isPython, skriptId])
+
+    // Subscribe to changes from other editors
+    const unsubs: Array<() => void> = []
+
+    if (skriptId) {
+      unsubs.push(
+        userDataService.subscribe<GlobalImportsData>(skriptId, 'python-imports', (data, sourceId) => {
+          if (sourceId === editorInstanceId) return // ignore self
+          setSkriptImports(data)
+        }, { id: editorInstanceId })
+      )
+    }
+
+    unsubs.push(
+      userDataService.subscribe<GlobalImportsData>('__global__', 'python-imports', (data, sourceId) => {
+        if (sourceId === editorInstanceId) return
+        setGlobalImports(data)
+      }, { id: editorInstanceId })
+    )
+
+    return () => { unsubs.forEach(fn => fn()) }
+  }, [isPython, skriptId, editorInstanceId])
 
   // Save helpers that write to IndexedDB directly (no React state update during typing)
   const saveSkriptImports = useCallback((data: GlobalImportsData) => {
     setSkriptImports(data)
     if (skriptId) {
-      userDataService.save(skriptId, 'python-imports', data, { immediate: true })
+      userDataService.save(skriptId, 'python-imports', data, { immediate: true, sourceId: editorInstanceId })
     }
-  }, [skriptId])
+  }, [skriptId, editorInstanceId])
 
   const saveGlobalImports = useCallback((data: GlobalImportsData) => {
     setGlobalImports(data)
-    userDataService.save('__global__', 'python-imports', data, { immediate: true })
-  }, [])
+    userDataService.save('__global__', 'python-imports', data, { immediate: true, sourceId: editorInstanceId })
+  }, [editorInstanceId])
 
   // Which import files are currently open as tabs
   const [openImports, setOpenImports] = useState<Array<{ name: string; scope: 'skript' | 'global' }>>([])
@@ -698,10 +722,10 @@ export const CodeEditor = memo(function CodeEditor({
       // persist directly to IndexedDB
       if (scope === 'skript') {
         skriptImportsRef.current = { files: updatedFiles }
-        if (skriptId) userDataService.save(skriptId, 'python-imports', { files: updatedFiles })
+        if (skriptId) userDataService.save(skriptId, 'python-imports', { files: updatedFiles }, { immediate: true, sourceId: editorInstanceId })
       } else {
         globalImportsRef.current = { files: updatedFiles }
-        userDataService.save('__global__', 'python-imports', { files: updatedFiles })
+        userDataService.save('__global__', 'python-imports', { files: updatedFiles }, { immediate: true, sourceId: editorInstanceId })
       }
       return
     }
@@ -724,7 +748,7 @@ export const CodeEditor = memo(function CodeEditor({
       canvasTransform,
       highlights,
     })
-  }, [activeFileIndex, pageId, componentId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, skriptId])
+  }, [activeFileIndex, pageId, componentId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, skriptId, editorInstanceId])
 
   // Ref to avoid debouncedSaveContent as a dependency in the editor effect
   const debouncedSaveContentRef = useRef(debouncedSaveContent)
@@ -1669,6 +1693,26 @@ export const CodeEditor = memo(function CodeEditor({
   const globalImportsRef = useRef(globalImports)
   useLayoutEffect(() => { globalImportsRef.current = globalImports }, [globalImports])
 
+  // When imports change externally, close any open tabs for files that no longer exist
+  useEffect(() => {
+    if (!isPython) return
+    setOpenImports(prev => {
+      const filtered = prev.filter(tab => {
+        const store = tab.scope === 'skript' ? skriptImports : globalImports
+        return store.files.some(f => f.name === tab.name)
+      })
+      if (filtered.length === prev.length) return prev
+      return filtered
+    })
+    // If the active tab is an import that was deleted, switch to local file 0
+    if (activeTab.type === 'import') {
+      const store = activeTab.scope === 'skript' ? skriptImports : globalImports
+      if (!store.files.some(f => f.name === activeTab.name)) {
+        setActiveTab({ type: 'local', index: 0 })
+      }
+    }
+  }, [isPython, skriptImports, globalImports]) // eslint-disable-line react-hooks/exhaustive-deps -- activeTab read is intentional
+
   useEffect(() => {
     // Wait for saved data to load before creating the editor so we can
     // use the restored content instead of the default initialCode.
@@ -1798,10 +1842,10 @@ export const CodeEditor = memo(function CodeEditor({
               clearTimeout(contentSaveTimeoutRef.current)
             }
 
-            // Debounce save by 2 seconds after typing stops
+            // Debounce save by 300ms after typing stops
             contentSaveTimeoutRef.current = setTimeout(() => {
               debouncedSaveContentRef.current()
-            }, 2000)
+            }, 300)
           }
         }
 
@@ -2006,12 +2050,15 @@ export const CodeEditor = memo(function CodeEditor({
     const content = editorViewRef.current.state.doc.toString()
 
     if (activeTab.type === 'local') {
-      setFiles(prev => prev.map((file, idx) =>
+      // Update both ref and state so downstream reads always see the latest
+      filesRef.current = filesRef.current.map((file, idx) =>
         idx === activeTab.index ? { ...file, content } : file
-      ))
+      )
+      setFiles(filesRef.current)
     } else if (activeTab.type === 'import') {
       const { scope, name } = activeTab
-      const store = scope === 'skript' ? skriptImports : globalImports
+      // Read from refs (not state) to get the latest content including unsaved typing
+      const store = scope === 'skript' ? skriptImportsRef.current : globalImportsRef.current
       const updater = scope === 'skript' ? saveSkriptImports : saveGlobalImports
       if (store) {
         const updatedFiles = store.files.map(f => f.name === name ? { ...f, content } : f)
@@ -2143,14 +2190,19 @@ export const CodeEditor = memo(function CodeEditor({
   // Move import between scopes (drag-and-drop in dropdown)
   const moveImportScope = (name: string, fromScope: 'skript' | 'global', toScope: 'skript' | 'global') => {
     if (fromScope === toScope) return
-    const fromStore = fromScope === 'skript' ? skriptImports : globalImports
-    const toStore = toScope === 'skript' ? skriptImports : globalImports
+    // Read from refs (not state) to get the latest content including unsaved typing
+    const fromStore = fromScope === 'skript' ? skriptImportsRef.current : globalImportsRef.current
+    const toStore = toScope === 'skript' ? skriptImportsRef.current : globalImportsRef.current
     const fromUpdater = fromScope === 'skript' ? saveSkriptImports : saveGlobalImports
     const toUpdater = toScope === 'skript' ? saveSkriptImports : saveGlobalImports
     if (!fromStore || !toStore) return
 
-    const file = fromStore.files.find(f => f.name === name)
+    let file = fromStore.files.find(f => f.name === name)
     if (!file) return
+    // If this file is currently open in the editor, grab the live content from CodeMirror
+    if (editorViewRef.current && activeTab.type === 'import' && activeTab.scope === fromScope && activeTab.name === name) {
+      file = { ...file, content: editorViewRef.current.state.doc.toString() }
+    }
     if (toStore.files.some(f => f.name === name)) {
       addOutput(`A file named "${name}" already exists in ${toScope === 'skript' ? 'Skript' : 'Global'} scope`, OutputLevel.WARNING)
       return
@@ -2215,12 +2267,16 @@ export const CodeEditor = memo(function CodeEditor({
   }
 
   // Update editor when active tab changes (local file or import)
+  // Also fires when skriptImports/globalImports change (cross-editor sync),
+  // but skips the dispatch if the document content hasn't actually changed.
   useEffect(() => {
     if (!editorViewRef.current) return
     const content = activeTab.type === 'local'
       ? (files[activeFileIndex]?.content || '')
       : ((activeTab.scope === 'skript' ? skriptImports : globalImports)?.files.find(f => f.name === activeTab.name)?.content || '')
     const view = editorViewRef.current
+    // Skip if content matches — avoids cursor disruption on unrelated import changes
+    if (view.state.doc.toString() === content) return
     const transaction = view.state.update({
       changes: {
         from: 0,
@@ -2366,8 +2422,8 @@ export const CodeEditor = memo(function CodeEditor({
           const ext = getFileExtension(language)
           const extPattern = new RegExp(`\\${ext}$`)
 
-          // Try to match with or without extension
-          const userFile = files.find(f => {
+          // Read from refs (not state) for the latest content including unsaved typing
+          const userFile = filesRef.current.find(f => {
             // Direct match
             if (f.name === baseName || f.name === filename) return true
 
@@ -2385,7 +2441,7 @@ export const CodeEditor = memo(function CodeEditor({
             return userFile.content
           }
 
-          // Search skript-scoped imports, then global imports
+          // Search skript-scoped imports, then global imports (from refs for latest content)
           const findInImports = (importFiles: PythonFile[] | undefined) => {
             if (!importFiles) return undefined
             return importFiles.find(f => {
@@ -2396,9 +2452,9 @@ export const CodeEditor = memo(function CodeEditor({
               return false
             })
           }
-          const skriptFile = findInImports(skriptImports?.files)
+          const skriptFile = findInImports(skriptImportsRef.current?.files)
           if (skriptFile) return skriptFile.content
-          const globalFile = findInImports(globalImports?.files)
+          const globalFile = findInImports(globalImportsRef.current?.files)
           if (globalFile) return globalFile.content
 
           // Read Python modules from the stdlib
@@ -2549,15 +2605,19 @@ plt.show = lambda: None
         }
       })
 
-      // Write all files to Pyodide's virtual filesystem (for multi-file support)
-      if (files.length > 1) {
-        for (const file of files) {
-          pyodide.FS.writeFile(file.name, file.content)
-        }
-      }
-      // Write import files (skript-scoped then global) so they're importable
-      for (const file of [...(skriptImports?.files || []), ...(globalImports?.files || [])]) {
+      // Collect all auxiliary files (local + imports) from refs for latest content
+      const localFiles = filesRef.current
+      const importFiles = [...(skriptImportsRef.current?.files || []), ...(globalImportsRef.current?.files || [])]
+      const allAuxFiles = [...(localFiles.length > 1 ? localFiles : []), ...importFiles]
+
+      // Write files to Pyodide's virtual filesystem and invalidate Python's module cache
+      // so re-imports pick up the latest content instead of the stale cached module.
+      for (const file of allAuxFiles) {
         pyodide.FS.writeFile(file.name, file.content)
+        const moduleName = file.name.replace(/\.py$/i, '')
+        await pyodide.runPythonAsync(
+          `import sys\nif '${moduleName}' in sys.modules: del sys.modules['${moduleName}']`
+        )
       }
 
       // Run the code
