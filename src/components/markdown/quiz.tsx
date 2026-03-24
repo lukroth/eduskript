@@ -132,7 +132,7 @@ function QuestionInner({
       {/* Single/Multiple Choice */}
       {(type === 'single' || type === 'multiple') && (
         <div className="space-y-2">
-          {Array.isArray(children) ? children.map((child, index) => {
+          {Children.toArray(children).map((child, index) => {
             if (!child || typeof child !== 'object') return null
             const element = child as ReactElement<OptionProps>
             if (!element.props) return null
@@ -199,7 +199,7 @@ function QuestionInner({
                 </div>
               </div>
             )
-          }) : children}
+          })}
         </div>
       )}
 
