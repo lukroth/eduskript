@@ -205,6 +205,11 @@ function parseMeta(node: CodeNode): Record<string, string> {
       return
     }
 
+    if (part === 'exam') {
+      attributes['exam'] = 'true'
+      return
+    }
+
     const eqIdx = part.indexOf('=')
     if (eqIdx !== -1) {
       const key = part.slice(0, eqIdx)

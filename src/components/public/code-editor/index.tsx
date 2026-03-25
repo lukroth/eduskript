@@ -93,6 +93,7 @@ interface CodeEditorProps {
   schemaImageDark?: string // Optional schema image for SQL (dark theme)
   singleFile?: boolean // Hide file tabs for simple single-file examples
   solution?: string // Expected SQL solution for automatic pass/fail verification
+  exam?: boolean // Exam mode: verification runs silently but no feedback or solution shown to student
 }
 
 // Custom annotation to mark programmatic changes (defined once outside component)
@@ -228,6 +229,7 @@ export const CodeEditor = memo(function CodeEditor({
   schemaImageDark,
   singleFile = false,
   solution,
+  exam = false,
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
   const { data: session } = useSession()
@@ -3616,7 +3618,7 @@ plots
                     ) : (
                       entry.message
                     )}
-                    {verificationResult !== null && (
+                    {verificationResult !== null && !exam && (
                       <>
                         {verificationResult.isCorrect ? (
                           <span className="text-green-600 dark:text-green-400"> · &#10003; Korrekt!</span>
@@ -3636,7 +3638,7 @@ plots
                     )}
                   </div>
                   {/* Solution reveal (below the stats line) */}
-                  {verificationResult?.showSolution && solution && (
+                  {verificationResult?.showSolution && solution && !exam && (
                     <pre className="mt-1 bg-black/10 dark:bg-white/10 rounded px-2 py-1 text-xs overflow-x-auto">{solution}</pre>
                   )}
 

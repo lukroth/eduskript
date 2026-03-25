@@ -250,6 +250,7 @@ export function createMarkdownComponents(
     const schemaImage = (props['dataSchemaImage'] as string) || (props['data-schema-image'] as string)
     const single = (props['dataSingle'] as string) || (props['data-single'] as string)
     const solution = (props['dataSolution'] as string) || (props['data-solution'] as string)
+    const exam = (props['dataExam'] as string) || (props['data-exam'] as string)
 
     // Parse multi-file data if present, otherwise fall back to single-file initialCode
     let initialFiles: { name: string; content: string }[] | undefined
@@ -321,6 +322,7 @@ export function createMarkdownComponents(
           schemaImageDark={schemaImageDarkUrl}
           singleFile={initialFiles ? initialFiles.length <= 1 && single === 'true' : single === 'true'}
           solution={decodedSolution}
+          exam={exam === 'true'}
         />
       </div>
     )
