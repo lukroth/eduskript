@@ -163,9 +163,6 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
   const { collection, skript, page, allPages } = content
 
   // EXAM ACCESS CONTROL
-  // Variable to track if we need to set an exam session cookie after rendering
-  let examSessionToCreate: { userId: string; pageId: string; skriptId: string } | null = null
-
   // If this is an exam page, check if the user has access
   if (page.pageType === 'exam') {
     const headersList = await headers()
@@ -193,7 +190,15 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
       authenticatedUserId = await validateExamToken(sebToken, page.id)
       if (authenticatedUserId) {
         authenticatedViaToken = true
-        // We'll create an exam session after access control passes
+        // Immediately create exam session so auth persists across refreshes.
+        // Redirect to start-session API (Server Components can't set cookies),
+        // which sets the cookie and redirects back here without seb_token.
+        const currentUrl = `/${domain}/${skriptSlug}/${pageSlug}`
+        const startSessionUrl = `/api/exams/${page.id}/start-session?` +
+          `userId=${encodeURIComponent(authenticatedUserId)}&` +
+          `skriptId=${encodeURIComponent(skript.id)}&` +
+          `returnUrl=${encodeURIComponent(currentUrl)}`
+        redirect(startSessionUrl)
       }
     }
 
@@ -315,22 +320,6 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
       }
     }
 
-    // Create exam session if authenticated via one-time token
-    // This allows subsequent page navigations without re-authentication
-    if (authenticatedViaToken) {
-      examSessionToCreate = { userId: studentId, pageId: page.id, skriptId: skript.id }
-    }
-  }
-
-  // Create exam session if needed (after all access control has passed)
-  // We redirect to an API route because Server Components cannot set cookies during render
-  if (examSessionToCreate) {
-    const currentUrl = `/${domain}/${skriptSlug}/${pageSlug}`
-    const startSessionUrl = `/api/exams/${examSessionToCreate.pageId}/start-session?` +
-      `userId=${encodeURIComponent(examSessionToCreate.userId)}&` +
-      `skriptId=${encodeURIComponent(examSessionToCreate.skriptId)}&` +
-      `returnUrl=${encodeURIComponent(currentUrl)}`
-    redirect(startSessionUrl)
   }
 
   // Fetch public annotations and snaps for this page (broadcast to all visitors)

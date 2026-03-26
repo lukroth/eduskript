@@ -180,7 +180,6 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
   const allPages = skript.pages
 
   // EXAM ACCESS CONTROL
-  let examSessionToCreate: { userId: string; pageId: string; skriptId: string } | null = null
   let isInExamSession = false
   let examSessionUserName: string | null = null
   let examSessionUserEmail: string | null = null
@@ -210,6 +209,15 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
       authenticatedUserId = await validateExamToken(sebToken, page.id)
       if (authenticatedUserId) {
         authenticatedViaToken = true
+        // Immediately create exam session so auth persists across refreshes.
+        // Redirect to start-session API (Server Components can't set cookies),
+        // which sets the cookie and redirects back here without seb_token.
+        const currentUrl = `/org/${orgSlug}/${pageSlug}/${skriptSlug}/${contentPageSlug}`
+        const startSessionUrl = `/api/exams/${page.id}/start-session?` +
+          `userId=${encodeURIComponent(authenticatedUserId)}&` +
+          `skriptId=${encodeURIComponent(skript.id)}&` +
+          `returnUrl=${encodeURIComponent(currentUrl)}`
+        redirect(startSessionUrl)
       }
     }
 
@@ -344,18 +352,6 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
       )
     }
 
-    if (authenticatedViaToken) {
-      examSessionToCreate = { userId: studentId, pageId: page.id, skriptId: skript.id }
-    }
-  }
-
-  if (examSessionToCreate) {
-    const currentUrl = `/org/${orgSlug}/${pageSlug}/${skriptSlug}/${contentPageSlug}`
-    const startSessionUrl = `/api/exams/${examSessionToCreate.pageId}/start-session?` +
-      `userId=${encodeURIComponent(examSessionToCreate.userId)}&` +
-      `skriptId=${encodeURIComponent(examSessionToCreate.skriptId)}&` +
-      `returnUrl=${encodeURIComponent(currentUrl)}`
-    redirect(startSessionUrl)
   }
 
   const [publicAnnotations, publicSnaps] = await Promise.all([
