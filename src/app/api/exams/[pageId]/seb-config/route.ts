@@ -35,11 +35,12 @@ export async function GET(
     }
 
     // If no session, try download token (SEB fetching via sebs:// protocol)
+    // Non-consuming: SEB may make multiple requests (preflight, retry, redirect)
+    // so we can't invalidate the token on first use here. The seb_token embedded
+    // in the config (for actual exam access) remains one-time use.
     if (!userId && downloadToken) {
       const { validateExamToken } = await import('@/lib/exam-tokens')
-      // Download tokens are also stored as exam tokens, but we validate without pageId check
-      // since the token was created specifically for downloading this config
-      userId = await validateExamToken(downloadToken, pageId)
+      userId = await validateExamToken(downloadToken, pageId, false)
     }
 
     if (!userId) {

@@ -67,6 +67,7 @@ interface PublicSiteLayoutProps {
   typographyPreference?: 'modern' | 'classic'
   pageId?: string // Page ID for lazy edit permission check
   routePrefix?: string // Custom route prefix (e.g., '/org/slug' for orgs, defaults to '/{pageSlug}')
+  hideSidebar?: boolean // Hide sidebar entirely (e.g., exam pages)
 }
 
 export function PublicSiteLayout({
@@ -79,7 +80,8 @@ export function PublicSiteLayout({
   sidebarBehavior = 'contextual',
   typographyPreference = 'modern',
   pageId,
-  routePrefix
+  routePrefix,
+  hideSidebar = false
 }: PublicSiteLayoutProps) {
   const router = useRouter()
 
@@ -328,8 +330,8 @@ export function PublicSiteLayout({
       >
         <ReadingProgress />
 
-      {/* Top-right controls - only visible on mobile when sidebar is closed */}
-      <div className="min-[1344px]:hidden fixed top-8 right-4 z-50 flex items-center gap-2">
+      {/* Top-right controls - always visible when sidebar is hidden, otherwise only on mobile */}
+      <div className={`${hideSidebar ? '' : 'min-[1344px]:hidden '}fixed top-8 right-4 z-50 flex items-center gap-2`}>
         <AdminToolbox pageId={pageId} />
         <FontSizeControls />
         <PublicThemeToggle />
@@ -337,6 +339,7 @@ export function PublicSiteLayout({
       </div>
 
       {/* Mobile menu button */}
+      {!hideSidebar && (
       <div className="min-[1344px]:hidden fixed top-8 left-4 z-50">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -345,8 +348,10 @@ export function PublicSiteLayout({
           {isSidebarOpen ? <X className="w-5 h-5 text-foreground" /> : <Menu className="w-5 h-5 text-foreground" />}
         </button>
       </div>
+      )}
 
       {/* Sidebar */}
+      {!hideSidebar && (
       <div className={`fixed inset-y-0 left-0 z-40 bg-card paper-shadow transform transition-all duration-300 ease-in-out ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } min-[1344px]:translate-x-0 ${
@@ -681,9 +686,10 @@ export function PublicSiteLayout({
           </div>
         </div>
       </div>
+      )}
 
       {/* Overlay for mobile */}
-      {isSidebarOpen && (
+      {!hideSidebar && isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-30 min-[1344px]:hidden"
           onClick={() => setIsSidebarOpen(false)}
@@ -694,7 +700,7 @@ export function PublicSiteLayout({
         <div
           id="scroll-container"
           className={`transition-all duration-300 h-screen overflow-auto ${
-            isSidebarCollapsed ? 'min-[1344px]:ml-16' : 'min-[1344px]:ml-80'
+            hideSidebar ? '' : isSidebarCollapsed ? 'min-[1344px]:ml-16' : 'min-[1344px]:ml-80'
           }`}
         >
           <main className="bg-background min-h-screen">

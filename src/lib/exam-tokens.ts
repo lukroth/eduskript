@@ -60,45 +60,63 @@ export async function generateExamToken(
  * - Token exists and matches hash
  * - Token is not expired
  * - Token is for the correct page
- * - Token has not been used before
+ * - Token has not been used before (when consume=true)
  *
- * If valid, marks the token as used and returns the userId.
- * Uses atomic update to prevent race conditions.
+ * When consume=true (default), marks the token as used atomically.
+ * When consume=false, validates without consuming — useful for config
+ * downloads where SEB may make multiple requests to the same URL.
  *
  * @param token - The plaintext token from the URL
  * @param pageId - The page being accessed (must match token's page)
+ * @param consume - Whether to mark the token as used (default: true)
  * @returns The userId if valid, null if invalid/expired/used
  */
 export async function validateExamToken(
   token: string,
-  pageId: string
+  pageId: string,
+  consume: boolean = true
 ): Promise<string | null> {
   // Hash the provided token to look up in DB
   const tokenHash = createHash('sha256').update(token).digest('hex')
 
-  // Atomic update - only succeeds if token is valid AND unused
-  // This prevents race conditions where multiple requests could use the same token
-  const result = await prisma.examToken.updateMany({
-    where: {
-      tokenHash,
-      pageId,
-      expiresAt: { gt: new Date() },
-      usedAt: null,
-    },
-    data: { usedAt: new Date() },
-  })
+  if (consume) {
+    // Atomic update - only succeeds if token is valid AND unused
+    // This prevents race conditions where multiple requests could use the same token
+    const result = await prisma.examToken.updateMany({
+      where: {
+        tokenHash,
+        pageId,
+        expiresAt: { gt: new Date() },
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    })
 
-  if (result.count === 0) {
-    return null // Token doesn't exist, wrong page, expired, or already used
+    if (result.count === 0) {
+      return null // Token doesn't exist, wrong page, expired, or already used
+    }
+
+    // Fetch the userId (token is now consumed)
+    const examToken = await prisma.examToken.findUnique({
+      where: { tokenHash },
+      select: { userId: true },
+    })
+
+    return examToken?.userId ?? null
   }
 
-  // Fetch the userId (token is now consumed)
+  // Non-consuming validation: check token is valid and not expired
+  // Allows multiple uses within the expiry window (e.g., SEB retries)
   const examToken = await prisma.examToken.findUnique({
     where: { tokenHash },
-    select: { userId: true },
+    select: { userId: true, pageId: true, expiresAt: true },
   })
 
-  return examToken?.userId ?? null
+  if (!examToken) return null
+  if (examToken.pageId !== pageId) return null
+  if (examToken.expiresAt <= new Date()) return null
+
+  return examToken.userId
 }
 
 /**

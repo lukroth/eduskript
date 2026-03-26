@@ -451,6 +451,7 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       pageId={page.id}
+      hideSidebar={page.pageType === 'exam'}
     >
       <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         <article className="prose-theme">

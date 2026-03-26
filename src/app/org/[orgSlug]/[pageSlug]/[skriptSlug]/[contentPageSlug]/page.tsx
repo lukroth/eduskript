@@ -498,6 +498,7 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       routePrefix={`/org/${orgSlug}/${pageSlug}`}
       pageId={page.id}
+      hideSidebar={page.pageType === 'exam'}
     >
       {isTeacherViewingExam && (
         <TeacherExamToolbar
