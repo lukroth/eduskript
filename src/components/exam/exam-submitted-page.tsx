@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { useRealtimeEvents } from '@/hooks/use-realtime-events'
+import { SEBQuitButton } from './seb-quit-button'
 
 interface ExamSubmittedPageProps {
   pageTitle: string
@@ -93,9 +94,12 @@ export function ExamSubmittedPage({
           This page will automatically update if your teacher reopens the exam for you.
         </p>
 
-        <Button variant="outline" asChild>
-          <Link href="/">Go to Homepage</Link>
-        </Button>
+        <div className="flex justify-center gap-3">
+          <Button variant="outline" asChild>
+            <Link href="/">Go to Homepage</Link>
+          </Button>
+          <SEBQuitButton />
+        </div>
       </div>
     </div>
   )

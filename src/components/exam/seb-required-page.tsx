@@ -3,6 +3,7 @@
 import { Shield, ExternalLink, Play, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
+import { SEBQuitButton } from './seb-quit-button'
 
 interface SEBRequiredPageProps {
   pageTitle: string
@@ -64,9 +65,10 @@ export function SEBRequiredPage({
               Your exam session has expired or the authentication token was invalid.
               Please close SEB and start again from your regular browser.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-4">
               If this keeps happening, contact your teacher for assistance.
             </p>
+            <SEBQuitButton />
           </>
         ) : (
           <>

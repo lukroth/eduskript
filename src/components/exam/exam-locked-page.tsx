@@ -3,6 +3,7 @@
 import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { SEBQuitButton } from './seb-quit-button'
 
 interface ExamLockedPageProps {
   pageTitle: string
@@ -44,6 +45,7 @@ export function ExamLockedPage({
             <Button asChild>
               <Link href={loginUrl}>Sign In</Link>
             </Button>
+            <div><SEBQuitButton /></div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -52,9 +54,12 @@ export function ExamLockedPage({
               Please wait for your teacher to unlock it, or contact them if you believe
               this is an error.
             </p>
-            <Button variant="outline" asChild>
-              <Link href="/">Go to Homepage</Link>
-            </Button>
+            <div className="flex justify-center gap-3">
+              <Button variant="outline" asChild>
+                <Link href="/">Go to Homepage</Link>
+              </Button>
+              <SEBQuitButton />
+            </div>
           </div>
         )}
       </div>
