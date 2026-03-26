@@ -147,6 +147,13 @@ export function generateSEBConfig(
   <key>enablePrivateClipboard</key>
   <true/>
 
+  <!-- Allow pinch-to-zoom gestures on iOS/iPadOS -->
+  <!-- The app handles zoom via custom touch handlers on the #paper element -->
+  <key>enableZoomPage</key>
+  <true/>
+  <key>enableZoomText</key>
+  <true/>
+
   <!-- Navigation -->
   <key>enableBrowserWindowToolbar</key>
   <false/>
