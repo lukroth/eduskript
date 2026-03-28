@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, CornerUpLeft, Globe, BarChart3, CreditCard, Lock, Tag } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, CornerUpLeft, Globe, BarChart3, CreditCard, Lock, Tag, Puzzle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // Personal navigation items for teachers
 const personalNavigation = [
   { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Plugins', href: '/dashboard/plugins', icon: Puzzle },
   { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
   { name: 'My Classes', href: '/dashboard/classes', icon: GraduationCap },
   { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },

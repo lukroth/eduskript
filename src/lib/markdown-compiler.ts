@@ -82,6 +82,7 @@ export const sanitizeSchema = {
     'flex-item', // <flex-item> child of flex
     'mermaid-diagram', // Mermaid diagram rendered client-side
     'cipher-lab', // Caesar/Vigenère cipher interactive tool (attrs: cipher, shift, keytext)
+    'plugin', // User-created plugins rendered in sandboxed iframes
     'style', // <style> blocks for scoped CSS in markdown
     // SVG elements
     'svg', 'g', 'defs', 'symbol', 'use', 'title', 'desc',
@@ -113,6 +114,18 @@ export const sanitizeSchema = {
     // <image> component attributes (src, alt, width, align, wrap, invert, saturate)
     'image': ['src', 'alt', 'width', 'align', 'wrap', 'invert', 'saturate'],
     'cipher-lab': ['cipher', 'cipherkey', 'text'],
+    // Plugin: attributes are config for a sandboxed iframe, not rendered as HTML.
+    // List known plugin configs + common names. Extend as new plugins are added.
+    'plugin': [
+      'src', 'id', 'height', 'width', 'name', 'version',
+      // Known plugin configs
+      'formula', 'definition', 'cipher', 'cipherkey', 'text', 'mode', 'type',
+      'initialnodecount', 'initialdirected',
+      'label', 'value', 'count', 'theme', 'lang', 'title', 'placeholder',
+      'min', 'max', 'step', 'rows', 'cols', 'size', 'color', 'variant',
+      'autoplay', 'loop', 'muted', 'controls', 'disabled', 'readonly',
+      'data', 'config', 'options', 'items', 'columns', 'format',
+    ],
     'modcalc': ['formula'],
     'dijkstravisualizer': ['initialnodecount', 'initialdirected'],
     'mermaid-diagram': ['dataDefinition', 'data-definition'],

@@ -1,0 +1,211 @@
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; }
+  .card { max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; transition: all 0.3s; }
+  .tabs { display: flex; border-bottom: 1px solid #ddd; }
+  .tabs button { flex: 1; padding: 10px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; }
+  .tabs button.active { color: white; }
+  .body { padding: 16px; }
+  .mode-btns { display: flex; gap: 8px; margin-bottom: 12px; }
+  .mode-btns button { flex: 1; padding: 6px; font-size: 12px; font-weight: 500; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; font-weight: 500; margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px; resize: vertical; }
+  .field textarea { min-height: 60px; }
+  .swap-row { display: flex; justify-content: center; margin: 8px 0; }
+  .swap-btn { padding: 6px; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; transition: all 0.2s; }
+  .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .output-header label { font-size: 11px; font-weight: 500; }
+  .copy-btn { display: flex; align-items: center; gap: 4px; font-size: 11px; border: none; background: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
+  .output-box { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px; min-height: 60px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+</style>
+
+<div class="card" id="card">
+  <div class="tabs" id="tabs">
+    <button class="active" data-cipher="caesar" id="tab-caesar">Caesar</button>
+    <button data-cipher="vigenere" id="tab-vigenere">Vigenère</button>
+  </div>
+  <div class="body" id="body">
+    <div class="mode-btns">
+      <button class="active" id="btn-encrypt">Verschlüsseln</button>
+      <button id="btn-decrypt">Entschlüsseln</button>
+    </div>
+    <div class="field" id="key-field">
+      <label id="key-label">Verschiebung (0–94)</label>
+      <input type="number" id="key-input" min="0" max="94" value="4">
+    </div>
+    <div class="field">
+      <label id="input-label">Klartext</label>
+      <textarea id="input-text" placeholder="Nachricht eingeben…"></textarea>
+    </div>
+    <div class="swap-row">
+      <button class="swap-btn" id="swap-btn" title="Ergebnis als Eingabe übernehmen und Modus wechseln">⇅</button>
+    </div>
+    <div class="field">
+      <div class="output-header">
+        <label id="output-label">Ciphertext</label>
+        <button class="copy-btn" id="copy-btn">📋 Kopieren</button>
+      </div>
+      <div class="output-box" id="output-box">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var plugin = eduskript.init();
+  var cipher = 'caesar';
+  var mode = 'encrypt';
+  var isDark = false;
+
+  function caesarEncrypt(text, shift) {
+    var result = '';
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      var newPos = (((code - 32 + shift) % 95) + 95) % 95 + 32;
+      result += String.fromCharCode(newPos);
+    }
+    return result;
+  }
+
+  function caesarDecrypt(text, shift) { return caesarEncrypt(text, -shift); }
+
+  function vigenereEncrypt(text, key) {
+    if (!key) return '';
+    var result = '';
+    for (var i = 0; i < text.length; i++) {
+      result += caesarEncrypt(text[i], key.charCodeAt(i % key.length));
+    }
+    return result;
+  }
+
+  function vigenereDecrypt(text, key) {
+    if (!key) return '';
+    var result = '';
+    for (var i = 0; i < text.length; i++) {
+      result += caesarDecrypt(text[i], key.charCodeAt(i % key.length));
+    }
+    return result;
+  }
+
+  function compute() {
+    var input = document.getElementById('input-text').value;
+    var output = '';
+    if (input) {
+      if (cipher === 'caesar') {
+        var shift = parseInt(document.getElementById('key-input').value) || 0;
+        output = mode === 'encrypt' ? caesarEncrypt(input, shift) : caesarDecrypt(input, shift);
+      } else {
+        var key = document.getElementById('key-input').value;
+        output = mode === 'encrypt' ? vigenereEncrypt(input, key) : vigenereDecrypt(input, key);
+      }
+    }
+    document.getElementById('output-box').textContent = output || '—';
+  }
+
+  function setCipher(c) {
+    cipher = c;
+    document.getElementById('tab-caesar').classList.toggle('active', c === 'caesar');
+    document.getElementById('tab-vigenere').classList.toggle('active', c === 'vigenere');
+    var keyInput = document.getElementById('key-input');
+    var keyLabel = document.getElementById('key-label');
+    if (c === 'caesar') {
+      keyInput.type = 'number'; keyInput.min = '0'; keyInput.max = '94';
+      keyInput.value = '4'; keyLabel.textContent = 'Verschiebung (0–94)';
+    } else {
+      keyInput.type = 'text'; keyInput.removeAttribute('min'); keyInput.removeAttribute('max');
+      keyInput.value = 'PYTHON'; keyLabel.textContent = 'Schlüssel';
+    }
+    compute();
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById('btn-encrypt').classList.toggle('active', m === 'encrypt');
+    document.getElementById('btn-decrypt').classList.toggle('active', m === 'decrypt');
+    document.getElementById('input-label').textContent = m === 'encrypt' ? 'Klartext' : 'Ciphertext';
+    document.getElementById('output-label').textContent = m === 'encrypt' ? 'Ciphertext' : 'Klartext';
+    document.getElementById('input-text').placeholder = m === 'encrypt' ? 'Nachricht eingeben…' : 'Ciphertext eingeben…';
+    applyTheme(isDark ? 'dark' : 'light');
+    compute();
+  }
+
+  function applyTheme(theme) {
+    isDark = theme === 'dark';
+    var card = document.getElementById('card');
+    card.style.background = isDark ? '#1e1e1e' : '#fff';
+    card.style.border = '1px solid ' + (isDark ? '#333' : '#ddd');
+    card.style.color = isDark ? '#e0e0e0' : '#222';
+    document.body.style.background = 'transparent';
+
+    var tabs = document.querySelectorAll('.tabs button');
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i].classList.contains('active')) {
+        tabs[i].style.background = isDark ? '#3b82f6' : '#2563eb';
+        tabs[i].style.color = 'white';
+      } else {
+        tabs[i].style.background = isDark ? '#2a2a2a' : '#f5f5f5';
+        tabs[i].style.color = isDark ? '#999' : '#666';
+      }
+    }
+
+    var encBtn = document.getElementById('btn-encrypt');
+    var decBtn = document.getElementById('btn-decrypt');
+    if (mode === 'encrypt') {
+      encBtn.style.background = isDark ? 'rgba(16,185,129,0.2)' : '#d1fae5'; encBtn.style.color = isDark ? '#6ee7b7' : '#065f46';
+      decBtn.style.background = isDark ? '#2a2a2a' : '#f5f5f5'; decBtn.style.color = isDark ? '#999' : '#666';
+    } else {
+      decBtn.style.background = isDark ? 'rgba(245,158,11,0.2)' : '#fef3c7'; decBtn.style.color = isDark ? '#fbbf24' : '#92400e';
+      encBtn.style.background = isDark ? '#2a2a2a' : '#f5f5f5'; encBtn.style.color = isDark ? '#999' : '#666';
+    }
+
+    var inputs = document.querySelectorAll('.field input, .field textarea');
+    for (var j = 0; j < inputs.length; j++) {
+      inputs[j].style.background = isDark ? '#111' : '#fff';
+      inputs[j].style.color = isDark ? '#e0e0e0' : '#222';
+      inputs[j].style.borderColor = isDark ? '#444' : '#ddd';
+    }
+    var outBox = document.getElementById('output-box');
+    outBox.style.background = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+    outBox.style.borderColor = isDark ? '#444' : '#ddd';
+    outBox.style.color = isDark ? '#e0e0e0' : '#222';
+
+    var swapBtn = document.getElementById('swap-btn');
+    swapBtn.style.background = isDark ? '#333' : '#f0f0f0';
+    swapBtn.style.color = isDark ? '#999' : '#666';
+
+    var copyBtn = document.getElementById('copy-btn');
+    copyBtn.style.color = isDark ? '#999' : '#666';
+  }
+
+  document.getElementById('tab-caesar').addEventListener('click', function() { setCipher('caesar'); });
+  document.getElementById('tab-vigenere').addEventListener('click', function() { setCipher('vigenere'); });
+  document.getElementById('btn-encrypt').addEventListener('click', function() { setMode('encrypt'); });
+  document.getElementById('btn-decrypt').addEventListener('click', function() { setMode('decrypt'); });
+  document.getElementById('key-input').addEventListener('input', compute);
+  document.getElementById('input-text').addEventListener('input', compute);
+  document.getElementById('swap-btn').addEventListener('click', function() {
+    var output = document.getElementById('output-box').textContent;
+    if (output && output !== '—') {
+      document.getElementById('input-text').value = output;
+      setMode(mode === 'encrypt' ? 'decrypt' : 'encrypt');
+    }
+  });
+  document.getElementById('copy-btn').addEventListener('click', function() {
+    var text = document.getElementById('output-box').textContent;
+    if (text && text !== '—') {
+      navigator.clipboard.writeText(text);
+      document.getElementById('copy-btn').textContent = '✓ Kopiert';
+      setTimeout(function() { document.getElementById('copy-btn').textContent = '📋 Kopieren'; }, 1500);
+    }
+  });
+
+  plugin.onReady(function(ctx) {
+    if (ctx.config) {
+      if (ctx.config.cipher === 'vigenere') setCipher('vigenere');
+      if (ctx.config.cipherkey) document.getElementById('key-input').value = ctx.config.cipherkey;
+      if (ctx.config.text) { document.getElementById('input-text').value = ctx.config.text; compute(); }
+    }
+    applyTheme(ctx.theme);
+  });
+  plugin.onThemeChange(function(theme) { applyTheme(theme); });
+</script>

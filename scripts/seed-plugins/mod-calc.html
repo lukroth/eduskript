@@ -1,0 +1,134 @@
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; }
+  .card { max-width: 400px; margin: 0 auto; padding: 20px; border-radius: 12px; transition: all 0.3s; }
+  h2 { text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 16px; }
+  .formula { text-align: center; font-size: 22px; margin: 12px 0; }
+  .live { text-align: center; font-size: 22px; margin: 12px 0; position: relative; }
+  .live.nonsense { opacity: 0.1; }
+  .error-msg { position: absolute; top: 4px; width: 100%; text-align: center; font-weight: bold; color: #ef4444; font-size: 16px; }
+  .base { color: #f97316; }
+  .exp { color: #22c55e; }
+  .mod { color: #8b5cf6; }
+  .result { font-weight: bold; }
+  .result-light { color: #047857; }
+  .result-dark { color: #10b981; }
+  .inputs { margin-top: 20px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
+  .field input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+</style>
+
+<div class="card" id="card">
+  <h2>Power Mod Calculator</h2>
+  <div class="formula" id="formula-template"></div>
+  <div class="live" id="live-calc">
+    <span class="base" id="live-base">5</span><sup class="exp" id="live-exp">3</sup> mod <span class="mod" id="live-mod">23</span> = <span class="result" id="live-result">10</span>
+  </div>
+  <div class="error-msg" id="error-msg" style="display:none">Let's try not to break maths 😬👍</div>
+  <div class="inputs">
+    <div class="field">
+      <label class="base" id="label-base">Basis g</label>
+      <input type="number" id="input-base" value="5">
+    </div>
+    <div class="field">
+      <label class="exp" id="label-exp">Exponent k</label>
+      <input type="number" id="input-exp" value="3">
+    </div>
+    <div class="field">
+      <label class="mod" id="label-mod">Modulus p</label>
+      <input type="number" id="input-mod" value="23">
+    </div>
+  </div>
+</div>
+
+<script>
+  var plugin = eduskript.init();
+  var isDark = false;
+
+  var FORMULAS = {
+    dlog: { base: 'g', exp: 'k', mod: 'p', result: 'K', baseLabel: 'Basis g', expLabel: 'Exponent k', modLabel: 'Modulus p' },
+    'rsa-enc': { base: 'm', exp: 'e', mod: 'n', result: 'c', baseLabel: 'Nachricht m', expLabel: 'Public Exponent e', modLabel: 'Modulus n' },
+    'rsa-dec': { base: 'c', exp: 'd', mod: 'n', result: 'm', baseLabel: 'Ciphertext c', expLabel: 'Private Exponent d', modLabel: 'Modulus n' }
+  };
+
+  var formula = 'dlog';
+  var f = FORMULAS[formula];
+
+  function applyTheme(theme) {
+    isDark = theme === 'dark';
+    var card = document.getElementById('card');
+    card.style.background = isDark ? '#262626' : '#f5f5f5';
+    card.style.color = isDark ? '#e0e0e0' : '#222';
+    card.style.boxShadow = '0 4px 12px ' + (isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.1)');
+    document.body.style.background = 'transparent';
+    var inputs = document.querySelectorAll('.field input');
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].style.background = isDark ? '#1a1a1a' : '#fff';
+      inputs[i].style.color = isDark ? '#e0e0e0' : '#222';
+      inputs[i].style.borderColor = isDark ? '#444' : '#ccc';
+    }
+    var res = document.getElementById('live-result');
+    res.className = 'result ' + (isDark ? 'result-dark' : 'result-light');
+  }
+
+  function setupFormula(formulaKey) {
+    f = FORMULAS[formulaKey] || FORMULAS.dlog;
+    document.getElementById('formula-template').innerHTML =
+      '<span class="base">' + f.base + '</span><sup class="exp">' + f.exp + '</sup> mod <span class="mod">' + f.mod + '</span> = <span class="result ' + (isDark ? 'result-dark' : 'result-light') + '">' + f.result + '</span>';
+    document.getElementById('label-base').textContent = f.baseLabel;
+    document.getElementById('label-exp').textContent = f.expLabel;
+    document.getElementById('label-mod').textContent = f.modLabel;
+  }
+
+  function calculate() {
+    var base = parseInt(document.getElementById('input-base').value);
+    var exp = parseInt(document.getElementById('input-exp').value);
+    var mod = parseInt(document.getElementById('input-mod').value);
+
+    document.getElementById('live-base').textContent = isNaN(base) ? f.base : base;
+    document.getElementById('live-exp').textContent = isNaN(exp) ? f.exp : exp;
+    document.getElementById('live-mod').textContent = isNaN(mod) ? f.mod : mod;
+
+    var live = document.getElementById('live-calc');
+    var errMsg = document.getElementById('error-msg');
+
+    if (!isNaN(base) && !isNaN(exp) && !isNaN(mod) && mod !== 0) {
+      try {
+        var b = BigInt(base);
+        var e = BigInt(exp);
+        var m = BigInt(mod);
+        // Handle negative exponents
+        if (e < 0n) throw new Error('negative');
+        var res = 1n;
+        b = ((b % m) + m) % m;
+        while (e > 0n) {
+          if (e % 2n === 1n) res = (res * b) % m;
+          e = e / 2n;
+          b = (b * b) % m;
+        }
+        document.getElementById('live-result').textContent = res.toString();
+        live.classList.remove('nonsense');
+        errMsg.style.display = 'none';
+      } catch (err) {
+        live.classList.add('nonsense');
+        errMsg.style.display = 'block';
+      }
+    } else {
+      live.classList.add('nonsense');
+      errMsg.style.display = 'block';
+    }
+  }
+
+  document.getElementById('input-base').addEventListener('input', calculate);
+  document.getElementById('input-exp').addEventListener('input', calculate);
+  document.getElementById('input-mod').addEventListener('input', calculate);
+
+  plugin.onReady(function(ctx) {
+    if (ctx.config && ctx.config.formula) formula = ctx.config.formula;
+    setupFormula(formula);
+    applyTheme(ctx.theme);
+    calculate();
+  });
+  plugin.onThemeChange(function(theme) { applyTheme(theme); });
+</script>

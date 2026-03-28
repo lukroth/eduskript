@@ -30,6 +30,7 @@ import { DataCubeVisualizer } from '@/components/markdown/data-cube-visualizer'
 import { Flex, FlexItem } from '@/components/markdown/flex'
 import { MermaidDiagram } from '@/components/markdown/mermaid-diagram'
 import { CipherLab } from '@/components/markdown/cipher-lab'
+import { PluginContainer } from '@/components/markdown/plugin-container'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -654,5 +655,38 @@ export function createMarkdownComponents(
     // Layout components
     'flex': Flex,
     'flex-item': FlexItem,
+
+    // User-created plugins (sandboxed iframes)
+    // Inner text content is passed as config.content to the plugin
+    'plugin': (props: Record<string, unknown>) => {
+      // Extract text content from children
+      const extractText = (node: unknown): string => {
+        if (typeof node === 'string') return node
+        if (Array.isArray(node)) return node.map(extractText).join('')
+        if (node && typeof node === 'object' && 'props' in node) {
+          const el = node as { props?: { children?: unknown } }
+          return extractText(el.props?.children)
+        }
+        return ''
+      }
+      const innerContent = extractText(props.children).trim()
+
+      const configProps = Object.fromEntries(
+        Object.entries(props).filter(([k]) => !['src', 'id', 'height', 'children'].includes(k))
+      )
+      if (innerContent) {
+        configProps.content = innerContent
+      }
+
+      return (
+        <PluginContainer
+          src={String(props.src || '')}
+          id={props.id as string}
+          height={props.height as string}
+          pageId={pageId}
+          {...configProps}
+        />
+      )
+    },
   }
 }

@@ -1,0 +1,1514 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --btn-bg: #f1f5f9;
+    --btn-hover: #e2e8f0;
+    --btn-active: #3b82f6;
+    --btn-active-text: #ffffff;
+    --input-bg: #ffffff;
+    --input-border: #cbd5e1;
+    --table-header: #f1f5f9;
+    --table-row-hover: #f8fafc;
+    --divider: #cbd5e1;
+    --scrollbar-thumb: #94a3b8;
+    --scrollbar-track: #f1f5f9;
+  }
+
+  .dark {
+    --bg: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #334155;
+    --btn-bg: #1e293b;
+    --btn-hover: #334155;
+    --btn-active: #3b82f6;
+    --btn-active-text: #ffffff;
+    --input-bg: #1e293b;
+    --input-border: #475569;
+    --table-header: #1e293b;
+    --table-row-hover: #1e293b;
+    --divider: #475569;
+    --scrollbar-thumb: #475569;
+    --scrollbar-track: #1e293b;
+  }
+
+  #dijkstra-root {
+    width: 100%;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Toolbar */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    min-height: 44px;
+    z-index: 10;
+  }
+
+  #toolbar button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--btn-bg);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.15s;
+  }
+
+  #toolbar button:hover { background: var(--btn-hover); }
+  #toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #toolbar button.active { background: var(--btn-active); color: var(--btn-active-text); border-color: var(--btn-active); }
+
+  .toolbar-sep {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .toolbar-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  #toolbar input[type="range"] {
+    width: 80px;
+    height: 4px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+  }
+
+  #toolbar input[type="number"] {
+    width: 48px;
+    height: 28px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text);
+    text-align: center;
+    font-size: 12px;
+  }
+
+  #step-display {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 80px;
+    text-align: center;
+  }
+
+  #toolbar .toggle-btn {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  /* Main content area */
+  #main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Canvas panel */
+  #canvas-panel {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    min-width: 200px;
+  }
+
+  #graph-svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #graph-svg.dragging-node { cursor: grabbing; }
+  #graph-svg.panning { cursor: grabbing; }
+
+  /* Description bar at bottom of canvas */
+  #description-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text);
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    z-index: 5;
+    opacity: 0.95;
+  }
+
+  /* Divider */
+  #divider {
+    width: 5px;
+    cursor: col-resize;
+    background: var(--divider);
+    flex-shrink: 0;
+    transition: background 0.15s;
+    z-index: 5;
+  }
+  #divider:hover, #divider.dragging { background: #3b82f6; }
+
+  /* Table panel */
+  #table-panel {
+    width: 320px;
+    min-width: 180px;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  #table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  #table-header button {
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    height: 24px;
+  }
+  #table-header button:hover { background: var(--btn-hover); }
+
+  #table-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #table-container::-webkit-scrollbar { width: 6px; }
+  #table-container::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  #table-container::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+  #distance-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  #distance-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  #distance-table th {
+    background: var(--table-header);
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  #distance-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  #distance-table tr.state-current { background: rgba(245, 158, 11, 0.15); }
+  #distance-table tr.state-in-queue { background: rgba(59, 130, 246, 0.1); }
+  #distance-table tr.state-visited { background: rgba(16, 185, 129, 0.1); }
+  #distance-table tr.state-unvisited { background: transparent; }
+  #distance-table tr:hover { background: var(--table-row-hover); }
+  #distance-table tr.state-current:hover { background: rgba(245, 158, 11, 0.2); }
+
+  .node-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* Edge weight input overlay */
+  #edge-weight-input {
+    position: absolute;
+    width: 36px;
+    height: 24px;
+    border: 2px solid #3b82f6;
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text);
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 20;
+    display: none;
+    outline: none;
+  }
+
+  /* Fullscreen */
+  #dijkstra-root.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+  }
+
+  /* SVG styles */
+  .edge-line { stroke-width: 2; fill: none; transition: stroke 0.2s; }
+  .edge-weight-bg { fill: var(--bg); }
+  .edge-weight-text { font-size: 12px; font-weight: 600; cursor: pointer; }
+  .edge-weight-text:hover { fill: #3b82f6 !important; }
+  .node-circle { stroke-width: 2.5; cursor: pointer; transition: fill 0.2s, stroke 0.2s; }
+  .node-label { font-size: 13px; font-weight: 600; pointer-events: none; user-select: none; }
+  .node-source-ring { fill: none; stroke: #ef4444; stroke-width: 3; stroke-dasharray: 4 2; pointer-events: none; }
+  .node-target-ring { fill: none; stroke: #8b5cf6; stroke-width: 3; stroke-dasharray: 4 2; pointer-events: none; }
+
+  .arrow-marker { fill: #4b5563; }
+  .arrow-marker-highlighted { fill: #f59e0b; }
+  .arrow-marker-shortest { fill: #10b981; }
+</style>
+
+<div id="dijkstra-root">
+  <div id="toolbar">
+    <button id="btn-reset" title="Zurücksetzen">&#8634;</button>
+    <button id="btn-step-back" title="Schritt zurück">&#9664;</button>
+    <button id="btn-play" title="Abspielen">&#9654;</button>
+    <button id="btn-step-fwd" title="Schritt vor">&#9654;&#124;</button>
+    <div class="toolbar-sep"></div>
+    <span class="toolbar-label">Tempo:</span>
+    <input type="range" id="speed-slider" min="100" max="2000" value="800" step="100">
+    <span id="step-display">Schritt 0 / 0</span>
+    <div class="toolbar-sep"></div>
+    <span class="toolbar-label">Knoten:</span>
+    <input type="number" id="node-count-input" min="3" max="200" value="7">
+    <input type="range" id="node-count-slider" min="3" max="30" value="7">
+    <button id="btn-directed" class="toggle-btn" title="Gerichtet/Ungerichtet">Ungerichtet</button>
+    <button id="btn-regenerate" title="Neuer Graph">&#x21bb;</button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-fullscreen" title="Vollbild">&#x26F6;</button>
+  </div>
+
+  <div id="main-content">
+    <div id="canvas-panel">
+      <svg id="graph-svg">
+        <defs>
+          <marker id="arrow-normal" markerWidth="10" markerHeight="8" refX="28" refY="4" orient="auto">
+            <polygon points="0,0 10,4 0,8" class="arrow-marker" />
+          </marker>
+          <marker id="arrow-highlighted" markerWidth="10" markerHeight="8" refX="28" refY="4" orient="auto">
+            <polygon points="0,0 10,4 0,8" class="arrow-marker-highlighted" />
+          </marker>
+          <marker id="arrow-shortest" markerWidth="10" markerHeight="8" refX="28" refY="4" orient="auto">
+            <polygon points="0,0 10,4 0,8" class="arrow-marker-shortest" />
+          </marker>
+        </defs>
+        <g id="svg-transform-group">
+          <g id="edges-group"></g>
+          <g id="nodes-group"></g>
+        </g>
+      </svg>
+      <div id="description-bar">Klicke auf einen Knoten, um ihn als Quelle zu setzen. Strg+Klick setzt das Ziel.</div>
+      <input id="edge-weight-input" type="number" min="1" max="99">
+    </div>
+
+    <div id="divider"></div>
+
+    <div id="table-panel">
+      <div id="table-header">
+        <span>Distanztabelle</span>
+        <button id="btn-sort-toggle">A-Z</button>
+      </div>
+      <div id="table-container">
+        <table id="distance-table">
+          <thead>
+            <tr>
+              <th>Knoten</th>
+              <th>Distanz</th>
+              <th>Vorgänger</th>
+            </tr>
+          </thead>
+          <tbody id="distance-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  // --- State ---
+  var nodes = [];
+  var edges = [];
+  var nodeCount = 7;
+  var isDirected = false;
+  var sourceNode = null;
+  var targetNode = null;
+
+  // Algorithm state
+  var steps = [];
+  var currentStepIndex = -1;
+  var isPlaying = false;
+  var playInterval = null;
+  var speed = 800;
+
+  // View state
+  var panX = 0, panY = 0, zoom = 1;
+  var isPanning = false;
+  var panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+  var draggingNodeIndex = -1;
+  var dragStartX = 0, dragStartY = 0, dragNodeStartX = 0, dragNodeStartY = 0;
+
+  // Touch state
+  var lastTouchDist = 0;
+  var lastTouchCenter = null;
+  var touchMode = null; // 'pan' | 'pinch'
+
+  // Divider resize
+  var isDividerDragging = false;
+  var dividerStartX = 0;
+  var tablePanelStartWidth = 320;
+
+  // Sort
+  var sortByQueue = false;
+
+  // Fullscreen
+  var isFullscreen = false;
+
+  // Theme
+  var currentTheme = 'light';
+
+  // Colors
+  var COLORS = {
+    UNVISITED: { fill: '#6b7280', stroke: '#374151' },
+    CURRENT:   { fill: '#f59e0b', stroke: '#d97706' },
+    IN_QUEUE:  { fill: '#3b82f6', stroke: '#2563eb' },
+    VISITED:   { fill: '#10b981', stroke: '#059669' },
+    SOURCE_BORDER: '#ef4444',
+    TARGET_BORDER: '#8b5cf6',
+    EDGE_NORMAL: '#4b5563',
+    EDGE_HIGHLIGHTED: '#f59e0b',
+    EDGE_SHORTEST: '#10b981'
+  };
+
+  // --- DOM refs ---
+  var root = document.getElementById('dijkstra-root');
+  var svg = document.getElementById('graph-svg');
+  var transformGroup = document.getElementById('svg-transform-group');
+  var edgesGroup = document.getElementById('edges-group');
+  var nodesGroup = document.getElementById('nodes-group');
+  var descBar = document.getElementById('description-bar');
+  var distTbody = document.getElementById('distance-tbody');
+  var tableContainer = document.getElementById('table-container');
+  var stepDisplay = document.getElementById('step-display');
+  var edgeWeightInput = document.getElementById('edge-weight-input');
+  var canvasPanel = document.getElementById('canvas-panel');
+  var tablePanel = document.getElementById('table-panel');
+  var divider = document.getElementById('divider');
+
+  // Buttons
+  var btnReset = document.getElementById('btn-reset');
+  var btnStepBack = document.getElementById('btn-step-back');
+  var btnPlay = document.getElementById('btn-play');
+  var btnStepFwd = document.getElementById('btn-step-fwd');
+  var speedSlider = document.getElementById('speed-slider');
+  var nodeCountInput = document.getElementById('node-count-input');
+  var nodeCountSlider = document.getElementById('node-count-slider');
+  var btnDirected = document.getElementById('btn-directed');
+  var btnRegenerate = document.getElementById('btn-regenerate');
+  var btnFullscreen = document.getElementById('btn-fullscreen');
+  var btnSortToggle = document.getElementById('btn-sort-toggle');
+
+  // --- Utility ---
+  function nodeLabel(index) {
+    // A, B, ... Z, Aa, Ab, ...
+    if (index < 26) return String.fromCharCode(65 + index);
+    var first = String.fromCharCode(65 + Math.floor(index / 26) - 1);
+    var second = String.fromCharCode(97 + (index % 26));
+    return first + second;
+  }
+
+  function createSVGElement(tag) {
+    return document.createElementNS('http://www.w3.org/2000/svg', tag);
+  }
+
+  function edgeKey(a, b) {
+    if (isDirected) return a + '->' + b;
+    return Math.min(a, b) + '-' + Math.max(a, b);
+  }
+
+  function shuffleArray(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  // --- Graph Generation ---
+  function generateGraph() {
+    nodes = [];
+    edges = [];
+    sourceNode = null;
+    targetNode = null;
+
+    var svgRect = svg.getBoundingClientRect();
+    var w = svgRect.width || 800;
+    var h = (svgRect.height || 600) - 36; // account for description bar
+    var cx = w / 2;
+    var cy = h / 2;
+    var padding = 60;
+
+    if (nodeCount <= 20) {
+      // Circular layout
+      var radius = Math.min(cx, cy) - padding;
+      if (radius < 80) radius = 80;
+      for (var i = 0; i < nodeCount; i++) {
+        var angle = (2 * Math.PI * i / nodeCount) - Math.PI / 2;
+        nodes.push({
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+          label: nodeLabel(i)
+        });
+      }
+    } else {
+      // Grid layout
+      var cols = Math.ceil(Math.sqrt(nodeCount));
+      var rows = Math.ceil(nodeCount / cols);
+      var cellW = (w - 2 * padding) / Math.max(cols - 1, 1);
+      var cellH = (h - 2 * padding) / Math.max(rows - 1, 1);
+      for (var i = 0; i < nodeCount; i++) {
+        var col = i % cols;
+        var row = Math.floor(i / cols);
+        nodes.push({
+          x: padding + col * cellW + (Math.random() - 0.5) * cellW * 0.3,
+          y: padding + row * cellH + (Math.random() - 0.5) * cellH * 0.3,
+          label: nodeLabel(i)
+        });
+      }
+    }
+
+    // Build spanning tree for connectivity (random permutation walk)
+    var visited = {};
+    var order = [];
+    for (var i = 0; i < nodeCount; i++) order.push(i);
+    shuffleArray(order);
+
+    var edgeSet = {};
+    visited[order[0]] = true;
+    for (var i = 1; i < order.length; i++) {
+      var from = order[i - 1];
+      var to = order[i];
+      var weight = Math.floor(Math.random() * 9) + 1;
+      var key = edgeKey(from, to);
+      if (!edgeSet[key]) {
+        edges.push({ from: from, to: to, weight: weight });
+        edgeSet[key] = true;
+      }
+      visited[to] = true;
+    }
+
+    // Add ~50% additional random edges
+    var additionalCount = Math.floor(nodeCount * 0.5);
+    var attempts = 0;
+    var added = 0;
+    while (added < additionalCount && attempts < additionalCount * 10) {
+      attempts++;
+      var a = Math.floor(Math.random() * nodeCount);
+      var b = Math.floor(Math.random() * nodeCount);
+      if (a === b) continue;
+      var key = edgeKey(a, b);
+      if (edgeSet[key]) continue;
+      var weight = Math.floor(Math.random() * 9) + 1;
+      edges.push({ from: a, to: b, weight: weight });
+      edgeSet[key] = true;
+      added++;
+    }
+
+    // Set source to first node
+    sourceNode = 0;
+
+    // Reset view
+    panX = 0;
+    panY = 0;
+    zoom = 1;
+
+    resetAlgorithm();
+    render();
+  }
+
+  // --- Dijkstra Algorithm ---
+  function runDijkstra() {
+    steps = [];
+    if (sourceNode === null || nodes.length === 0) return;
+
+    var n = nodes.length;
+    var dist = [];
+    var prev = [];
+    var visitedSet = {};
+    var queueSet = {};
+
+    for (var i = 0; i < n; i++) {
+      dist.push(Infinity);
+      prev.push(null);
+    }
+    dist[sourceNode] = 0;
+    queueSet[sourceNode] = true;
+
+    // Build adjacency list
+    var adj = [];
+    for (var i = 0; i < n; i++) adj.push([]);
+    for (var i = 0; i < edges.length; i++) {
+      var e = edges[i];
+      adj[e.from].push({ to: e.to, weight: e.weight, edgeIndex: i });
+      if (!isDirected) {
+        adj[e.to].push({ to: e.from, weight: e.weight, edgeIndex: i });
+      }
+    }
+
+    // Initial step
+    steps.push({
+      currentNode: null,
+      visitedNodes: copyObj(visitedSet),
+      distances: dist.slice(),
+      previousNodes: prev.slice(),
+      queueNodes: copyObj(queueSet),
+      highlightedEdges: {},
+      shortestPathEdges: {},
+      description: 'Initialisiere: Distanz zu Quelle ' + nodes[sourceNode].label + ' = 0, alle anderen = \u221e'
+    });
+
+    // Priority queue (simple: scan for minimum)
+    while (true) {
+      // Find unvisited node with minimum distance
+      var u = -1;
+      var minDist = Infinity;
+      for (var i = 0; i < n; i++) {
+        if (!visitedSet[i] && queueSet[i] && dist[i] < minDist) {
+          minDist = dist[i];
+          u = i;
+        }
+      }
+      if (u === -1) break;
+
+      // Visit node u
+      delete queueSet[u];
+      visitedSet[u] = true;
+
+      // Build shortest path edges for visited
+      var spEdges = buildShortestPathEdges(prev, visitedSet, adj);
+
+      steps.push({
+        currentNode: u,
+        visitedNodes: copyObj(visitedSet),
+        distances: dist.slice(),
+        previousNodes: prev.slice(),
+        queueNodes: copyObj(queueSet),
+        highlightedEdges: {},
+        shortestPathEdges: copyObj(spEdges),
+        description: 'Besuche Knoten ' + nodes[u].label + ' (Distanz: ' + dist[u] + ')'
+      });
+
+      // Check target reached
+      if (targetNode !== null && u === targetNode) {
+        steps.push({
+          currentNode: u,
+          visitedNodes: copyObj(visitedSet),
+          distances: dist.slice(),
+          previousNodes: prev.slice(),
+          queueNodes: copyObj(queueSet),
+          highlightedEdges: {},
+          shortestPathEdges: copyObj(spEdges),
+          description: 'Zielknoten ' + nodes[targetNode].label + ' erreicht! Kürzeste Distanz: ' + dist[u]
+        });
+        break;
+      }
+
+      // Relax neighbors
+      var neighbors = adj[u];
+      for (var ni = 0; ni < neighbors.length; ni++) {
+        var neighbor = neighbors[ni];
+        var v = neighbor.to;
+        if (visitedSet[v]) continue;
+
+        var newDist = dist[u] + neighbor.weight;
+        var hlEdges = {};
+        hlEdges[neighbor.edgeIndex] = true;
+
+        if (newDist < dist[v]) {
+          dist[v] = newDist;
+          prev[v] = u;
+          queueSet[v] = true;
+
+          steps.push({
+            currentNode: u,
+            visitedNodes: copyObj(visitedSet),
+            distances: dist.slice(),
+            previousNodes: prev.slice(),
+            queueNodes: copyObj(queueSet),
+            highlightedEdges: copyObj(hlEdges),
+            shortestPathEdges: copyObj(spEdges),
+            description: 'Pr\u00fcfe Kante ' + nodes[u].label + ' \u2192 ' + nodes[v].label +
+              ': ' + dist[u] + ' + ' + neighbor.weight + ' = ' + newDist +
+              ' < ' + (dist[v] === newDist ? '\u221e' : dist[v]) + ' \u2192 Update!'
+          });
+        } else {
+          steps.push({
+            currentNode: u,
+            visitedNodes: copyObj(visitedSet),
+            distances: dist.slice(),
+            previousNodes: prev.slice(),
+            queueNodes: copyObj(queueSet),
+            highlightedEdges: copyObj(hlEdges),
+            shortestPathEdges: copyObj(spEdges),
+            description: 'Pr\u00fcfe Kante ' + nodes[u].label + ' \u2192 ' + nodes[v].label +
+              ': ' + dist[u] + ' + ' + neighbor.weight + ' = ' + newDist +
+              ' \u2265 ' + (dist[v] === Infinity ? '\u221e' : dist[v]) + ' \u2192 Keine Verbesserung'
+          });
+        }
+      }
+    }
+
+    // Final step: show result with full shortest path tree
+    var finalSpEdges = buildShortestPathEdges(prev, visitedSet, adj);
+    steps.push({
+      currentNode: null,
+      visitedNodes: copyObj(visitedSet),
+      distances: dist.slice(),
+      previousNodes: prev.slice(),
+      queueNodes: {},
+      highlightedEdges: {},
+      shortestPathEdges: copyObj(finalSpEdges),
+      description: 'Algorithmus abgeschlossen! Alle erreichbaren Knoten besucht.'
+    });
+
+    updateStepDisplay();
+  }
+
+  function buildShortestPathEdges(prev, visitedSet, adj) {
+    var spEdges = {};
+    for (var v = 0; v < nodes.length; v++) {
+      if (prev[v] !== null && visitedSet[v]) {
+        // Find edge index
+        var neighbors = adj[prev[v]];
+        for (var ni = 0; ni < neighbors.length; ni++) {
+          if (neighbors[ni].to === v) {
+            spEdges[neighbors[ni].edgeIndex] = true;
+            break;
+          }
+        }
+      }
+    }
+    return spEdges;
+  }
+
+  function copyObj(obj) {
+    var result = {};
+    for (var k in obj) {
+      if (obj.hasOwnProperty(k)) result[k] = obj[k];
+    }
+    return result;
+  }
+
+  function resetAlgorithm() {
+    stopPlaying();
+    steps = [];
+    currentStepIndex = -1;
+    updateStepDisplay();
+    if (sourceNode !== null) {
+      runDijkstra();
+    }
+  }
+
+  // --- Rendering ---
+  function render() {
+    renderEdges();
+    renderNodes();
+    renderTable();
+    updateTransform();
+    updateDescription();
+    updateStepDisplay();
+    updatePlayButton();
+  }
+
+  function updateTransform() {
+    transformGroup.setAttribute('transform',
+      'translate(' + panX + ',' + panY + ') scale(' + zoom + ')');
+  }
+
+  function getNodeState(index) {
+    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return 'UNVISITED';
+    var step = steps[currentStepIndex];
+    if (step.currentNode === index) return 'CURRENT';
+    if (step.visitedNodes[index]) return 'VISITED';
+    if (step.queueNodes[index]) return 'IN_QUEUE';
+    return 'UNVISITED';
+  }
+
+  function getEdgeState(edgeIndex) {
+    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return 'NORMAL';
+    var step = steps[currentStepIndex];
+    if (step.highlightedEdges[edgeIndex]) return 'HIGHLIGHTED';
+    if (step.shortestPathEdges[edgeIndex]) return 'SHORTEST';
+    return 'NORMAL';
+  }
+
+  function renderEdges() {
+    edgesGroup.innerHTML = '';
+    for (var i = 0; i < edges.length; i++) {
+      var e = edges[i];
+      var n1 = nodes[e.from];
+      var n2 = nodes[e.to];
+      var state = getEdgeState(i);
+
+      var color = COLORS.EDGE_NORMAL;
+      var strokeWidth = 2;
+      var markerEnd = '';
+      if (state === 'HIGHLIGHTED') {
+        color = COLORS.EDGE_HIGHLIGHTED;
+        strokeWidth = 3;
+      } else if (state === 'SHORTEST') {
+        color = COLORS.EDGE_SHORTEST;
+        strokeWidth = 3;
+      }
+
+      // Edge line
+      var line = createSVGElement('line');
+      line.setAttribute('x1', n1.x);
+      line.setAttribute('y1', n1.y);
+      line.setAttribute('x2', n2.x);
+      line.setAttribute('y2', n2.y);
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', strokeWidth);
+      line.setAttribute('class', 'edge-line');
+
+      if (isDirected) {
+        if (state === 'HIGHLIGHTED') {
+          line.setAttribute('marker-end', 'url(#arrow-highlighted)');
+        } else if (state === 'SHORTEST') {
+          line.setAttribute('marker-end', 'url(#arrow-shortest)');
+        } else {
+          line.setAttribute('marker-end', 'url(#arrow-normal)');
+        }
+      }
+
+      edgesGroup.appendChild(line);
+
+      // Weight label
+      var mx = (n1.x + n2.x) / 2;
+      var my = (n1.y + n2.y) / 2;
+
+      // Offset perpendicular to edge for readability
+      var dx = n2.x - n1.x;
+      var dy = n2.y - n1.y;
+      var len = Math.sqrt(dx * dx + dy * dy) || 1;
+      var offsetX = -dy / len * 12;
+      var offsetY = dx / len * 12;
+
+      var bgRect = createSVGElement('rect');
+      bgRect.setAttribute('x', mx + offsetX - 10);
+      bgRect.setAttribute('y', my + offsetY - 9);
+      bgRect.setAttribute('width', 20);
+      bgRect.setAttribute('height', 18);
+      bgRect.setAttribute('rx', 3);
+      bgRect.setAttribute('class', 'edge-weight-bg');
+      edgesGroup.appendChild(bgRect);
+
+      var text = createSVGElement('text');
+      text.setAttribute('x', mx + offsetX);
+      text.setAttribute('y', my + offsetY + 4);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('class', 'edge-weight-text');
+      text.setAttribute('fill', color);
+      text.textContent = e.weight;
+      text.setAttribute('data-edge-index', i);
+      edgesGroup.appendChild(text);
+    }
+  }
+
+  function renderNodes() {
+    nodesGroup.innerHTML = '';
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var state = getNodeState(i);
+      var colors = COLORS[state];
+
+      // Source ring
+      if (i === sourceNode) {
+        var ring = createSVGElement('circle');
+        ring.setAttribute('cx', n.x);
+        ring.setAttribute('cy', n.y);
+        ring.setAttribute('r', 25);
+        ring.setAttribute('class', 'node-source-ring');
+        nodesGroup.appendChild(ring);
+      }
+
+      // Target ring
+      if (i === targetNode) {
+        var ring = createSVGElement('circle');
+        ring.setAttribute('cx', n.x);
+        ring.setAttribute('cy', n.y);
+        ring.setAttribute('r', 27);
+        ring.setAttribute('class', 'node-target-ring');
+        nodesGroup.appendChild(ring);
+      }
+
+      // Node circle
+      var circle = createSVGElement('circle');
+      circle.setAttribute('cx', n.x);
+      circle.setAttribute('cy', n.y);
+      circle.setAttribute('r', 20);
+      circle.setAttribute('fill', colors.fill);
+      circle.setAttribute('stroke', colors.stroke);
+      circle.setAttribute('class', 'node-circle');
+      circle.setAttribute('data-node-index', i);
+      nodesGroup.appendChild(circle);
+
+      // Label
+      var label = createSVGElement('text');
+      label.setAttribute('x', n.x);
+      label.setAttribute('y', n.y + 5);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', '#ffffff');
+      label.setAttribute('class', 'node-label');
+      label.textContent = n.label;
+      nodesGroup.appendChild(label);
+    }
+  }
+
+  function renderTable() {
+    distTbody.innerHTML = '';
+
+    var step = (currentStepIndex >= 0 && currentStepIndex < steps.length) ? steps[currentStepIndex] : null;
+    var nodeIndices = [];
+    for (var i = 0; i < nodes.length; i++) nodeIndices.push(i);
+
+    if (sortByQueue && step) {
+      // Sort: current first, then in-queue by distance, then unvisited, then visited
+      nodeIndices.sort(function(a, b) {
+        var stateA = getNodeSortPriority(a, step);
+        var stateB = getNodeSortPriority(b, step);
+        if (stateA !== stateB) return stateA - stateB;
+        var dA = step.distances[a];
+        var dB = step.distances[b];
+        if (dA === Infinity && dB === Infinity) return 0;
+        if (dA === Infinity) return 1;
+        if (dB === Infinity) return -1;
+        return dA - dB;
+      });
+    }
+
+    var currentNodeLabel = null;
+
+    for (var idx = 0; idx < nodeIndices.length; idx++) {
+      var i = nodeIndices[idx];
+      var n = nodes[i];
+      var state = getNodeState(i);
+      var stateClass = 'state-' + state.toLowerCase().replace('_', '-');
+
+      var tr = document.createElement('tr');
+      tr.className = stateClass;
+      tr.setAttribute('data-node-index', i);
+
+      if (state === 'CURRENT') currentNodeLabel = tr;
+
+      // Node cell
+      var tdNode = document.createElement('td');
+      var indicator = document.createElement('span');
+      indicator.className = 'node-indicator';
+      indicator.style.backgroundColor = COLORS[state].fill;
+      tdNode.appendChild(indicator);
+      tdNode.appendChild(document.createTextNode(n.label));
+      if (i === sourceNode) {
+        var srcBadge = document.createElement('span');
+        srcBadge.style.cssText = 'margin-left:4px;font-size:10px;color:#ef4444;font-weight:700;';
+        srcBadge.textContent = '(Q)';
+        tdNode.appendChild(srcBadge);
+      }
+      if (i === targetNode) {
+        var tgtBadge = document.createElement('span');
+        tgtBadge.style.cssText = 'margin-left:4px;font-size:10px;color:#8b5cf6;font-weight:700;';
+        tgtBadge.textContent = '(Z)';
+        tdNode.appendChild(tgtBadge);
+      }
+      tr.appendChild(tdNode);
+
+      // Distance cell
+      var tdDist = document.createElement('td');
+      if (step) {
+        var d = step.distances[i];
+        tdDist.textContent = (d === Infinity) ? '\u221e' : d;
+      } else {
+        tdDist.textContent = '\u2013';
+      }
+      tr.appendChild(tdDist);
+
+      // Previous cell
+      var tdPrev = document.createElement('td');
+      if (step && step.previousNodes[i] !== null) {
+        tdPrev.textContent = nodes[step.previousNodes[i]].label;
+      } else {
+        tdPrev.textContent = '\u2013';
+      }
+      tr.appendChild(tdPrev);
+
+      distTbody.appendChild(tr);
+    }
+
+    // Auto-scroll to current node
+    if (currentNodeLabel) {
+      setTimeout(function() {
+        currentNodeLabel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 50);
+    }
+  }
+
+  function getNodeSortPriority(index, step) {
+    if (step.currentNode === index) return 0;
+    if (step.queueNodes[index]) return 1;
+    if (!step.visitedNodes[index] && !step.queueNodes[index]) return 2;
+    return 3; // visited
+  }
+
+  function updateDescription() {
+    if (currentStepIndex >= 0 && currentStepIndex < steps.length) {
+      descBar.textContent = steps[currentStepIndex].description;
+    } else if (sourceNode !== null) {
+      descBar.textContent = 'Bereit. Dr\u00fccke Play oder Schritt vor, um den Algorithmus zu starten.';
+    } else {
+      descBar.textContent = 'Klicke auf einen Knoten, um ihn als Quelle zu setzen. Strg+Klick setzt das Ziel.';
+    }
+  }
+
+  function updateStepDisplay() {
+    var current = currentStepIndex >= 0 ? (currentStepIndex + 1) : 0;
+    var total = steps.length;
+    stepDisplay.textContent = 'Schritt ' + current + ' / ' + total;
+  }
+
+  function updatePlayButton() {
+    btnPlay.innerHTML = isPlaying ? '&#9646;&#9646;' : '&#9654;';
+    btnPlay.title = isPlaying ? 'Pause' : 'Abspielen';
+    if (isPlaying) {
+      btnPlay.classList.add('active');
+    } else {
+      btnPlay.classList.remove('active');
+    }
+
+    btnStepBack.disabled = currentStepIndex <= 0;
+    btnStepFwd.disabled = currentStepIndex >= steps.length - 1;
+  }
+
+  // --- Step Navigation ---
+  function stepForward() {
+    if (currentStepIndex < steps.length - 1) {
+      currentStepIndex++;
+      render();
+    } else {
+      stopPlaying();
+    }
+  }
+
+  function stepBackward() {
+    if (currentStepIndex > 0) {
+      currentStepIndex--;
+      render();
+    }
+  }
+
+  function resetToStart() {
+    stopPlaying();
+    currentStepIndex = -1;
+    render();
+  }
+
+  function startPlaying() {
+    if (steps.length === 0) return;
+    if (currentStepIndex >= steps.length - 1) {
+      currentStepIndex = -1;
+    }
+    isPlaying = true;
+    updatePlayButton();
+    playInterval = setInterval(function() {
+      if (currentStepIndex >= steps.length - 1) {
+        stopPlaying();
+        return;
+      }
+      stepForward();
+    }, speed);
+  }
+
+  function stopPlaying() {
+    isPlaying = false;
+    if (playInterval) {
+      clearInterval(playInterval);
+      playInterval = null;
+    }
+    updatePlayButton();
+  }
+
+  function togglePlay() {
+    if (isPlaying) {
+      stopPlaying();
+    } else {
+      startPlaying();
+    }
+  }
+
+  // --- Mouse / Touch Interaction ---
+  function svgPoint(clientX, clientY) {
+    // Convert client coords to SVG coords (accounting for pan/zoom)
+    var rect = svg.getBoundingClientRect();
+    var x = (clientX - rect.left - panX) / zoom;
+    var y = (clientY - rect.top - panY) / zoom;
+    return { x: x, y: y };
+  }
+
+  function findNodeAt(svgX, svgY) {
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      var dx = svgX - nodes[i].x;
+      var dy = svgY - nodes[i].y;
+      if (dx * dx + dy * dy <= 20 * 20) return i;
+    }
+    return -1;
+  }
+
+  // Mouse down on SVG
+  svg.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
+    var pt = svgPoint(e.clientX, e.clientY);
+    var nodeIdx = findNodeAt(pt.x, pt.y);
+
+    if (nodeIdx >= 0) {
+      if (e.ctrlKey || e.metaKey) {
+        // Set target
+        targetNode = (targetNode === nodeIdx) ? null : nodeIdx;
+        resetAlgorithm();
+        render();
+        return;
+      }
+
+      // Check if it's a simple click (set source) or drag start
+      draggingNodeIndex = nodeIdx;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragNodeStartX = nodes[nodeIdx].x;
+      dragNodeStartY = nodes[nodeIdx].y;
+      svg.classList.add('dragging-node');
+    } else {
+      // Pan
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panStartPanX = panX;
+      panStartPanY = panY;
+      svg.classList.add('panning');
+    }
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (draggingNodeIndex >= 0) {
+      var dx = e.clientX - dragStartX;
+      var dy = e.clientY - dragStartY;
+      nodes[draggingNodeIndex].x = dragNodeStartX + dx / zoom;
+      nodes[draggingNodeIndex].y = dragNodeStartY + dy / zoom;
+      renderEdges();
+      renderNodes();
+    } else if (isPanning) {
+      panX = panStartPanX + (e.clientX - panStartX);
+      panY = panStartPanY + (e.clientY - panStartY);
+      updateTransform();
+    }
+  });
+
+  window.addEventListener('mouseup', function(e) {
+    if (draggingNodeIndex >= 0) {
+      var dx = Math.abs(e.clientX - dragStartX);
+      var dy = Math.abs(e.clientY - dragStartY);
+      if (dx < 4 && dy < 4) {
+        // It was a click, not a drag - set as source
+        sourceNode = draggingNodeIndex;
+        resetAlgorithm();
+        render();
+      }
+      draggingNodeIndex = -1;
+      svg.classList.remove('dragging-node');
+    }
+    if (isPanning) {
+      isPanning = false;
+      svg.classList.remove('panning');
+    }
+  });
+
+  // Zoom with scroll wheel
+  svg.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var rect = svg.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseY = e.clientY - rect.top;
+
+    var oldZoom = zoom;
+    var delta = e.deltaY > 0 ? 0.9 : 1.1;
+    zoom = Math.max(0.25, Math.min(4, zoom * delta));
+
+    // Adjust pan so zoom centers on mouse
+    panX = mouseX - (mouseX - panX) * (zoom / oldZoom);
+    panY = mouseY - (mouseY - panY) * (zoom / oldZoom);
+    updateTransform();
+  }, { passive: false });
+
+  // Touch support
+  svg.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      var touch = e.touches[0];
+      var pt = svgPoint(touch.clientX, touch.clientY);
+      var nodeIdx = findNodeAt(pt.x, pt.y);
+
+      if (nodeIdx >= 0) {
+        draggingNodeIndex = nodeIdx;
+        dragStartX = touch.clientX;
+        dragStartY = touch.clientY;
+        dragNodeStartX = nodes[nodeIdx].x;
+        dragNodeStartY = nodes[nodeIdx].y;
+      } else {
+        touchMode = 'pan';
+        panStartX = touch.clientX;
+        panStartY = touch.clientY;
+        panStartPanX = panX;
+        panStartPanY = panY;
+      }
+    } else if (e.touches.length === 2) {
+      touchMode = 'pinch';
+      draggingNodeIndex = -1;
+      var t1 = e.touches[0];
+      var t2 = e.touches[1];
+      lastTouchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      lastTouchCenter = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      };
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  svg.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 1 && draggingNodeIndex >= 0) {
+      var touch = e.touches[0];
+      var dx = touch.clientX - dragStartX;
+      var dy = touch.clientY - dragStartY;
+      nodes[draggingNodeIndex].x = dragNodeStartX + dx / zoom;
+      nodes[draggingNodeIndex].y = dragNodeStartY + dy / zoom;
+      renderEdges();
+      renderNodes();
+    } else if (e.touches.length === 1 && touchMode === 'pan') {
+      var touch = e.touches[0];
+      panX = panStartPanX + (touch.clientX - panStartX);
+      panY = panStartPanY + (touch.clientY - panStartY);
+      updateTransform();
+    } else if (e.touches.length === 2 && touchMode === 'pinch') {
+      var t1 = e.touches[0];
+      var t2 = e.touches[1];
+      var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      var center = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      };
+      var rect = svg.getBoundingClientRect();
+
+      var scale = dist / lastTouchDist;
+      var oldZoom = zoom;
+      zoom = Math.max(0.25, Math.min(4, zoom * scale));
+
+      var cx = center.x - rect.left;
+      var cy = center.y - rect.top;
+      panX = cx - (cx - panX) * (zoom / oldZoom);
+      panY = cy - (cy - panY) * (zoom / oldZoom);
+
+      // Also handle pan from center movement
+      panX += center.x - lastTouchCenter.x;
+      panY += center.y - lastTouchCenter.y;
+
+      lastTouchDist = dist;
+      lastTouchCenter = center;
+      updateTransform();
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  svg.addEventListener('touchend', function(e) {
+    if (draggingNodeIndex >= 0 && e.changedTouches.length > 0) {
+      var touch = e.changedTouches[0];
+      var dx = Math.abs(touch.clientX - dragStartX);
+      var dy = Math.abs(touch.clientY - dragStartY);
+      if (dx < 10 && dy < 10) {
+        sourceNode = draggingNodeIndex;
+        resetAlgorithm();
+        render();
+      }
+      draggingNodeIndex = -1;
+    }
+    if (e.touches.length === 0) {
+      touchMode = null;
+    }
+  });
+
+  // Edge weight editing
+  svg.addEventListener('click', function(e) {
+    var target = e.target;
+    if (target.classList && target.classList.contains('edge-weight-text')) {
+      var edgeIndex = parseInt(target.getAttribute('data-edge-index'));
+      showEdgeWeightInput(edgeIndex, target);
+    }
+  });
+
+  function showEdgeWeightInput(edgeIndex, textEl) {
+    var edge = edges[edgeIndex];
+    var rect = textEl.getBoundingClientRect();
+    var canvasRect = canvasPanel.getBoundingClientRect();
+
+    edgeWeightInput.style.display = 'block';
+    edgeWeightInput.style.left = (rect.left - canvasRect.left - 8) + 'px';
+    edgeWeightInput.style.top = (rect.top - canvasRect.top - 4) + 'px';
+    edgeWeightInput.value = edge.weight;
+    edgeWeightInput.setAttribute('data-edge-index', edgeIndex);
+    edgeWeightInput.focus();
+    edgeWeightInput.select();
+  }
+
+  edgeWeightInput.addEventListener('blur', function() {
+    commitEdgeWeight();
+  });
+
+  edgeWeightInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      commitEdgeWeight();
+    } else if (e.key === 'Escape') {
+      edgeWeightInput.style.display = 'none';
+    }
+  });
+
+  function commitEdgeWeight() {
+    var idx = parseInt(edgeWeightInput.getAttribute('data-edge-index'));
+    var val = parseInt(edgeWeightInput.value);
+    if (!isNaN(val) && val >= 1 && val <= 99) {
+      edges[idx].weight = val;
+      resetAlgorithm();
+      render();
+    }
+    edgeWeightInput.style.display = 'none';
+  }
+
+  // --- Divider Resizing ---
+  divider.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    isDividerDragging = true;
+    dividerStartX = e.clientX;
+    tablePanelStartWidth = tablePanel.offsetWidth;
+    divider.classList.add('dragging');
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!isDividerDragging) return;
+    var dx = dividerStartX - e.clientX;
+    var newWidth = tablePanelStartWidth + dx;
+    newWidth = Math.max(180, Math.min(600, newWidth));
+    tablePanel.style.width = newWidth + 'px';
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (isDividerDragging) {
+      isDividerDragging = false;
+      divider.classList.remove('dragging');
+    }
+  });
+
+  // --- Button Handlers ---
+  btnReset.addEventListener('click', resetToStart);
+  btnStepBack.addEventListener('click', stepBackward);
+  btnPlay.addEventListener('click', togglePlay);
+  btnStepFwd.addEventListener('click', stepForward);
+
+  speedSlider.addEventListener('input', function() {
+    speed = parseInt(speedSlider.value);
+    if (isPlaying) {
+      stopPlaying();
+      startPlaying();
+    }
+  });
+
+  nodeCountInput.addEventListener('change', function() {
+    var val = parseInt(nodeCountInput.value);
+    if (!isNaN(val) && val >= 3 && val <= 200) {
+      nodeCount = val;
+      nodeCountSlider.value = Math.min(val, 30);
+      generateGraph();
+    }
+  });
+
+  nodeCountSlider.addEventListener('input', function() {
+    nodeCount = parseInt(nodeCountSlider.value);
+    nodeCountInput.value = nodeCount;
+    generateGraph();
+  });
+
+  btnDirected.addEventListener('click', function() {
+    isDirected = !isDirected;
+    btnDirected.textContent = isDirected ? 'Gerichtet' : 'Ungerichtet';
+    if (isDirected) {
+      btnDirected.classList.add('active');
+    } else {
+      btnDirected.classList.remove('active');
+    }
+    resetAlgorithm();
+    render();
+  });
+
+  btnRegenerate.addEventListener('click', function() {
+    generateGraph();
+  });
+
+  btnFullscreen.addEventListener('click', function() {
+    isFullscreen = !isFullscreen;
+    if (isFullscreen) {
+      root.classList.add('fullscreen');
+      btnFullscreen.innerHTML = '&#x2716;';
+    } else {
+      root.classList.remove('fullscreen');
+      btnFullscreen.innerHTML = '&#x26F6;';
+    }
+  });
+
+  btnSortToggle.addEventListener('click', function() {
+    sortByQueue = !sortByQueue;
+    btnSortToggle.textContent = sortByQueue ? 'Priorit\u00e4t' : 'A-Z';
+    renderTable();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === ' ' || e.key === 'k') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowRight' || e.key === 'l') {
+      e.preventDefault();
+      stepForward();
+    } else if (e.key === 'ArrowLeft' || e.key === 'h') {
+      e.preventDefault();
+      stepBackward();
+    } else if (e.key === 'r') {
+      resetToStart();
+    }
+  });
+
+  // --- Theme ---
+  function applyTheme(theme) {
+    currentTheme = theme;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    // Update edge weight bg rects
+    var bgRects = edgesGroup.querySelectorAll('.edge-weight-bg');
+    for (var i = 0; i < bgRects.length; i++) {
+      bgRects[i].setAttribute('fill', theme === 'dark' ? '#0f172a' : '#ffffff');
+    }
+  }
+
+  // --- Plugin Init ---
+  var plugin = eduskript.init();
+
+  plugin.onReady(function(ctx) {
+    var config = ctx.config || {};
+
+    // Read config
+    var initCount = parseInt(config.initialnodecount);
+    if (!isNaN(initCount) && initCount >= 3 && initCount <= 200) {
+      nodeCount = initCount;
+    }
+
+    if (config.initialdirected === 'true' || config.initialdirected === true) {
+      isDirected = true;
+      btnDirected.textContent = 'Gerichtet';
+      btnDirected.classList.add('active');
+    }
+
+    nodeCountInput.value = nodeCount;
+    nodeCountSlider.value = Math.min(nodeCount, 30);
+
+    applyTheme(ctx.theme || 'light');
+
+    // Generate initial graph after a short delay to ensure SVG is sized
+    setTimeout(function() {
+      generateGraph();
+    }, 50);
+  });
+
+  plugin.onThemeChange(function(theme) {
+    applyTheme(theme);
+    render();
+  });
+
+  // Handle window resize
+  window.addEventListener('resize', function() {
+    // No regeneration needed - SVG scales, nodes keep absolute positions
+  });
+})();
+</script>

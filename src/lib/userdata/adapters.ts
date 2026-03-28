@@ -303,6 +303,38 @@ export const stickyNotesAdapter: DataAdapter<StickyNotesData> = {
 }
 
 /**
+ * Plugin data adapter
+ * Stores opaque plugin state — the host never interprets it, just persists and relays.
+ * Last-write-wins merge since plugins define their own data semantics.
+ */
+export interface PluginData {
+  /** Opaque state defined by the plugin */
+  state: unknown
+  /** Timestamp for last-write-wins merge */
+  updatedAt: number
+}
+
+export const pluginAdapter: DataAdapter<PluginData> = {
+  key: 'plugin',
+
+  serialize: (data) => JSON.stringify(data),
+
+  deserialize: (raw) => JSON.parse(raw) as PluginData,
+
+  merge: (local, remote) => {
+    // Last-write-wins by timestamp
+    return (local.updatedAt || 0) >= (remote.updatedAt || 0) ? local : remote
+  },
+
+  validate: (data) => {
+    if (!data || typeof data !== 'object') return false
+    const serialized = JSON.stringify(data.state)
+    // 1MB size cap
+    return serialized.length < 1_000_000
+  },
+}
+
+/**
  * Registry of all adapters by key
  */
 export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
@@ -314,6 +346,7 @@ export const adapterRegistry: Record<string, DataAdapter<unknown>> = {
   spacers: spacersAdapter as DataAdapter<unknown>,
   'text-highlights': textHighlightsAdapter as DataAdapter<unknown>,
   'sticky-notes': stickyNotesAdapter as DataAdapter<unknown>,
+  plugin: pluginAdapter as DataAdapter<unknown>,
 }
 
 /**

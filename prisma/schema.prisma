@@ -170,6 +170,9 @@ model User {
   // Uploaded videos
   uploadedVideos Video[] @relation("UploadedVideos")
 
+  // Plugins
+  plugins Plugin[]
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -971,4 +974,24 @@ model Subscription {
   @@index([status])
   @@index([payrexxSubId])
   @@map("subscriptions")
+}
+
+/// Teacher-created plugins rendered in sandboxed iframes within markdown content.
+/// All plugins are globally visible — teachers reference them as ownerPageSlug/pluginSlug.
+model Plugin {
+  id          String   @id @default(cuid())
+  slug        String   // Plugin slug (unique per author)
+  name        String   // Display name
+  description String?  @db.Text
+  version     String   @default("1.0.0")
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  manifest    Json     // configSchema, defaultHeight, allowedCDNs, etc.
+  entryHtml   String   @db.Text // Self-contained HTML (rendered in sandboxed iframe)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([authorId, slug])
+  @@index([authorId])
+  @@map("plugins")
 }

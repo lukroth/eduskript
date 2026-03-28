@@ -1,0 +1,88 @@
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; padding: 0; margin: 0; }
+  .container { padding: 16px; border-radius: 12px; transition: background-color 0.3s; }
+  .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .label { padding: 4px 8px; border-radius: 4px; color: white; font-family: monospace; font-size: 13px; min-width: 2.5em; text-align: center; font-weight: bold; }
+  .label-r { background: #ef4444; }
+  .label-g { background: #22c55e; }
+  .label-b { background: #3b82f6; }
+  input[type=range] { flex: 1; height: 6px; cursor: pointer; }
+  input[type=range].r { accent-color: #ef4444; }
+  input[type=range].g { accent-color: #22c55e; }
+  input[type=range].b { accent-color: #3b82f6; }
+  .value { padding: 4px 8px; border-radius: 4px; color: white; font-family: monospace; font-size: 13px; min-width: 3em; text-align: center; }
+  .value-r { background: #ef4444; }
+  .value-g { background: #22c55e; }
+  .value-b { background: #3b82f6; }
+  .hex-badge { padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 13px; min-width: 3em; text-align: center; }
+  .hex-r { background: rgba(239,68,68,0.3); }
+  .hex-g { background: rgba(34,197,94,0.3); }
+  .hex-b { background: rgba(59,130,246,0.3); }
+  .hex-output { display: flex; justify-content: center; padding-top: 8px; }
+  .hex-output span { font-size: 24px; padding: 8px 16px; border-radius: 8px; font-family: monospace; letter-spacing: 2px; }
+</style>
+
+<div class="container" id="container">
+  <div class="slider-row">
+    <span class="label label-r">R</span>
+    <input type="range" min="0" max="255" value="52" class="r" id="r-slider">
+    <span class="value value-r" id="r-val">52</span>
+    <span class="hex-badge hex-r" id="r-hex">34</span>
+  </div>
+  <div class="slider-row">
+    <span class="label label-g">G</span>
+    <input type="range" min="0" max="255" value="52" class="g" id="g-slider">
+    <span class="value value-g" id="g-val">52</span>
+    <span class="hex-badge hex-g" id="g-hex">34</span>
+  </div>
+  <div class="slider-row">
+    <span class="label label-b">B</span>
+    <input type="range" min="0" max="255" value="172" class="b" id="b-slider">
+    <span class="value value-b" id="b-val">172</span>
+    <span class="hex-badge hex-b" id="b-hex">AC</span>
+  </div>
+  <div class="hex-output">
+    <span id="hex-display">#3434AC</span>
+  </div>
+</div>
+
+<script>
+  var plugin = eduskript.init();
+  var r = 52, g = 52, b = 172;
+  var isDark = false;
+
+  function padHex(n) { var h = n.toString(16).toUpperCase(); return h.length < 2 ? '0' + h : h; }
+
+  function update() {
+    var hex = '#' + padHex(r) + padHex(g) + padHex(b);
+    document.getElementById('container').style.backgroundColor = hex;
+    document.getElementById('r-val').textContent = r;
+    document.getElementById('g-val').textContent = g;
+    document.getElementById('b-val').textContent = b;
+    document.getElementById('r-hex').textContent = padHex(r);
+    document.getElementById('g-hex').textContent = padHex(g);
+    document.getElementById('b-hex').textContent = padHex(b);
+    var display = document.getElementById('hex-display');
+    display.textContent = hex;
+    display.style.background = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+    display.style.color = isDark ? '#e0e0e0' : '#222';
+  }
+
+  function applyTheme(theme) {
+    isDark = theme === 'dark';
+    document.body.style.background = 'transparent';
+    update();
+  }
+
+  document.getElementById('r-slider').addEventListener('input', function(e) { r = parseInt(e.target.value); update(); });
+  document.getElementById('g-slider').addEventListener('input', function(e) { g = parseInt(e.target.value); update(); });
+  document.getElementById('b-slider').addEventListener('input', function(e) { b = parseInt(e.target.value); update(); });
+
+  plugin.onReady(function(ctx) {
+    applyTheme(ctx.theme);
+  });
+  plugin.onThemeChange(function(theme) { applyTheme(theme); });
+
+  update();
+</script>

@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTheme } from 'next-themes'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus, CircleHelp, TextQuote } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus, CircleHelp, TextQuote, Puzzle } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sketch } from '@uiw/react-color'
 import { ExcalidrawEditor } from './excalidraw-editor'
+import { PluginPicker } from './plugin-picker'
 import { InteractivePreview } from './interactive-preview'
 import type { EditorView } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
@@ -58,6 +60,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   onExcalidrawEdit: onExcalidrawEditProp,
   onAIEdit
 }: CodeMirrorEditorProps) {
+  const { data: session } = useSession()
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -76,6 +79,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
   const [excalidrawOpen, setExcalidrawOpen] = useState(false)
+  const [pluginPickerOpen, setPluginPickerOpen] = useState(false)
   const [excalidrawInitialData, setExcalidrawInitialData] = useState<{
     name: string
     elements: readonly unknown[]
@@ -934,6 +938,34 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   }
 
+  // Insert plugin from picker
+  const insertPlugin = (pluginSrc: string, configHint: string) => {
+    const pluginTag = `<plugin src="${pluginSrc}"${configHint}></plugin>\n`
+
+    if (editorViewRef.current && !useSimpleEditor) {
+      const view = editorViewRef.current
+      const insertPos = view.state.selection.main.head
+      const transaction = view.state.update({
+        changes: { from: insertPos, insert: pluginTag },
+        selection: { anchor: insertPos + pluginTag.length },
+      })
+      view.dispatch(transaction)
+      onChange(view.state.doc.toString())
+    } else if (useSimpleEditor) {
+      const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+      if (textarea) {
+        const start = textarea.selectionStart
+        const newContent = textareaContent.substring(0, start) + pluginTag + textareaContent.substring(start)
+        setTextareaContent(newContent)
+        onChange(newContent)
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + pluginTag.length
+          textarea.focus()
+        }, 0)
+      }
+    }
+  }
+
   // Handle Excalidraw save
   const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
     if (!skriptId) {
@@ -1608,6 +1640,15 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 <Pencil className="w-4 h-4" />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPluginPickerOpen(true)}
+              className="w-8 h-8 p-0 border rounded-md"
+              title="Insert Plugin"
+            >
+              <Puzzle className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* Font size controls */}
@@ -1794,6 +1835,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           />
         </PopoverContent>
       </Popover>
+
+      {/* Plugin Picker */}
+      <PluginPicker
+        open={pluginPickerOpen}
+        onOpenChange={setPluginPickerOpen}
+        onSelect={insertPlugin}
+        userId={session?.user?.id}
+      />
 
       <AlertDialogModal
         open={alert.open}

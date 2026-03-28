@@ -1,0 +1,336 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .dcv { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 8px; font-family: system-ui, sans-serif; transition: background 0.2s, color 0.2s; }
+  .dcv-sliders { display: flex; flex-direction: column; gap: 12px; }
+  .dcv-slider { display: flex; align-items: center; gap: 12px; }
+  .dcv-slider label { font-size: 14px; font-weight: 500; min-width: 100px; }
+  .dcv-slider label span { font-family: monospace; }
+  .dcv-slider input[type=range] { flex: 1; accent-color: #3b82f6; cursor: pointer; }
+  .dcv-panels { display: flex; flex-wrap: wrap; gap: 16px; align-items: start; justify-content: center; }
+  .dcv-panel { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .dcv-panel-frame { width: 216px; height: 144px; border: 2px solid; border-radius: 4px; overflow: hidden; }
+  .dcv-panel-frame img, .dcv-panel-frame canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .dcv-panel-label { font-size: 13px; }
+  .dcv-cube-frame { border: 2px solid; border-radius: 4px; }
+  .dcv-cube-frame canvas { display: block; }
+</style>
+
+<div class="dcv" id="dcv">
+  <div class="dcv-sliders">
+    <div class="dcv-slider">
+      <label>Breite: <span id="w-val">18</span> Pixel</label>
+      <input type="range" id="w-slider" min="1" max="64" value="18">
+    </div>
+    <div class="dcv-slider">
+      <label>Höhe: <span id="h-val">12</span> Pixel</label>
+      <input type="range" id="h-slider" min="1" max="64" value="12">
+    </div>
+    <div class="dcv-slider">
+      <label>Farbtiefe: <span id="d-val">2</span> Bit pro Farbkanal</label>
+      <input type="range" id="d-slider" min="1" max="8" value="2">
+    </div>
+  </div>
+  <div class="dcv-panels">
+    <div class="dcv-panel">
+      <div class="dcv-panel-frame"><img id="original-img" alt="Original"></div>
+      <div class="dcv-panel-label">Original</div>
+    </div>
+    <div class="dcv-panel">
+      <div class="dcv-panel-frame"><canvas id="quantized-canvas" width="216" height="144"></canvas></div>
+      <div class="dcv-panel-label" id="quantized-label">Quantisiert</div>
+    </div>
+    <div class="dcv-panel">
+      <div class="dcv-cube-frame" id="cube-container"></div>
+      <div class="dcv-panel-label">Daten-Würfel (3D)</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// Smiley face demo image (base64 PNG from original component)
+var DEFAULT_IMAGE = 'data:image/png;base64,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';
+
+var plugin = eduskript.init();
+var scene, camera, renderer, controls, animFrameId;
+var cubeContainer = document.getElementById('cube-container');
+var originalImg = document.getElementById('original-img');
+var quantizedCanvas = document.getElementById('quantized-canvas');
+var quantizedLabel = document.getElementById('quantized-label');
+var wSlider = document.getElementById('w-slider');
+var hSlider = document.getElementById('h-slider');
+var dSlider = document.getElementById('d-slider');
+var wVal = document.getElementById('w-val');
+var hVal = document.getElementById('h-val');
+var dVal = document.getElementById('d-val');
+
+var imgWidth = 18, imgHeight = 12, colorDepth = 2;
+var loadedImage = null;
+
+// --- Image processing (matches original exactly) ---
+function quantizeColor(value, bits) {
+  if (bits >= 8) return value;
+  var levels = Math.pow(2, bits);
+  var step = 255 / (levels - 1);
+  return Math.round(Math.round(value / step) * step);
+}
+
+function quantizeImageDataInPlace(data, bits) {
+  if (bits >= 8) return;
+  for (var i = 0; i < data.length; i += 4) {
+    data[i]     = quantizeColor(data[i], bits);
+    data[i + 1] = quantizeColor(data[i + 1], bits);
+    data[i + 2] = quantizeColor(data[i + 2], bits);
+  }
+}
+
+// --- Load demo image ---
+function loadDemoImage() {
+  var img = new Image();
+  img.onload = function() {
+    loadedImage = img;
+    originalImg.src = img.src;
+    update();
+  };
+  img.onerror = function() {
+    // Fallback test pattern
+    var c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    var ctx = c.getContext('2d');
+    for (var y = 0; y < 64; y++) {
+      for (var x = 0; x < 64; x++) {
+        ctx.fillStyle = 'rgb(' + (x*4) + ',' + (y*4) + ',' + ((x+y)*2) + ')';
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    var fallback = new Image();
+    fallback.onload = function() { loadedImage = fallback; originalImg.src = fallback.src; update(); };
+    fallback.src = c.toDataURL();
+  };
+  img.src = DEFAULT_IMAGE;
+}
+
+// --- Update 2D quantized preview ---
+function updateQuantizedPreview() {
+  if (!loadedImage) return;
+  var offscreen = document.createElement('canvas');
+  offscreen.width = imgWidth;
+  offscreen.height = imgHeight;
+  var offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+  offCtx.imageSmoothingEnabled = false;
+  offCtx.drawImage(loadedImage, 0, 0, imgWidth, imgHeight);
+
+  if (colorDepth < 8) {
+    var imgData = offCtx.getImageData(0, 0, imgWidth, imgHeight);
+    quantizeImageDataInPlace(imgData.data, colorDepth);
+    offCtx.putImageData(imgData, 0, 0);
+  }
+
+  var ctx = quantizedCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 216, 144);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(offscreen, 0, 0, imgWidth, imgHeight, 0, 0, 216, 144);
+
+  var totalColors = Math.pow(Math.pow(2, colorDepth), 3);
+  quantizedLabel.textContent = 'Quantisiert (' + imgWidth + '×' + imgHeight + ', ' + colorDepth + ' Bit, ' + totalColors + ' Farben)';
+}
+
+// --- Three.js scene ---
+function initThree() {
+  var size = 400;
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x171717);
+
+  camera = new THREE.PerspectiveCamera(35, 1, 1, 100);
+  camera.position.set(-15, 15, -15);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(size, size);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  cubeContainer.appendChild(renderer.domElement);
+
+  var dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(1, 1, 1).normalize();
+  scene.add(dirLight);
+  scene.add(new THREE.AmbientLight(0x404040));
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  function animate() {
+    animFrameId = requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// --- Build 3D cube (matches original: width × height × colorDepth*3) ---
+function buildCube() {
+  // Remove existing meshes and edges (keep lights)
+  var toRemove = scene.children.filter(function(c) {
+    return c instanceof THREE.Mesh || c.type === 'LineSegments';
+  });
+  toRemove.forEach(function(obj) {
+    if (obj instanceof THREE.Mesh) {
+      obj.geometry.dispose();
+      if (obj.material instanceof THREE.Material) obj.material.dispose();
+    }
+    scene.remove(obj);
+  });
+
+  var cubeSize = 0.5;
+  var cubeDistance = cubeSize + 0.1;
+  var geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+
+  // Color channel materials (matching original: MeshPhongMaterial)
+  var redMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+  var greenMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+  var blueMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+  var edgesMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 0.5 });
+
+  // Center offsets
+  var offsetX = (imgWidth * cubeDistance) / 2;
+  var offsetY = (colorDepth * 3 * cubeDistance) / 2;
+  var offsetZ = (imgHeight * cubeDistance) / 2;
+
+  for (var x = 0; x < imgWidth; x++) {
+    for (var y = 0; y < colorDepth * 3; y++) {
+      for (var z = 0; z < imgHeight; z++) {
+        var material;
+        if (y < colorDepth) {
+          material = blueMaterial;
+        } else if (y < colorDepth * 2) {
+          material = greenMaterial;
+        } else {
+          material = redMaterial;
+        }
+
+        var cube = new THREE.Mesh(geometry, material);
+        cube.position.set(
+          x * cubeDistance - offsetX,
+          y * cubeDistance - offsetY,
+          z * cubeDistance - offsetZ
+        );
+        scene.add(cube);
+
+        var edgesGeo = new THREE.EdgesGeometry(cube.geometry);
+        var edges = new THREE.LineSegments(edgesGeo, edgesMaterial);
+        edges.position.copy(cube.position);
+        scene.add(edges);
+      }
+    }
+  }
+
+  // Add quantized image on top of cuboid
+  if (loadedImage) {
+    var offscreen = document.createElement('canvas');
+    offscreen.width = imgWidth;
+    offscreen.height = imgHeight;
+    var offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+    offCtx.imageSmoothingEnabled = false;
+    offCtx.drawImage(loadedImage, 0, 0, imgWidth, imgHeight);
+
+    if (colorDepth < 8) {
+      var imgData = offCtx.getImageData(0, 0, imgWidth, imgHeight);
+      quantizeImageDataInPlace(imgData.data, colorDepth);
+      offCtx.putImageData(imgData, 0, 0);
+    }
+
+    var texture = new THREE.CanvasTexture(offscreen);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+
+    var planeWidth = (imgWidth - 1) * cubeDistance + cubeSize;
+    var planeHeight = (imgHeight - 1) * cubeDistance + cubeSize;
+    var planeGeo = new THREE.PlaneGeometry(planeWidth, planeHeight);
+    var planeMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8
+    });
+    var plane = new THREE.Mesh(planeGeo, planeMat);
+
+    var topY = (colorDepth * 3 - 1) * cubeDistance - offsetY + cubeSize / 2 + 0.05;
+    var centerX = ((imgWidth - 1) * cubeDistance) / 2 - offsetX;
+    var centerZ = ((imgHeight - 1) * cubeDistance) / 2 - offsetZ;
+    plane.position.set(centerX, topY, centerZ);
+    plane.rotation.x = -Math.PI / 2;
+    plane.scale.x = -1;
+
+    scene.add(plane);
+  }
+}
+
+function update() {
+  buildCube();
+  updateQuantizedPreview();
+}
+
+// --- Slider events ---
+wSlider.addEventListener('input', function() {
+  imgWidth = parseInt(this.value);
+  wVal.textContent = imgWidth;
+  update();
+});
+hSlider.addEventListener('input', function() {
+  imgHeight = parseInt(this.value);
+  hVal.textContent = imgHeight;
+  update();
+});
+dSlider.addEventListener('input', function() {
+  colorDepth = parseInt(this.value);
+  dVal.textContent = colorDepth;
+  update();
+});
+
+// --- Init ---
+initThree();
+loadDemoImage();
+
+function applyTheme(theme) {
+  var isDark = theme === 'dark';
+  var root = document.getElementById('dcv');
+  root.style.background = isDark ? '#171717' : '#f5f5f5';
+  root.style.color = isDark ? '#fff' : '#1a1a1a';
+
+  var frames = document.querySelectorAll('.dcv-panel-frame, .dcv-cube-frame');
+  for (var i = 0; i < frames.length; i++) {
+    frames[i].style.borderColor = isDark ? '#525252' : '#d4d4d4';
+  }
+
+  var labels = document.querySelectorAll('.dcv-panel-label');
+  for (var j = 0; j < labels.length; j++) {
+    labels[j].style.color = isDark ? '#a3a3a3' : '#737373';
+  }
+
+  if (scene) {
+    scene.background = new THREE.Color(isDark ? 0x171717 : 0xfafafa);
+  }
+}
+
+applyTheme('dark');
+
+plugin.onReady(function(ctx) {
+  applyTheme(ctx.theme || 'dark');
+});
+plugin.onThemeChange(function(theme) {
+  applyTheme(theme);
+});
+</script>
