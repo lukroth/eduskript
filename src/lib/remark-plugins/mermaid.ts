@@ -12,8 +12,8 @@ interface ParentNode extends Node {
 }
 
 /**
- * Remark plugin to convert ```mermaid code blocks into <mermaid-diagram> custom elements.
- * The diagram definition is stored in a data-definition attribute for client-side rendering.
+ * Remark plugin to convert ```mermaid code blocks into <plugin> elements.
+ * The diagram definition is passed as inner text content (read via config.content in the plugin SDK).
  */
 export function remarkMermaid() {
   return (tree: Node) => {
@@ -27,16 +27,15 @@ export function remarkMermaid() {
       const definition = (node.value || '').trim()
       if (!definition) continue
 
-      // Encode definition to survive HTML attribute serialization
+      // Encode content to survive HTML serialization
       const encoded = definition
         .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
 
       parent.children[i] = {
         type: 'html',
-        value: `<mermaid-diagram data-definition="${encoded}"></mermaid-diagram>`,
+        value: `<plugin src="eduadmin/mermaid-diagram">${encoded}</plugin>`,
       } as Node
     }
   }

@@ -20,16 +20,10 @@ import { Callout } from '@/components/markdown/callout'
 import { CodeBlock } from '@/components/markdown/code-block'
 import { OurTeachers } from '@/components/markdown/our-teachers'
 import { DemoEditor } from '@/components/demo/demo-editor'
-import { ColorSliders } from '@/components/markdown/color-sliders'
 import { StickMe } from '@/components/markdown/stick-me'
-import { DijkstraVisualizer } from '@/components/markdown/dijkstra-visualizer'
 import { ColorTitleHeading } from '@/components/markdown/color-title-heading'
 import { YT } from '@/components/markdown/youtube'
-import { ModCalc } from '@/components/markdown/mod-calc'
-import { DataCubeVisualizer } from '@/components/markdown/data-cube-visualizer'
 import { Flex, FlexItem } from '@/components/markdown/flex'
-import { MermaidDiagram } from '@/components/markdown/mermaid-diagram'
-import { CipherLab } from '@/components/markdown/cipher-lab'
 import { PluginContainer } from '@/components/markdown/plugin-container'
 
 // Simple hash function for generating stable IDs
@@ -581,7 +575,6 @@ export function createMarkdownComponents(
     'code-editor': CodeEditorComponent,
     'tabs-container': TabsContainerComponent,
     'tab-item': TabItem,
-    'mermaid-diagram': MermaidDiagram,
     'youtube-embed': YoutubeEmbedComponent,
     'muxvideo': MuxVideoComponent,
     'excalidraw-image': ExcalidrawImageComponent,
@@ -630,27 +623,8 @@ export function createMarkdownComponents(
     // Demo/marketing components
     'demoeditor': DemoEditor,
 
-    // Educational interactive components
-    'colorsliders': ColorSliders,
-    'dijkstravisualizer': (props: Record<string, string>) => {
-      // HTML attributes arrive as lowercase strings — coerce to proper types
-      const nodeCount = props.initialnodecount ? Number(props.initialnodecount) : undefined
-      const directed = props.initialdirected != null ? props.initialdirected === 'true' : undefined
-      return <DijkstraVisualizer initialNodeCount={nodeCount} initialDirected={directed} />
-    },
-
     // YouTube timestamp links
     'yt': YT,
-
-    // Math/crypto educational components
-    'modcalc': (props: Record<string, string>) => <ModCalc formula={props.formula} />,
-    'cipher-lab': (props: Record<string, string>) => {
-      const cipher = props.cipher === 'vigenere' ? 'vigenere' as const : 'caesar' as const
-      return <CipherLab cipher={cipher} defaultKey={props.cipherkey} text={props.text} />
-    },
-
-    // Data visualization components
-    'datacubevisualizer': DataCubeVisualizer,
 
     // Layout components
     'flex': Flex,

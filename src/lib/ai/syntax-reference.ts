@@ -17,20 +17,19 @@ export function generateSyntaxReference(): string {
 
 All custom tags and attributes must be **lowercase** with **string values**. This is not MDX — no PascalCase tags or JSX expressions.
 
-**Self-closing tags** are supported and preferred for components without children: \`<modcalc />\`, \`<colorsliders />\`. Do NOT expand them to open+close pairs.
+**Self-closing tags** are supported and preferred for components without children: \`<plugin src="eduadmin/mod-calc" />\`. Do NOT expand them to open+close pairs.
 
 **Correct:**
 \`\`\`html
-<modcalc />
-<dijkstravisualizer initialnodecount="7" initialdirected="false" />
+<plugin src="eduadmin/mod-calc" formula="rsa-enc" />
+<plugin src="eduadmin/color-sliders" />
 <question id="q1" type="single">...</question>
 \`\`\`
 
 **Wrong:**
 \`\`\`html
-<modcalc></modcalc>                       <!-- use self-closing instead -->
 <Question id="q1" type="single">          <!-- PascalCase tag -->
-<dijkstravisualizer initialNodeCount={7}>  <!-- camelCase attr, JSX expression -->
+<plugin src="eduadmin/mod-calc" formula={rsa}>  <!-- JSX expression -->
 \`\`\``)
 
   // Callouts
@@ -243,9 +242,9 @@ export function getCondensedSyntaxReference(): string {
   return `## Supported Markdown Syntax
 
 **HTML component rules:** All custom tags and attributes must be lowercase with string values. No PascalCase, no JSX expressions.
-  - Use self-closing tags for components without children: \`<modcalc />\`, \`<colorsliders />\`
-  - Correct: \`<modcalc />\`, \`<question id="q1" type="single">\`
-  - Wrong: \`<modcalc></modcalc>\` (use self-closing), \`<Question initialCount={7}>\` (PascalCase, JSX)
+  - Use self-closing tags for components without children: \`<plugin src="eduadmin/mod-calc" />\`
+  - Correct: \`<plugin src="eduadmin/mod-calc" />\`, \`<question id="q1" type="single">\`
+  - Wrong: \`<Question initialCount={7}>\` (PascalCase, JSX)
 
 **Callouts:** \`> [!type] Title on same line\` - CRITICAL: title MUST be on same line as [!type]
   - Types: ${baseTypes.join(', ')}

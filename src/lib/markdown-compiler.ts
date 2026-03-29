@@ -68,20 +68,14 @@ export const sanitizeSchema = {
     'quiz-option',
     'answer',
     'stickme',
-    'dijkstravisualizer',
-    'colorsliders',
-    'datacubevisualizer',
     'demoeditor',
     'ourteachers',
     'yt',
-    'modcalc',
     'mark',  // <mark> for text highlighting showcase
     'image', // <image> custom component for images with layout props
     'excali', // <excali> shorthand for excalidraw drawings
     'flex', // <flex> layout container
     'flex-item', // <flex-item> child of flex
-    'mermaid-diagram', // Mermaid diagram rendered client-side
-    'cipher-lab', // Caesar/Vigenère cipher interactive tool (attrs: cipher, shift, keytext)
     'plugin', // User-created plugins rendered in sandboxed iframes
     'style', // <style> blocks for scoped CSS in markdown
     // SVG elements
@@ -113,7 +107,6 @@ export const sanitizeSchema = {
     'excali': ['src', 'alt', 'width', 'align', 'wrap'],
     // <image> component attributes (src, alt, width, align, wrap, invert, saturate)
     'image': ['src', 'alt', 'width', 'align', 'wrap', 'invert', 'saturate'],
-    'cipher-lab': ['cipher', 'cipherkey', 'text'],
     // Plugin: attributes are config for a sandboxed iframe, not rendered as HTML.
     // List known plugin configs + common names. Extend as new plugins are added.
     'plugin': [
@@ -126,9 +119,6 @@ export const sanitizeSchema = {
       'autoplay', 'loop', 'muted', 'controls', 'disabled', 'readonly',
       'data', 'config', 'options', 'items', 'columns', 'format',
     ],
-    'modcalc': ['formula'],
-    'dijkstravisualizer': ['initialnodecount', 'initialdirected'],
-    'mermaid-diagram': ['dataDefinition', 'data-definition'],
     'question': ['id', 'type', 'showfeedback', 'allowupdate', 'minvalue', 'maxvalue', 'step'],
     'quiz-option': ['correct', 'is', 'feedback'],
     'answer': ['correct', 'is', 'feedback'],
