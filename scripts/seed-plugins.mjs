@@ -16,11 +16,15 @@ import { PrismaPg } from '@prisma/adapter-pg'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Load .env
-import { config } from 'dotenv'
-config()
+// Load .env (no-op in production where env vars are set directly)
+import 'dotenv/config'
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+const isLocal = process.env.DATABASE_URL?.includes('localhost')
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
+})
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
