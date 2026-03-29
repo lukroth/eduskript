@@ -18,30 +18,30 @@
 <div class="dcv" id="dcv">
   <div class="dcv-sliders">
     <div class="dcv-slider">
-      <label>Breite: <span id="w-val">18</span> Pixel</label>
+      <label><span id="w-label">Width</span>: <span id="w-val">18</span> <span id="w-unit">pixels</span></label>
       <input type="range" id="w-slider" min="1" max="64" value="18">
     </div>
     <div class="dcv-slider">
-      <label>Höhe: <span id="h-val">12</span> Pixel</label>
+      <label><span id="h-label">Height</span>: <span id="h-val">12</span> <span id="h-unit">pixels</span></label>
       <input type="range" id="h-slider" min="1" max="64" value="12">
     </div>
     <div class="dcv-slider">
-      <label>Farbtiefe: <span id="d-val">2</span> Bit pro Farbkanal</label>
+      <label><span id="d-label">Color depth</span>: <span id="d-val">2</span> <span id="d-unit">bits per channel</span></label>
       <input type="range" id="d-slider" min="1" max="8" value="2">
     </div>
   </div>
   <div class="dcv-panels">
     <div class="dcv-panel">
       <div class="dcv-panel-frame"><img id="original-img" alt="Original"></div>
-      <div class="dcv-panel-label">Original</div>
+      <div class="dcv-panel-label" id="original-label">Original</div>
     </div>
     <div class="dcv-panel">
       <div class="dcv-panel-frame"><canvas id="quantized-canvas" width="216" height="144"></canvas></div>
-      <div class="dcv-panel-label" id="quantized-label">Quantisiert</div>
+      <div class="dcv-panel-label" id="quantized-label">Quantized</div>
     </div>
     <div class="dcv-panel">
       <div class="dcv-cube-frame" id="cube-container"></div>
-      <div class="dcv-panel-label">Daten-Würfel (3D)</div>
+      <div class="dcv-panel-label" id="cube-label">Data Cube (3D)</div>
     </div>
   </div>
 </div>
@@ -77,6 +77,36 @@ var dVal = document.getElementById('d-val');
 
 var imgWidth = 18, imgHeight = 12, colorDepth = 2;
 var loadedImage = null;
+var lang = 'en';
+
+var STRINGS = {
+  en: {
+    width: 'Width', height: 'Height', colorDepth: 'Color depth',
+    bitsPerChannel: 'bits per channel', pixels: 'pixels',
+    original: 'Original', quantized: 'Quantized', dataCube: 'Data Cube (3D)',
+    bit: 'bit', colors: 'colors'
+  },
+  de: {
+    width: 'Breite', height: 'Höhe', colorDepth: 'Farbtiefe',
+    bitsPerChannel: 'Bit pro Farbkanal', pixels: 'Pixel',
+    original: 'Original', quantized: 'Quantisiert', dataCube: 'Daten-Würfel (3D)',
+    bit: 'Bit', colors: 'Farben'
+  }
+};
+
+function t(key) { return STRINGS[lang][key] || STRINGS.en[key] || key; }
+
+function applyLanguage() {
+  document.getElementById('w-label').textContent = t('width');
+  document.getElementById('h-label').textContent = t('height');
+  document.getElementById('d-label').textContent = t('colorDepth');
+  document.getElementById('w-unit').textContent = t('pixels');
+  document.getElementById('h-unit').textContent = t('pixels');
+  document.getElementById('d-unit').textContent = t('bitsPerChannel');
+  document.getElementById('original-label').textContent = t('original');
+  document.getElementById('cube-label').textContent = t('dataCube');
+  updateQuantizedPreview();
+}
 
 // --- Image processing (matches original exactly) ---
 function quantizeColor(value, bits) {
@@ -143,7 +173,7 @@ function updateQuantizedPreview() {
   ctx.drawImage(offscreen, 0, 0, imgWidth, imgHeight, 0, 0, 216, 144);
 
   var totalColors = Math.pow(Math.pow(2, colorDepth), 3);
-  quantizedLabel.textContent = 'Quantisiert (' + imgWidth + '×' + imgHeight + ', ' + colorDepth + ' Bit, ' + totalColors + ' Farben)';
+  quantizedLabel.textContent = t('quantized') + ' (' + imgWidth + '\u00d7' + imgHeight + ', ' + colorDepth + ' ' + t('bit') + ', ' + totalColors + ' ' + t('colors') + ')';
 }
 
 // --- Three.js scene ---
@@ -328,6 +358,8 @@ function applyTheme(theme) {
 applyTheme('dark');
 
 plugin.onReady(function(ctx) {
+  lang = (ctx.config && ctx.config.lang) || 'en';
+  applyLanguage();
   applyTheme(ctx.theme || 'dark');
 });
 plugin.onThemeChange(function(theme) {

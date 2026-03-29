@@ -1,0 +1,588 @@
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+body.dark { background: #1a1a2e; color: #e0e0e0; }
+body.light { background: #f8f9fa; color: #1a1a2e; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px;
+  align-items: center; font-size: 13px;
+}
+.controls label { display: inline-flex; align-items: center; gap: 3px; font-family: monospace; }
+.controls input[type="number"] {
+  width: 48px; padding: 2px 5px; border-radius: 3px; border: 1px solid;
+  font-size: 13px; font-family: monospace; text-align: center;
+}
+body.dark input { background: #2a2a3e; color: #e0e0e0; border-color: #444; }
+body.light input { background: #fff; color: #1a1a2e; border-color: #ccc; }
+.pub { color: #f87171; }
+.ali { color: #4ade80; }
+.bob { color: #60a5fa; }
+.sep { color: #666; margin: 0 2px; }
+.btn {
+  padding: 3px 8px; border-radius: 3px; border: 1px solid #555;
+  cursor: pointer; font-size: 13px; background: transparent; color: inherit;
+}
+.btn:hover { opacity: 0.8; }
+canvas { display: block; width: 100%; }
+</style>
+
+<div class="controls">
+  <span class="pub">
+    <label>p:<input id="inp-p" type="number" value="23" min="3" max="997"></label>
+    <label>g:<input id="inp-g" type="number" value="5" min="2"></label>
+  </span>
+  <span class="sep">|</span>
+  <span class="ali">
+    <label>a:<input id="inp-a" type="number" value="4" min="1" max="99"></label>
+  </span>
+  <span class="bob">
+    <label>b:<input id="inp-b" type="number" value="3" min="1" max="99"></label>
+  </span>
+  <button class="btn" id="btn-rand">&#x1F3B2;</button>
+</div>
+<canvas id="cv"></canvas>
+
+<script>
+(function() {
+  // --- Superscript digits ---
+  var SUPS = ['\u2070','\u00b9','\u00b2','\u00b3','\u2074','\u2075','\u2076','\u2077','\u2078','\u2079'];
+  function toSup(n) { return String(n).split('').map(function(d){ return SUPS[+d]; }).join(''); }
+
+  // --- i18n ---
+  var STRINGS = {
+    en: {
+      publicZone: 'Public Zone',
+      secret: 'secret',
+      exchange: 'exchange',
+      sharedSecret: 'Shared Secret',
+      bothMatch: 'Both arrive at the same key!',
+      notPrime: '\u26a0 p is not prime',
+    },
+    de: {
+      publicZone: '\u00d6ffentliche Zone',
+      secret: 'Geheimnis',
+      exchange: 'Austausch',
+      sharedSecret: 'Gemeinsames Geheimnis',
+      bothMatch: 'Beide kommen zum gleichen Schl\u00fcssel!',
+      notPrime: '\u26a0 p ist keine Primzahl',
+    }
+  };
+  var lang = 'en';
+  function t(k) { return (STRINGS[lang] && STRINGS[lang][k]) || STRINGS.en[k] || k; }
+
+  // --- Math ---
+  function modPow(base, exp, mod) {
+    if (mod === 1) return 0;
+    var r = 1;
+    base = ((base % mod) + mod) % mod;
+    while (exp > 0) {
+      if (exp & 1) r = (r * base) % mod;
+      exp >>= 1;
+      base = (base * base) % mod;
+    }
+    return r;
+  }
+
+  function bigPow(base, exp) { return BigInt(base) ** BigInt(exp); }
+
+  function formatBig(n) {
+    var s = n.toString();
+    if (s.length <= 7) return s;
+    return s[0] + '.' + s.slice(1, 3) + '\u2026\u00d710' + toSup(s.length - 1);
+  }
+
+  function isPrime(n) {
+    if (n < 2) return false;
+    if (n < 4) return true;
+    if (n % 2 === 0 || n % 3 === 0) return false;
+    for (var i = 5; i * i <= n; i += 6) {
+      if (n % i === 0 || n % (i + 2) === 0) return false;
+    }
+    return true;
+  }
+
+  var SMALL_PRIMES = [3, 5, 7, 11, 13, 17, 19, 23, 29];
+
+  // --- State ---
+  var isDark = true;
+  var canvas = document.getElementById('cv');
+  var ctx = canvas.getContext('2d');
+  var inpP = document.getElementById('inp-p');
+  var inpG = document.getElementById('inp-g');
+  var inpA = document.getElementById('inp-a');
+  var inpB = document.getElementById('inp-b');
+
+  var p = 23, g = 5, a = 4, b = 3;
+  var valA, valB, K_a, K_b;
+  var rawGA, rawGB, rawBa, rawAb;
+
+  function compute() {
+    p = parseInt(inpP.value) || 23;
+    g = parseInt(inpG.value) || 5;
+    a = parseInt(inpA.value) || 4;
+    b = parseInt(inpB.value) || 3;
+    if (p < 3) p = 3; if (p > 997) p = 997;
+    if (g < 2) g = 2; if (g >= p) g = p - 1;
+    if (a < 1) a = 1; if (a > 99) a = 99;
+    if (b < 1) b = 1; if (b > 99) b = 99;
+
+    valA = modPow(g, a, p);
+    valB = modPow(g, b, p);
+    K_a = modPow(valB, a, p);
+    K_b = modPow(valA, b, p);
+    rawGA = bigPow(g, a);
+    rawGB = bigPow(g, b);
+    rawBa = bigPow(valB, a);
+    rawAb = bigPow(valA, b);
+  }
+
+  // --- Colors ---
+  var COLORS = {
+    dark: {
+      bg: '#1a1a2e', text: '#e0e0e0', textDim: 'rgba(255,255,255,0.4)',
+      aliceStrip: 'rgba(22,163,74,0.13)', bobStrip: 'rgba(37,99,235,0.13)',
+      publicBg: 'rgba(239,68,68,0.08)',
+      aliceLight: '#86efac', aliceDark: '#22c55e',
+      bobLight: '#93c5fd', bobDark: '#3b82f6',
+      red: '#f87171', cyan: '#06b6d4', cyanLight: '#67e8f9',
+      clockLine: 'rgba(255,255,255,0.15)', clockBorder: 'rgba(255,255,255,0.35)',
+      sectorText: 'rgba(255,255,255,0.35)', highlightText: '#ffffff',
+      arrowAlice: '#22c55e', arrowBob: '#3b82f6'
+    },
+    light: {
+      bg: '#f8f9fa', text: '#1a1a2e', textDim: 'rgba(0,0,0,0.35)',
+      aliceStrip: 'rgba(22,163,74,0.07)', bobStrip: 'rgba(37,99,235,0.07)',
+      publicBg: 'rgba(239,68,68,0.05)',
+      aliceLight: '#4ade80', aliceDark: '#16a34a',
+      bobLight: '#60a5fa', bobDark: '#2563eb',
+      red: '#dc2626', cyan: '#0891b2', cyanLight: '#22d3ee',
+      clockLine: 'rgba(0,0,0,0.08)', clockBorder: 'rgba(0,0,0,0.25)',
+      sectorText: 'rgba(0,0,0,0.3)', highlightText: '#ffffff',
+      arrowAlice: '#16a34a', arrowBob: '#2563eb'
+    }
+  };
+  function C() { return isDark ? COLORS.dark : COLORS.light; }
+
+  // --- Drawing helpers ---
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  function drawModClock(cx, cy, r, modulus, result, fillColor, lightColor) {
+    var c = C();
+    var sa = (2 * Math.PI) / modulus;
+    var start = -Math.PI / 2;
+
+    // Faint full circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.fillStyle = lightColor;
+    ctx.globalAlpha = 0.1;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Highlighted result sector
+    var a1 = start + result * sa;
+    var a2 = a1 + sa;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, a1, a2);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.globalAlpha = 0.65;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Decide detail level based on modulus
+    // For large p, skip most dividers and labels
+    var showAllDividers = modulus <= 60;
+    var tickStep = 1;
+    if (!showAllDividers) {
+      // Show tick marks at round intervals
+      if (modulus <= 120) tickStep = 5;
+      else if (modulus <= 300) tickStep = 10;
+      else tickStep = 25;
+    }
+
+    // Sector/tick dividers
+    ctx.strokeStyle = c.clockLine;
+    for (var i = 0; i < modulus; i++) {
+      var isTick = (i % tickStep === 0);
+      if (!showAllDividers && !isTick && i !== result) continue;
+      var angle = start + i * sa;
+      var innerR = isTick ? 0.35 : 0.55;
+      ctx.lineWidth = (i === result) ? 1.5 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + r * innerR * Math.cos(angle), cy + r * innerR * Math.sin(angle));
+      ctx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+      ctx.stroke();
+    }
+
+    // Outer circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = c.clockBorder;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Highlight sector border
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, a1, a2);
+    ctx.closePath();
+    ctx.strokeStyle = fillColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Labels
+    var fs = modulus > 60 ? 0 : modulus > 30 ? 7 : modulus > 20 ? 8 : modulus > 13 ? 9 : 11;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (modulus <= 60) {
+      // Show all sector numbers
+      for (var i = 0; i < modulus; i++) {
+        var angle = start + (i + 0.5) * sa;
+        var lr = r * 0.7;
+        var lx = cx + lr * Math.cos(angle);
+        var ly = cy + lr * Math.sin(angle);
+        if (i === result) {
+          ctx.font = 'bold ' + (fs + 2) + 'px monospace';
+          ctx.fillStyle = c.highlightText;
+        } else {
+          ctx.font = fs + 'px monospace';
+          ctx.fillStyle = c.sectorText;
+        }
+        ctx.fillText('' + i, lx, ly);
+      }
+    } else {
+      // Large modulus: only label ticks and the result
+      var labelFs = modulus > 200 ? 7 : 8;
+      for (var i = 0; i < modulus; i += tickStep) {
+        var angle = start + (i + 0.5) * sa;
+        var lx = cx + r * 0.78 * Math.cos(angle);
+        var ly = cy + r * 0.78 * Math.sin(angle);
+        ctx.font = labelFs + 'px monospace';
+        ctx.fillStyle = c.sectorText;
+        ctx.fillText('' + i, lx, ly);
+      }
+      // Always label the result prominently
+      var resAngle = start + (result + 0.5) * sa;
+      var rlx = cx + r * 0.55 * Math.cos(resAngle);
+      var rly = cy + r * 0.55 * Math.sin(resAngle);
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = c.highlightText;
+      ctx.fillText('' + result, rlx, rly);
+
+      // Draw a small pointer line from the result to the edge
+      ctx.beginPath();
+      ctx.strokeStyle = fillColor;
+      ctx.lineWidth = 2;
+      var pAngle = start + (result + 0.5) * sa;
+      ctx.moveTo(cx + r * 0.85 * Math.cos(pAngle), cy + r * 0.85 * Math.sin(pAngle));
+      ctx.lineTo(cx + (r + 6) * Math.cos(pAngle), cy + (r + 6) * Math.sin(pAngle));
+      ctx.stroke();
+    }
+  }
+
+  function drawCurvedArrow(x1, y1, x2, y2, color, curveAmt) {
+    var mx = (x1 + x2) / 2;
+    var my = (y1 + y2) / 2;
+    var cpx = mx + curveAmt;
+    var cpy = my;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(cpx, cpy, x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.stroke();
+
+    // Arrowhead
+    var t2 = 0.93;
+    var px = (1 - t2) * (1 - t2) * x1 + 2 * (1 - t2) * t2 * cpx + t2 * t2 * x2;
+    var py = (1 - t2) * (1 - t2) * y1 + 2 * (1 - t2) * t2 * cpy + t2 * t2 * y2;
+    var ang = Math.atan2(y2 - py, x2 - px);
+    var hl = 10;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hl * Math.cos(ang - 0.35), y2 - hl * Math.sin(ang - 0.35));
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hl * Math.cos(ang + 0.35), y2 - hl * Math.sin(ang + 0.35));
+    ctx.stroke();
+  }
+
+  // --- Resize (just sets initial size; draw() adjusts to content) ---
+  function resize() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.parentElement.clientWidth;
+    // Start with generous height; draw() will trim to actual content
+    canvas.width = w * dpr;
+    canvas.height = w * 1.5 * dpr;
+    canvas.style.height = (w * 1.5) + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // --- Main draw ---
+  function draw() {
+    var c = C();
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.width / dpr;
+
+    // Use absolute Y positions flowing top to bottom
+    var clockR = Math.min(W * 0.15, 95);
+    var pad = W * 0.025;
+    var stripW = W * 0.44;
+    var aCX = pad + stripW / 2;
+    var bCX = W - pad - stripW / 2;
+    var midX = W / 2;
+
+    // Calculate all Y positions with generous spacing
+    var y = 16;
+
+    // Section 1: Public header
+    var pubTitleY = y + 14; y += 20;
+    var pubParamsY = y + 14; y += 20;
+    var notPrimeY = y + 10;
+    if (!isPrime(p)) y += 16;
+    y += 10;
+
+    // Section 2: Names + secrets
+    var stripTopY = y;
+    var nameY = y + 18; y += 24;
+    var secretY = y + 12; y += 24;
+
+    // Section 3: First mod clocks
+    var premod1Y = y + 10; y += 20;
+    var clock1CY = y + clockR; y += clockR * 2 + 6;
+    var formula1Y = y + 14; y += 30;
+
+    // Section 4: Exchange zone
+    var exStartY = y;
+    var exLabelY = y + 12; y += 26;
+    var arrowStartY = y;
+    var arrowEndY = y + 50;
+    y = arrowEndY + 16;
+
+    // Section 5: Second mod clocks
+    var premod2Y = y + 10; y += 20;
+    var clock2CY = y + clockR; y += clockR * 2 + 6;
+    var formula2Y = y + 14; y += 22;
+    var equiv2Y = y + 12; y += 28;
+    var stripBotY = y;
+
+    // Section 6: Result
+    var resultY = y + 16; y += 24;
+    var matchY = y + 12; y += 20;
+    var identityY = y + 14; y += 24;
+
+    var totalH = y + 10;
+
+    // Set canvas to exact content height
+    canvas.height = totalH * dpr;
+    canvas.style.height = totalH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // --- Draw ---
+    ctx.clearRect(0, 0, W, totalH);
+
+    // Background
+    ctx.fillStyle = c.bg;
+    ctx.fillRect(0, 0, W, totalH);
+    ctx.fillStyle = c.publicBg;
+    ctx.fillRect(0, 0, W, totalH);
+
+    // Column strips (only cover Alice/Bob sections, not public header or shared secret)
+    roundRect(pad, stripTopY - 4, stripW, stripBotY - stripTopY + 8, 12);
+    ctx.fillStyle = c.aliceStrip;
+    ctx.fill();
+    roundRect(W - pad - stripW, stripTopY - 4, stripW, stripBotY - stripTopY + 8, 12);
+    ctx.fillStyle = c.bobStrip;
+    ctx.fill();
+
+    // === Section 1: Public zone header ===
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px system-ui, sans-serif';
+    ctx.fillStyle = c.red;
+    ctx.fillText(t('publicZone'), midX, pubTitleY);
+
+    ctx.font = 'bold 15px monospace';
+    ctx.fillStyle = c.red;
+    ctx.fillText('p = ' + p + ',  g = ' + g, midX, pubParamsY);
+
+    if (!isPrime(p)) {
+      ctx.font = '10px system-ui';
+      ctx.fillStyle = '#f97316';
+      ctx.fillText(t('notPrime'), midX, notPrimeY);
+    }
+
+    // === Section 2: Names + secrets ===
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillStyle = c.aliceDark;
+    ctx.fillText('Alice', aCX, nameY);
+    ctx.fillStyle = c.bobDark;
+    ctx.fillText('Bob', bCX, nameY);
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = c.aliceLight;
+    ctx.fillText(t('secret') + ' a = ' + a, aCX, secretY);
+    ctx.fillStyle = c.bobLight;
+    ctx.fillText(t('secret') + ' b = ' + b, bCX, secretY);
+
+    // === Section 3: First mod clocks ===
+    // Pre-mod raw values
+    ctx.font = '11px monospace';
+    ctx.fillStyle = c.aliceLight;
+    ctx.fillText(g + toSup(a) + ' = ' + formatBig(rawGA), aCX, premod1Y);
+    ctx.fillStyle = c.bobLight;
+    ctx.fillText(g + toSup(b) + ' = ' + formatBig(rawGB), bCX, premod1Y);
+
+    // Clocks
+    drawModClock(aCX, clock1CY, clockR, p, valA, c.aliceDark, c.aliceLight);
+    drawModClock(bCX, clock1CY, clockR, p, valB, c.bobDark, c.bobLight);
+
+    // Post-mod formulas
+    ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = c.aliceDark;
+    ctx.fillText('A = ' + g + toSup(a) + ' mod ' + p + ' = ' + valA, aCX, formula1Y);
+    ctx.fillStyle = c.bobDark;
+    ctx.fillText('B = ' + g + toSup(b) + ' mod ' + p + ' = ' + valB, bCX, formula1Y);
+
+    // === Section 4: Exchange ===
+    ctx.font = '11px system-ui';
+    ctx.fillStyle = c.red;
+    ctx.fillText(t('exchange'), midX, exLabelY);
+
+    // Arrow labels at the start, then arrows below them
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = c.arrowAlice;
+    ctx.textAlign = 'left';
+    ctx.fillText('A = ' + valA, aCX + 36, arrowStartY + 4);
+    ctx.fillStyle = c.arrowBob;
+    ctx.textAlign = 'right';
+    ctx.fillText('B = ' + valB, bCX - 36, arrowStartY + 4);
+
+    var arrowLineY = arrowStartY + 16;
+    drawCurvedArrow(aCX + 30, arrowLineY, bCX - 30, arrowEndY, c.arrowAlice, -40);
+    drawCurvedArrow(bCX - 30, arrowLineY, aCX + 30, arrowEndY, c.arrowBob, 40);
+
+    // === Section 5: Second mod clocks ===
+    ctx.font = '11px monospace';
+    ctx.fillStyle = c.cyanLight;
+    ctx.textAlign = 'center';
+    ctx.fillText(valB + toSup(a) + ' = ' + formatBig(rawBa), aCX, premod2Y);
+    ctx.fillText(valA + toSup(b) + ' = ' + formatBig(rawAb), bCX, premod2Y);
+
+    drawModClock(aCX, clock2CY, clockR, p, K_a, c.cyan, c.cyanLight);
+    drawModClock(bCX, clock2CY, clockR, p, K_b, c.cyan, c.cyanLight);
+
+    ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = c.cyan;
+    ctx.textAlign = 'center';
+    ctx.fillText('K = ' + valB + toSup(a) + ' mod ' + p + ' = ' + K_a, aCX, formula2Y);
+    ctx.fillText('K = ' + valA + toSup(b) + ' mod ' + p + ' = ' + K_b, bCX, formula2Y);
+
+    // Equivalence: (g^a)^b mod p
+    ctx.font = '10px monospace';
+    ctx.fillStyle = c.textDim;
+    ctx.fillText('(' + g + toSup(a) + ')' + toSup(b) + ' mod ' + p + ' = ' + K_a, aCX, equiv2Y);
+    ctx.fillText('(' + g + toSup(b) + ')' + toSup(a) + ' mod ' + p + ' = ' + K_b, bCX, equiv2Y);
+
+    // === Section 6: Shared secret ===
+    if (K_a === K_b) {
+      ctx.font = 'bold 16px system-ui, sans-serif';
+      ctx.fillStyle = c.cyan;
+      ctx.textAlign = 'center';
+      ctx.fillText(t('sharedSecret') + ':  K = ' + K_a, midX, resultY);
+
+      ctx.font = '13px system-ui';
+      ctx.fillStyle = c.cyanLight;
+      ctx.fillText(t('bothMatch'), midX, matchY);
+    }
+
+    // Mathematical identity
+    ctx.font = '11px monospace';
+    ctx.fillStyle = c.textDim;
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      '(g' + toSup(a) + ' mod p)' + toSup(b) + ' mod p  =  (g' + toSup(b) + ' mod p)' + toSup(a) + ' mod p',
+      midX, identityY
+    );
+
+    // Notify host of actual height
+    if (typeof plugin !== 'undefined' && plugin.resize) {
+      plugin.resize(totalH + 44);
+    }
+  }
+
+  // --- Update ---
+  function update() {
+    compute();
+    draw();
+  }
+
+  // --- Event handlers ---
+  [inpP, inpG, inpA, inpB].forEach(function(inp) {
+    inp.addEventListener('input', update);
+  });
+
+  document.getElementById('btn-rand').addEventListener('click', function() {
+    p = SMALL_PRIMES[Math.floor(Math.random() * SMALL_PRIMES.length)];
+    g = 2 + Math.floor(Math.random() * (p - 2));
+    a = 1 + Math.floor(Math.random() * Math.min(p - 1, 12));
+    b = 1 + Math.floor(Math.random() * Math.min(p - 1, 12));
+    inpP.value = p;
+    inpG.value = g;
+    inpA.value = a;
+    inpB.value = b;
+    update();
+  });
+
+  // --- Plugin integration ---
+  var plugin = eduskript.init();
+
+  plugin.onReady(function(pluginCtx) {
+    lang = (pluginCtx.config && pluginCtx.config.lang) || 'en';
+    isDark = pluginCtx.theme === 'dark';
+    document.body.className = isDark ? 'dark' : 'light';
+
+    if (pluginCtx.config) {
+      if (pluginCtx.config.p) { inpP.value = pluginCtx.config.p; }
+      if (pluginCtx.config.g) { inpG.value = pluginCtx.config.g; }
+      if (pluginCtx.config.a) { inpA.value = pluginCtx.config.a; }
+      if (pluginCtx.config.b) { inpB.value = pluginCtx.config.b; }
+    }
+
+    resize();
+    update();
+  });
+
+  plugin.onThemeChange(function(theme) {
+    isDark = theme === 'dark';
+    document.body.className = isDark ? 'dark' : 'light';
+    draw();
+  });
+
+  plugin.onFullscreenChange(function() {
+    setTimeout(function() { resize(); update(); }, 100);
+  });
+
+  window.addEventListener('resize', function() { resize(); draw(); });
+
+  // Initial render
+  resize();
+  compute();
+  draw();
+})();
+</script>

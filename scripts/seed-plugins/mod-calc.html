@@ -28,7 +28,7 @@
   <div class="error-msg" id="error-msg" style="display:none">Let's try not to break maths 😬👍</div>
   <div class="inputs">
     <div class="field">
-      <label class="base" id="label-base">Basis g</label>
+      <label class="base" id="label-base">Base g</label>
       <input type="number" id="input-base" value="5">
     </div>
     <div class="field">
@@ -45,11 +45,12 @@
 <script>
   var plugin = eduskript.init();
   var isDark = false;
+  var lang = 'en';
 
   var FORMULAS = {
-    dlog: { base: 'g', exp: 'k', mod: 'p', result: 'K', baseLabel: 'Basis g', expLabel: 'Exponent k', modLabel: 'Modulus p' },
-    'rsa-enc': { base: 'm', exp: 'e', mod: 'n', result: 'c', baseLabel: 'Nachricht m', expLabel: 'Public Exponent e', modLabel: 'Modulus n' },
-    'rsa-dec': { base: 'c', exp: 'd', mod: 'n', result: 'm', baseLabel: 'Ciphertext c', expLabel: 'Private Exponent d', modLabel: 'Modulus n' }
+    dlog: { base: 'g', exp: 'k', mod: 'p', result: 'K', baseLabel: { en: 'Base g', de: 'Basis g' }, expLabel: { en: 'Exponent k', de: 'Exponent k' }, modLabel: { en: 'Modulus p', de: 'Modulus p' } },
+    'rsa-enc': { base: 'm', exp: 'e', mod: 'n', result: 'c', baseLabel: { en: 'Message m', de: 'Nachricht m' }, expLabel: { en: 'Public Exponent e', de: 'Public Exponent e' }, modLabel: { en: 'Modulus n', de: 'Modulus n' } },
+    'rsa-dec': { base: 'c', exp: 'd', mod: 'n', result: 'm', baseLabel: { en: 'Ciphertext c', de: 'Ciphertext c' }, expLabel: { en: 'Private Exponent d', de: 'Private Exponent d' }, modLabel: { en: 'Modulus n', de: 'Modulus n' } }
   };
 
   var formula = 'dlog';
@@ -76,9 +77,9 @@
     f = FORMULAS[formulaKey] || FORMULAS.dlog;
     document.getElementById('formula-template').innerHTML =
       '<span class="base">' + f.base + '</span><sup class="exp">' + f.exp + '</sup> mod <span class="mod">' + f.mod + '</span> = <span class="result ' + (isDark ? 'result-dark' : 'result-light') + '">' + f.result + '</span>';
-    document.getElementById('label-base').textContent = f.baseLabel;
-    document.getElementById('label-exp').textContent = f.expLabel;
-    document.getElementById('label-mod').textContent = f.modLabel;
+    document.getElementById('label-base').textContent = f.baseLabel[lang];
+    document.getElementById('label-exp').textContent = f.expLabel[lang];
+    document.getElementById('label-mod').textContent = f.modLabel[lang];
   }
 
   function calculate() {
@@ -125,6 +126,7 @@
   document.getElementById('input-mod').addEventListener('input', calculate);
 
   plugin.onReady(function(ctx) {
+    lang = (ctx.config && ctx.config.lang) || 'en';
     if (ctx.config && ctx.config.formula) formula = ctx.config.formula;
     setupFormula(formula);
     applyTheme(ctx.theme);

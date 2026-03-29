@@ -27,24 +27,24 @@
   </div>
   <div class="body" id="body">
     <div class="mode-btns">
-      <button class="active" id="btn-encrypt">Verschlüsseln</button>
-      <button id="btn-decrypt">Entschlüsseln</button>
+      <button class="active" id="btn-encrypt">Encrypt</button>
+      <button id="btn-decrypt">Decrypt</button>
     </div>
     <div class="field" id="key-field">
-      <label id="key-label">Verschiebung (0–94)</label>
+      <label id="key-label">Shift (0–94)</label>
       <input type="number" id="key-input" min="0" max="94" value="4">
     </div>
     <div class="field">
-      <label id="input-label">Klartext</label>
-      <textarea id="input-text" placeholder="Nachricht eingeben…"></textarea>
+      <label id="input-label">Plaintext</label>
+      <textarea id="input-text" placeholder="Enter message…"></textarea>
     </div>
     <div class="swap-row">
-      <button class="swap-btn" id="swap-btn" title="Ergebnis als Eingabe übernehmen und Modus wechseln">⇅</button>
+      <button class="swap-btn" id="swap-btn" title="Use result as input and switch mode">⇅</button>
     </div>
     <div class="field">
       <div class="output-header">
         <label id="output-label">Ciphertext</label>
-        <button class="copy-btn" id="copy-btn">📋 Kopieren</button>
+        <button class="copy-btn" id="copy-btn">📋 Copy</button>
       </div>
       <div class="output-box" id="output-box">—</div>
     </div>
@@ -56,6 +56,36 @@
   var cipher = 'caesar';
   var mode = 'encrypt';
   var isDark = false;
+  var lang = 'en';
+
+  var STRINGS = {
+    en: {
+      encrypt: 'Encrypt', decrypt: 'Decrypt',
+      caesarKey: 'Shift (0–94)', vigenereKey: 'Key',
+      plaintext: 'Plaintext', ciphertext: 'Ciphertext',
+      inputPlaceholder: 'Enter message…', decryptPlaceholder: 'Enter ciphertext…',
+      swapTitle: 'Use result as input and switch mode',
+      copy: '📋 Copy', copied: '✓ Copied'
+    },
+    de: {
+      encrypt: 'Verschlüsseln', decrypt: 'Entschlüsseln',
+      caesarKey: 'Verschiebung (0–94)', vigenereKey: 'Schlüssel',
+      plaintext: 'Klartext', ciphertext: 'Ciphertext',
+      inputPlaceholder: 'Nachricht eingeben…', decryptPlaceholder: 'Ciphertext eingeben…',
+      swapTitle: 'Ergebnis als Eingabe übernehmen und Modus wechseln',
+      copy: '📋 Kopieren', copied: '✓ Kopiert'
+    }
+  };
+
+  function applyLanguage() {
+    var T = STRINGS[lang];
+    document.getElementById('btn-encrypt').textContent = T.encrypt;
+    document.getElementById('btn-decrypt').textContent = T.decrypt;
+    document.getElementById('swap-btn').title = T.swapTitle;
+    document.getElementById('copy-btn').textContent = T.copy;
+    setCipher(cipher);
+    setMode(mode);
+  }
 
   function caesarEncrypt(text, shift) {
     var result = '';
@@ -110,10 +140,10 @@
     var keyLabel = document.getElementById('key-label');
     if (c === 'caesar') {
       keyInput.type = 'number'; keyInput.min = '0'; keyInput.max = '94';
-      keyInput.value = '4'; keyLabel.textContent = 'Verschiebung (0–94)';
+      keyInput.value = '4'; keyLabel.textContent = STRINGS[lang].caesarKey;
     } else {
       keyInput.type = 'text'; keyInput.removeAttribute('min'); keyInput.removeAttribute('max');
-      keyInput.value = 'PYTHON'; keyLabel.textContent = 'Schlüssel';
+      keyInput.value = 'PYTHON'; keyLabel.textContent = STRINGS[lang].vigenereKey;
     }
     compute();
   }
@@ -122,9 +152,10 @@
     mode = m;
     document.getElementById('btn-encrypt').classList.toggle('active', m === 'encrypt');
     document.getElementById('btn-decrypt').classList.toggle('active', m === 'decrypt');
-    document.getElementById('input-label').textContent = m === 'encrypt' ? 'Klartext' : 'Ciphertext';
-    document.getElementById('output-label').textContent = m === 'encrypt' ? 'Ciphertext' : 'Klartext';
-    document.getElementById('input-text').placeholder = m === 'encrypt' ? 'Nachricht eingeben…' : 'Ciphertext eingeben…';
+    var T = STRINGS[lang];
+    document.getElementById('input-label').textContent = m === 'encrypt' ? T.plaintext : T.ciphertext;
+    document.getElementById('output-label').textContent = m === 'encrypt' ? T.ciphertext : T.plaintext;
+    document.getElementById('input-text').placeholder = m === 'encrypt' ? T.inputPlaceholder : T.decryptPlaceholder;
     applyTheme(isDark ? 'dark' : 'light');
     compute();
   }
@@ -194,12 +225,14 @@
     var text = document.getElementById('output-box').textContent;
     if (text && text !== '—') {
       navigator.clipboard.writeText(text);
-      document.getElementById('copy-btn').textContent = '✓ Kopiert';
-      setTimeout(function() { document.getElementById('copy-btn').textContent = '📋 Kopieren'; }, 1500);
+      document.getElementById('copy-btn').textContent = STRINGS[lang].copied;
+      setTimeout(function() { document.getElementById('copy-btn').textContent = STRINGS[lang].copy; }, 1500);
     }
   });
 
   plugin.onReady(function(ctx) {
+    lang = (ctx.config && ctx.config.lang) || 'en';
+    applyLanguage();
     if (ctx.config) {
       if (ctx.config.cipher === 'vigenere') setCipher('vigenere');
       if (ctx.config.cipherkey) document.getElementById('key-input').value = ctx.config.cipherkey;

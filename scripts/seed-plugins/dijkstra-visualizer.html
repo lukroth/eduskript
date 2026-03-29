@@ -321,20 +321,20 @@
 
 <div id="dijkstra-root">
   <div id="toolbar">
-    <button id="btn-reset" title="Zurücksetzen">&#8634;</button>
-    <button id="btn-step-back" title="Schritt zurück">&#9664;</button>
-    <button id="btn-play" title="Abspielen">&#9654;</button>
-    <button id="btn-step-fwd" title="Schritt vor">&#9654;&#124;</button>
+    <button id="btn-reset" title="Reset">&#8634;</button>
+    <button id="btn-step-back" title="Step back">&#9664;</button>
+    <button id="btn-play" title="Play">&#9654;</button>
+    <button id="btn-step-fwd" title="Step forward">&#9654;&#124;</button>
     <div class="toolbar-sep"></div>
-    <span class="toolbar-label">Tempo:</span>
+    <span class="toolbar-label" id="speed-label">Speed:</span>
     <input type="range" id="speed-slider" min="100" max="2000" value="1300" step="100">
-    <span id="step-display">Schritt 0 / 0</span>
+    <span id="step-display">Step 0 / 0</span>
     <div class="toolbar-sep"></div>
-    <span class="toolbar-label">Knoten:</span>
+    <span class="toolbar-label" id="nodes-label">Nodes:</span>
     <input type="number" id="node-count-input" min="3" max="200" value="7">
     <input type="range" id="node-count-slider" min="3" max="30" value="7">
-    <button id="btn-directed" class="toggle-btn" title="Gerichtet/Ungerichtet">Ungerichtet</button>
-    <button id="btn-regenerate" title="Neuer Graph">&#x21bb;</button>
+    <button id="btn-directed" class="toggle-btn" title="Directed/Undirected">Undirected</button>
+    <button id="btn-regenerate" title="New graph">&#x21bb;</button>
     <div class="toolbar-sep"></div>
     <button id="btn-fullscreen" title="Vollbild">&#x26F6;</button>
   </div>
@@ -358,7 +358,7 @@
           <g id="nodes-group"></g>
         </g>
       </svg>
-      <div id="description-bar">Klicke auf einen Knoten, um ihn als Quelle zu setzen. Strg+Klick setzt das Ziel.</div>
+      <div id="description-bar">Click a node to set it as source. Ctrl+click sets the target.</div>
       <input id="edge-weight-input" type="number" min="1" max="99">
     </div>
 
@@ -366,16 +366,16 @@
 
     <div id="table-panel">
       <div id="table-header">
-        <span>Distanztabelle</span>
+        <span id="table-title">Distance Table</span>
         <button id="btn-sort-toggle" class="active">PQ</button>
       </div>
       <div id="table-container">
         <table id="distance-table">
           <thead>
             <tr>
-              <th>Knoten</th>
-              <th>Distanz</th>
-              <th>Vorgänger</th>
+              <th id="th-node">Node</th>
+              <th id="th-distance">Distance</th>
+              <th id="th-previous">Previous</th>
             </tr>
           </thead>
           <tbody id="distance-tbody"></tbody>
@@ -441,6 +441,48 @@
     EDGE_NORMAL: '#4b5563',
     EDGE_HIGHLIGHTED: '#f59e0b',
     EDGE_SHORTEST: '#10b981'
+  };
+
+  // Language
+  var lang = 'en';
+
+  var STRINGS = {
+    en: {
+      stepBack: 'Step back', stepForward: 'Step forward',
+      speed: 'Speed:', nodes: 'Nodes:',
+      directedUndirected: 'Directed/Undirected', newGraph: 'New graph',
+      clickToSetSource: 'Click a node to set it as source. Ctrl+click sets the target.',
+      distanceTable: 'Distance Table',
+      node: 'Node', distance: 'Distance', previous: 'Previous',
+      directed: 'Directed', undirected: 'Undirected',
+      pause: 'Pause', play: 'Play',
+      ready: 'Ready. Press Play or Step forward to start the algorithm.',
+      step: 'Step',
+      init: function(label) { return 'Initialize: Distance to source ' + label + ' = 0, all others = \u221e'; },
+      visit: function(label, dist) { return 'Visit node ' + label + ' (distance: ' + dist + ')'; },
+      targetReached: function(label, dist) { return 'Target node ' + label + ' reached! Shortest distance: ' + dist; },
+      edgeUpdate: function(uLabel, vLabel, uDist, weight, newDist, oldDist) { return 'Check edge ' + uLabel + ' \u2192 ' + vLabel + ': ' + uDist + ' + ' + weight + ' = ' + newDist + ' < ' + oldDist + ' \u2192 Update!'; },
+      edgeNoImprove: function(uLabel, vLabel, uDist, weight, newDist, oldDist) { return 'Check edge ' + uLabel + ' \u2192 ' + vLabel + ': ' + uDist + ' + ' + weight + ' = ' + newDist + ' \u2265 ' + oldDist + ' \u2192 No improvement'; },
+      complete: 'Algorithm complete! All reachable nodes visited.'
+    },
+    de: {
+      stepBack: 'Schritt zur\u00fcck', stepForward: 'Schritt vor',
+      speed: 'Tempo:', nodes: 'Knoten:',
+      directedUndirected: 'Gerichtet/Ungerichtet', newGraph: 'Neuer Graph',
+      clickToSetSource: 'Klicke auf einen Knoten, um ihn als Quelle zu setzen. Strg+Klick setzt das Ziel.',
+      distanceTable: 'Distanztabelle',
+      node: 'Knoten', distance: 'Distanz', previous: 'Vorg\u00e4nger',
+      directed: 'Gerichtet', undirected: 'Ungerichtet',
+      pause: 'Pause', play: 'Abspielen',
+      ready: 'Bereit. Dr\u00fccke Play oder Schritt vor, um den Algorithmus zu starten.',
+      step: 'Schritt',
+      init: function(label) { return 'Initialisiere: Distanz zu Quelle ' + label + ' = 0, alle anderen = \u221e'; },
+      visit: function(label, dist) { return 'Besuche Knoten ' + label + ' (Distanz: ' + dist + ')'; },
+      targetReached: function(label, dist) { return 'Zielknoten ' + label + ' erreicht! K\u00fcrzeste Distanz: ' + dist; },
+      edgeUpdate: function(uLabel, vLabel, uDist, weight, newDist, oldDist) { return 'Pr\u00fcfe Kante ' + uLabel + ' \u2192 ' + vLabel + ': ' + uDist + ' + ' + weight + ' = ' + newDist + ' < ' + oldDist + ' \u2192 Update!'; },
+      edgeNoImprove: function(uLabel, vLabel, uDist, weight, newDist, oldDist) { return 'Pr\u00fcfe Kante ' + uLabel + ' \u2192 ' + vLabel + ': ' + uDist + ' + ' + weight + ' = ' + newDist + ' \u2265 ' + oldDist + ' \u2192 Keine Verbesserung'; },
+      complete: 'Algorithmus abgeschlossen! Alle erreichbaren Knoten besucht.'
+    }
   };
 
   // --- DOM refs ---
@@ -629,7 +671,7 @@
       queueNodes: copyObj(queueSet),
       highlightedEdges: {},
       shortestPathEdges: {},
-      description: 'Initialisiere: Distanz zu Quelle ' + nodes[sourceNode].label + ' = 0, alle anderen = \u221e'
+      description: STRINGS[lang].init(nodes[sourceNode].label)
     });
 
     // Priority queue (simple: scan for minimum)
@@ -660,7 +702,7 @@
         queueNodes: copyObj(queueSet),
         highlightedEdges: {},
         shortestPathEdges: copyObj(spEdges),
-        description: 'Besuche Knoten ' + nodes[u].label + ' (Distanz: ' + dist[u] + ')'
+        description: STRINGS[lang].visit(nodes[u].label, dist[u])
       });
 
       // Check target reached
@@ -673,7 +715,7 @@
           queueNodes: copyObj(queueSet),
           highlightedEdges: {},
           shortestPathEdges: copyObj(spEdges),
-          description: 'Zielknoten ' + nodes[targetNode].label + ' erreicht! Kürzeste Distanz: ' + dist[u]
+          description: STRINGS[lang].targetReached(nodes[targetNode].label, dist[u])
         });
         break;
       }
@@ -702,9 +744,7 @@
             queueNodes: copyObj(queueSet),
             highlightedEdges: copyObj(hlEdges),
             shortestPathEdges: copyObj(spEdges),
-            description: 'Pr\u00fcfe Kante ' + nodes[u].label + ' \u2192 ' + nodes[v].label +
-              ': ' + dist[u] + ' + ' + neighbor.weight + ' = ' + newDist +
-              ' < ' + (dist[v] === newDist ? '\u221e' : dist[v]) + ' \u2192 Update!'
+            description: STRINGS[lang].edgeUpdate(nodes[u].label, nodes[v].label, dist[u], neighbor.weight, newDist, (dist[v] === newDist ? '\u221e' : dist[v]))
           });
         } else {
           steps.push({
@@ -715,9 +755,7 @@
             queueNodes: copyObj(queueSet),
             highlightedEdges: copyObj(hlEdges),
             shortestPathEdges: copyObj(spEdges),
-            description: 'Pr\u00fcfe Kante ' + nodes[u].label + ' \u2192 ' + nodes[v].label +
-              ': ' + dist[u] + ' + ' + neighbor.weight + ' = ' + newDist +
-              ' \u2265 ' + (dist[v] === Infinity ? '\u221e' : dist[v]) + ' \u2192 Keine Verbesserung'
+            description: STRINGS[lang].edgeNoImprove(nodes[u].label, nodes[v].label, dist[u], neighbor.weight, newDist, (dist[v] === Infinity ? '\u221e' : dist[v]))
           });
         }
       }
@@ -733,7 +771,7 @@
       queueNodes: {},
       highlightedEdges: {},
       shortestPathEdges: copyObj(finalSpEdges),
-      description: 'Algorithmus abgeschlossen! Alle erreichbaren Knoten besucht.'
+      description: STRINGS[lang].complete
     });
 
     updateStepDisplay();
@@ -1023,21 +1061,21 @@
     if (currentStepIndex >= 0 && currentStepIndex < steps.length) {
       descBar.textContent = steps[currentStepIndex].description;
     } else if (sourceNode !== null) {
-      descBar.textContent = 'Bereit. Dr\u00fccke Play oder Schritt vor, um den Algorithmus zu starten.';
+      descBar.textContent = STRINGS[lang].ready;
     } else {
-      descBar.textContent = 'Klicke auf einen Knoten, um ihn als Quelle zu setzen. Strg+Klick setzt das Ziel.';
+      descBar.textContent = STRINGS[lang].clickToSetSource;
     }
   }
 
   function updateStepDisplay() {
     var current = currentStepIndex >= 0 ? (currentStepIndex + 1) : 0;
     var total = steps.length;
-    stepDisplay.textContent = 'Schritt ' + current + ' / ' + total;
+    stepDisplay.textContent = STRINGS[lang].step + ' ' + current + ' / ' + total;
   }
 
   function updatePlayButton() {
     btnPlay.innerHTML = isPlaying ? '&#9646;&#9646;' : '&#9654;';
-    btnPlay.title = isPlaying ? 'Pause' : 'Abspielen';
+    btnPlay.title = isPlaying ? STRINGS[lang].pause : STRINGS[lang].play;
     if (isPlaying) {
       btnPlay.classList.add('active');
     } else {
@@ -1415,7 +1453,7 @@
 
   btnDirected.addEventListener('click', function() {
     isDirected = !isDirected;
-    btnDirected.textContent = isDirected ? 'Gerichtet' : 'Ungerichtet';
+    btnDirected.textContent = isDirected ? STRINGS[lang].directed : STRINGS[lang].undirected;
     if (isDirected) {
       btnDirected.classList.add('active');
     } else {
@@ -1491,6 +1529,23 @@
     }
   }
 
+  // --- Language ---
+  function applyLanguage() {
+    var s = STRINGS[lang] || STRINGS.en;
+    btnStepBack.title = s.stepBack;
+    btnStepFwd.title = s.stepForward;
+    btnPlay.title = isPlaying ? s.pause : s.play;
+    document.getElementById('speed-label').textContent = s.speed;
+    document.getElementById('nodes-label').textContent = s.nodes;
+    btnDirected.title = s.directedUndirected;
+    btnDirected.textContent = isDirected ? s.directed : s.undirected;
+    btnRegenerate.title = s.newGraph;
+    document.getElementById('table-title').textContent = s.distanceTable;
+    document.getElementById('th-node').textContent = s.node;
+    document.getElementById('th-distance').textContent = s.distance;
+    document.getElementById('th-previous').textContent = s.previous;
+  }
+
   // plugin object used by event handlers above
   // (actual onReady/onThemeChange registration below)
 
@@ -1505,9 +1560,11 @@
 
     if (config.initialdirected === 'true' || config.initialdirected === true) {
       isDirected = true;
-      btnDirected.textContent = 'Gerichtet';
       btnDirected.classList.add('active');
     }
+
+    lang = (config.lang) || 'en';
+    applyLanguage();
 
     nodeCountInput.value = nodeCount;
     nodeCountSlider.value = Math.min(nodeCount, 30);

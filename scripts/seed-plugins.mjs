@@ -48,6 +48,7 @@ const PLUGINS = [
       defaultHeight: 450,
       configSchema: {
         formula: { type: 'string', enum: ['dlog', 'rsa-enc', 'rsa-dec'], default: 'dlog' },
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
       },
     },
     file: 'mod-calc.html',
@@ -62,6 +63,7 @@ const PLUGINS = [
         cipher: { type: 'string', enum: ['caesar', 'vigenere'], default: 'caesar' },
         cipherkey: { type: 'string' },
         text: { type: 'string' },
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
       },
     },
     file: 'cipher-lab.html',
@@ -82,7 +84,12 @@ const PLUGINS = [
     slug: 'data-cube-visualizer',
     name: 'Data Cube Visualizer',
     description: 'Interactive 3D RGB data cube for teaching image quantization',
-    manifest: { defaultHeight: 600, configSchema: {} },
+    manifest: {
+      defaultHeight: 600,
+      configSchema: {
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
+      },
+    },
     file: 'data-cube-visualizer.html',
   },
   {
@@ -94,9 +101,26 @@ const PLUGINS = [
       configSchema: {
         initialnodecount: { type: 'number', default: 7 },
         initialdirected: { type: 'boolean', default: false },
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
       },
     },
     file: 'dijkstra-visualizer.html',
+  },
+  {
+    slug: 'diffie-hellman',
+    name: 'Diffie-Hellman Key Exchange',
+    description: 'Interactive visualization of the Diffie-Hellman key exchange with mod clocks',
+    manifest: {
+      defaultHeight: 700,
+      configSchema: {
+        p: { type: 'number', default: 23 },
+        g: { type: 'number', default: 5 },
+        a: { type: 'number', default: 4 },
+        b: { type: 'number', default: 3 },
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
+      },
+    },
+    file: 'diffie-hellman.html',
   },
 ]
 
