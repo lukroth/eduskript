@@ -122,6 +122,21 @@ const PLUGINS = [
     },
     file: 'diffie-hellman.html',
   },
+  {
+    slug: 'mod-clock',
+    name: 'Modular Arithmetic Clock',
+    description: 'Interactive clock visualization showing numbers arranged by modular residue classes',
+    manifest: {
+      defaultHeight: 750,
+      configSchema: {
+        mod: { type: 'number', default: 7 },
+        max: { type: 'number', default: 500 },
+        font: { type: 'number', default: 7 },
+        lang: { type: 'string', enum: ['en', 'de'], default: 'en' },
+      },
+    },
+    file: 'mod-clock.html',
+  },
 ]
 
 async function main() {
