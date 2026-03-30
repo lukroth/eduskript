@@ -48,6 +48,9 @@ export async function GET() {
             },
             currentPeriodEnd: subscription.currentPeriodEnd,
             cancelledAt: subscription.cancelledAt,
+            ...(subscription.status === 'trialing' && subscription.currentPeriodEnd
+              ? { trialEndsAt: subscription.currentPeriodEnd }
+              : {}),
           }
         : null,
       plans: plans.map((p) => ({
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'planId is required' }, { status: 400 })
     }
 
-    // Check for existing active subscription
+    // Check for existing active subscription (trialing is allowed — we upgrade it)
     const existing = await prisma.subscription.findFirst({
       where: {
         userId: session.user.id,
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (existing) {
+    if (existing && existing.status === 'active') {
       return NextResponse.json(
         { error: 'You already have an active subscription. Please cancel it first.' },
         { status: 409 }
@@ -98,14 +101,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
-    // Create a pending subscription in our DB
-    const subscription = await prisma.subscription.create({
-      data: {
-        userId: session.user.id,
-        planId: plan.id,
-        status: 'incomplete',
-      },
-    })
+    // Reuse trialing subscription or create a new incomplete one
+    let subscription: { id: string }
+    if (existing && existing.status === 'trialing') {
+      subscription = await prisma.subscription.update({
+        where: { id: existing.id },
+        data: { planId: plan.id, status: 'incomplete' },
+      })
+    } else {
+      subscription = await prisma.subscription.create({
+        data: {
+          userId: session.user.id,
+          planId: plan.id,
+          status: 'incomplete',
+        },
+      })
+    }
 
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 

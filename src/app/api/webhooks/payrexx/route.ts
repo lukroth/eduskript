@@ -47,19 +47,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Parse the webhook payload
-    const params = new URLSearchParams(body)
-    const transactionJson = params.get('transaction')
+    // Parse the webhook payload — Payrexx sends JSON (preferred) or form-encoded
+    const contentType = request.headers.get('content-type') ?? ''
+    let payload: Record<string, unknown>
 
-    if (!transactionJson) {
-      console.error('[payrexx-webhook] No transaction data in webhook')
-      return NextResponse.json({ error: 'Missing transaction data' }, { status: 400 })
+    if (contentType.includes('application/json')) {
+      payload = JSON.parse(body)
+    } else {
+      // Legacy form-encoded: transaction=<json>
+      const params = new URLSearchParams(body)
+      const transactionJson = params.get('transaction')
+      if (!transactionJson) {
+        console.error('[payrexx-webhook] No transaction data in webhook')
+        return NextResponse.json({ error: 'Missing transaction data' }, { status: 400 })
+      }
+      payload = { transaction: JSON.parse(transactionJson) }
     }
 
-    const transaction: PayrexxWebhookTransaction = JSON.parse(transactionJson)
-    const { status, referenceId, subscription: payrexxSub } = transaction
+    // Payrexx sends both transaction and subscription webhooks
+    const transaction = payload.transaction as PayrexxWebhookTransaction | undefined
+    const subscriptionEvent = payload.subscription as Record<string, unknown> | undefined
 
-    console.log(`[payrexx-webhook] Event: status=${status}, referenceId=${referenceId}, subscriptionId=${payrexxSub?.id}`)
+    // Extract status and referenceId from whichever event type we received
+    let status: string | undefined
+    let referenceId: string | undefined
+    let payrexxSubId: string | undefined
+
+    if (transaction) {
+      status = transaction.status
+      referenceId = transaction.referenceId
+      payrexxSubId = transaction.subscription?.id?.toString()
+    } else if (subscriptionEvent) {
+      // Subscription lifecycle events (active, cancelled, etc.)
+      status = subscriptionEvent.status as string
+      payrexxSubId = subscriptionEvent.id?.toString()
+      const invoice = subscriptionEvent.invoice as Record<string, unknown> | undefined
+      referenceId = invoice?.referenceId as string
+    } else {
+      console.error('[payrexx-webhook] No transaction or subscription data')
+      return NextResponse.json({ error: 'Missing data' }, { status: 400 })
+    }
+
+    console.log(`[payrexx-webhook] Event: type=${transaction ? 'transaction' : 'subscription'}, status=${status}, referenceId=${referenceId}, payrexxSubId=${payrexxSubId}`)
 
     if (!referenceId) {
       console.warn('[payrexx-webhook] No referenceId — ignoring')
@@ -93,7 +122,7 @@ export async function POST(request: NextRequest) {
             where: { id: subscription.id },
             data: {
               status: 'active',
-              payrexxSubId: payrexxSub?.id?.toString() ?? subscription.payrexxSubId,
+              payrexxSubId: payrexxSubId ?? subscription.payrexxSubId,
               currentPeriodStart: now,
               currentPeriodEnd: periodEnd,
             },
@@ -131,6 +160,39 @@ export async function POST(request: NextRequest) {
           }),
         ])
         console.log(`[payrexx-webhook] Subscription ${subscription.id} refunded and cancelled`)
+        break
+      }
+
+      case 'active': {
+        // Subscription lifecycle event — activate if not already done by transaction webhook
+        if (subscription.status !== 'active') {
+          const now = new Date()
+          const periodEnd = new Date(now)
+          if (subscription.plan.interval === 'monthly') {
+            periodEnd.setMonth(periodEnd.getMonth() + 1)
+          } else {
+            periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+          }
+
+          await prisma.$transaction([
+            prisma.subscription.update({
+              where: { id: subscription.id },
+              data: {
+                status: 'active',
+                payrexxSubId: payrexxSubId ?? subscription.payrexxSubId,
+                currentPeriodStart: now,
+                currentPeriodEnd: periodEnd,
+              },
+            }),
+            prisma.user.update({
+              where: { id: subscription.userId },
+              data: { billingPlan: subscription.plan.slug },
+            }),
+          ])
+          console.log(`[payrexx-webhook] Subscription ${subscription.id} activated via subscription event`)
+        } else {
+          console.log(`[payrexx-webhook] Subscription ${subscription.id} already active, skipping`)
+        }
         break
       }
 

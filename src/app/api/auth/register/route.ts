@@ -6,6 +6,7 @@ import { sendEmail, generateVerificationEmailContent } from '@/lib/email'
 import { randomBytes } from 'crypto'
 import { registrationRateLimiter, getClientIdentifier } from '@/lib/rate-limit'
 import { validatePassword } from '@/lib/password-validation'
+import { createTrialSubscription } from '@/lib/trial'
 
 /**
  * Generates a page slug from an email address
@@ -172,6 +173,9 @@ export async function POST(request: NextRequest) {
         }
       })
     }
+
+    // Auto-start trial for teacher accounts (no-op if no default trial plan configured)
+    await createTrialSubscription(user.id)
 
     // Generate verification token
     const token = randomBytes(32).toString('hex')

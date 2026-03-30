@@ -69,7 +69,12 @@ export function AuthButton({ pageId, teacherPageSlug, isOrgPage, orgSlug }: Auth
   useEffect(() => {
     // On custom domains, auth must happen on main site (cookies don't transfer across domains)
     const hostname = window.location.hostname
-    const isCustomDomain = !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
+    const knownHosts = ['localhost', 'eduskript.org', 'www.eduskript.org']
+    const appHostname = process.env.NEXT_PUBLIC_APP_HOSTNAME
+    if (appHostname && !knownHosts.includes(appHostname)) {
+      knownHosts.push(appHostname)
+    }
+    const isCustomDomain = !knownHosts.includes(hostname)
 
     if (isCustomDomain && pageSlug) {
       // After OAuth completes, redirect to cross-domain endpoint which will:

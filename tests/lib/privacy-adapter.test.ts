@@ -59,6 +59,10 @@ vi.mock('@auth/prisma-adapter', () => ({
   })),
 }))
 
+vi.mock('@/lib/trial', () => ({
+  createTrialSubscription: vi.fn(() => Promise.resolve(null)),
+}))
+
 // Mock pseudonym generation
 vi.mock('@/lib/privacy/pseudonym', () => ({
   generatePseudonym: vi.fn((email: string) => `pseudonym_${email.split('@')[0]}`),

@@ -21,6 +21,7 @@ interface SubscriptionData {
   plan: PlanData
   currentPeriodEnd: string | null
   cancelledAt: string | null
+  trialEndsAt: string | null
 }
 
 export default function BillingPage() {
@@ -117,6 +118,11 @@ export default function BillingPage() {
     })
   }
 
+  function daysUntil(dateStr: string): number {
+    const diff = new Date(dateStr).getTime() - Date.now()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -163,14 +169,36 @@ export default function BillingPage() {
             <p>
               {formatPrice(subscription.plan.priceChf)} / {subscription.plan.interval === 'monthly' ? 'month' : 'year'}
             </p>
-            {subscription.currentPeriodEnd && (
+            {subscription.status === 'trialing' && subscription.trialEndsAt ? (
+              <p>Trial ends in {daysUntil(subscription.trialEndsAt)} days ({formatDate(subscription.trialEndsAt)})</p>
+            ) : subscription.currentPeriodEnd ? (
               <p>
                 {subscription.status === 'cancelled'
                   ? `Access until ${formatDate(subscription.currentPeriodEnd)}`
                   : `Next billing date: ${formatDate(subscription.currentPeriodEnd)}`}
               </p>
-            )}
+            ) : null}
           </div>
+
+          {subscription.status === 'trialing' && (
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleSubscribe(subscription.plan.id)}
+                disabled={actionLoading === subscription.plan.id}
+              >
+                {actionLoading === subscription.plan.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Upgrade to Paid
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={actionLoading === 'cancel'}
+              >
+                {actionLoading === 'cancel' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Cancel Trial
+              </Button>
+            </div>
+          )}
 
           {subscription.status === 'active' && (
             <Button
@@ -192,7 +220,7 @@ export default function BillingPage() {
       )}
 
       {/* Available Plans */}
-      {plans.length > 0 && !subscription && (
+      {plans.length > 0 && (!subscription || subscription.status === 'trialing') && (
         <div>
           <h2 className="text-lg font-semibold mb-4">Choose a Plan</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -202,6 +230,7 @@ export default function BillingPage() {
                 plan={plan}
                 onSubscribe={handleSubscribe}
                 loading={actionLoading === plan.id}
+                isTrialing={subscription?.status === 'trialing'}
               />
             ))}
           </div>
@@ -209,7 +238,7 @@ export default function BillingPage() {
       )}
 
       {/* Free tier info when no plans exist yet */}
-      {plans.length === 0 && !subscription && (
+      {plans.length === 0 && (!subscription || subscription.status === 'trialing') && (
         <div className="rounded-lg border p-6 text-center">
           <CreditCard className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <h2 className="text-lg font-semibold">Free Plan</h2>
@@ -242,10 +271,12 @@ function PlanCard({
   plan,
   onSubscribe,
   loading,
+  isTrialing,
 }: {
   plan: PlanData
   onSubscribe: (planId: string) => void
   loading: boolean
+  isTrialing?: boolean
 }) {
   const features = plan.features as Record<string, unknown>
 
@@ -280,7 +311,7 @@ function PlanCard({
         disabled={loading}
       >
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Subscribe
+        {isTrialing ? 'Upgrade' : 'Subscribe'}
       </Button>
     </div>
   )

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { createTrialSubscription } from '@/lib/trial'
 
 // GET /api/admin/users/[id] - Get single user
 export async function GET(
@@ -58,7 +59,7 @@ export async function PATCH(
   const { id } = await params
 
   try {
-    const { email, name, pageSlug, title, isAdmin, requirePasswordReset, billingPlan } = await request.json()
+    const { email, name, pageSlug, title, isAdmin, requirePasswordReset, billingPlan, grantTrial, trialPlanId, trialDays } = await request.json()
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -173,6 +174,26 @@ export async function PATCH(
         where: { userId: id, status: 'active' },
         data: { status: 'cancelled', cancelledAt: new Date() },
       })
+    }
+
+    // Admin grant trial
+    if (grantTrial) {
+      // Cancel any existing active/trialing subscription first
+      await prisma.subscription.updateMany({
+        where: { userId: id, status: { in: ['active', 'trialing'] } },
+        data: { status: 'cancelled', cancelledAt: new Date() },
+      })
+      await prisma.user.update({
+        where: { id },
+        data: { billingPlan: 'free' },
+      })
+      const trial = await createTrialSubscription(id, trialPlanId || undefined, trialDays || undefined)
+      if (!trial) {
+        return NextResponse.json(
+          { error: 'No trial plan configured. Set a plan with isDefaultTrial=true first.' },
+          { status: 400 }
+        )
+      }
     }
 
     return NextResponse.json({ user: updatedUser })

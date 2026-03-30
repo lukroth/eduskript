@@ -14,7 +14,7 @@ export async function PATCH(
 
   try {
     const body = await request.json()
-    const { name, slug, priceChf, interval, features, isActive } = body
+    const { name, slug, priceChf, interval, features, isActive, trialDays, isDefaultTrial } = body
 
     const existing = await prisma.plan.findUnique({ where: { id } })
     if (!existing) {
@@ -29,6 +29,14 @@ export async function PATCH(
       }
     }
 
+    // If setting as default trial, unset on all other plans
+    if (isDefaultTrial === true) {
+      await prisma.plan.updateMany({
+        where: { isDefaultTrial: true, id: { not: id } },
+        data: { isDefaultTrial: false },
+      })
+    }
+
     const plan = await prisma.plan.update({
       where: { id },
       data: {
@@ -38,6 +46,8 @@ export async function PATCH(
         ...(interval !== undefined && { interval }),
         ...(features !== undefined && { features }),
         ...(isActive !== undefined && { isActive }),
+        ...(trialDays !== undefined && { trialDays: trialDays != null ? Number(trialDays) : null }),
+        ...(isDefaultTrial !== undefined && { isDefaultTrial }),
       },
     })
 

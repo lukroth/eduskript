@@ -20,6 +20,8 @@ interface Plan {
   interval: string
   features: Record<string, unknown>
   isActive: boolean
+  trialDays: number | null
+  isDefaultTrial: boolean
   createdAt: string
 }
 
@@ -39,6 +41,8 @@ export default function AdminPlansPage() {
     interval: 'monthly',
     features: '{}',
     isActive: true,
+    trialDays: '',
+    isDefaultTrial: false,
   })
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function AdminPlansPage() {
 
   const openCreateDialog = () => {
     setEditingPlan(null)
-    setFormData({ name: '', slug: '', priceChf: '', interval: 'monthly', features: '{}', isActive: true })
+    setFormData({ name: '', slug: '', priceChf: '', interval: 'monthly', features: '{}', isActive: true, trialDays: '', isDefaultTrial: false })
     setShowDialog(true)
   }
 
@@ -80,6 +84,8 @@ export default function AdminPlansPage() {
       interval: plan.interval,
       features: JSON.stringify(plan.features, null, 2),
       isActive: plan.isActive,
+      trialDays: plan.trialDays != null ? String(plan.trialDays) : '',
+      isDefaultTrial: plan.isDefaultTrial,
     })
     setShowDialog(true)
   }
@@ -104,6 +110,8 @@ export default function AdminPlansPage() {
       interval: formData.interval,
       features,
       isActive: formData.isActive,
+      trialDays: formData.trialDays ? Number(formData.trialDays) : null,
+      isDefaultTrial: formData.isDefaultTrial,
     }
 
     try {
@@ -186,6 +194,8 @@ export default function AdminPlansPage() {
                     <h3 className="font-medium">{plan.name}</h3>
                     <Badge variant="outline" className="font-mono text-xs">{plan.slug}</Badge>
                     {!plan.isActive && <Badge variant="secondary">Inactive</Badge>}
+                    {plan.isDefaultTrial && <Badge variant="default">Default Trial</Badge>}
+                    {plan.trialDays != null && <Badge variant="outline">{plan.trialDays}d trial</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     CHF {(plan.priceChf / 100).toFixed(2)} / {plan.interval}
@@ -255,6 +265,26 @@ export default function AdminPlansPage() {
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
                 placeholder='{"maxSkripts": 50}'
               />
+            </div>
+            <div>
+              <Label htmlFor="plan-trial-days">Trial Days</Label>
+              <Input
+                id="plan-trial-days"
+                type="number"
+                value={formData.trialDays}
+                onChange={(e) => setFormData({ ...formData, trialDays: e.target.value })}
+                min="1"
+                placeholder="Leave empty for no trial"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Number of days for trial period. Empty = no trial.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="plan-default-trial"
+                checked={formData.isDefaultTrial}
+                onCheckedChange={(checked) => setFormData({ ...formData, isDefaultTrial: checked })}
+              />
+              <Label htmlFor="plan-default-trial">Default trial plan (auto-assigned on signup)</Label>
             </div>
             <div className="flex items-center gap-2">
               <Switch

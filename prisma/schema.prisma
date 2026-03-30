@@ -944,9 +944,11 @@ model Plan {
   priceChf    Int      // Price in Rappen (cents), e.g., 990 = CHF 9.90
   interval    String   // "monthly" | "yearly"
   features    Json     // Feature flags, e.g., { maxSkripts: 50, customDomain: true }
-  isActive    Boolean  @default(true) @map("is_active") // Soft-delete for retired plans
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  isActive       Boolean  @default(true) @map("is_active") // Soft-delete for retired plans
+  trialDays      Int?     @map("trial_days") // null = no trial for this plan
+  isDefaultTrial Boolean  @default(false) @map("is_default_trial") // Only one plan should have this set
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   subscriptions Subscription[]
 

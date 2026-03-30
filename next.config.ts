@@ -1,6 +1,19 @@
 import type { NextConfig } from 'next'
 
+// Expose NEXTAUTH_URL hostname to client so auth-button can distinguish
+// the app's own domain from custom domains (e.g. when running via ngrok)
+const appHostname = (() => {
+  try {
+    return new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000').hostname
+  } catch {
+    return 'localhost'
+  }
+})()
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_HOSTNAME: appHostname,
+  },
   output: 'standalone',
   // Enable source maps in production for easier debugging
   productionBrowserSourceMaps: true,

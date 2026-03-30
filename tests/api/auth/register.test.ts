@@ -47,6 +47,10 @@ vi.mock('@/lib/email', () => ({
   })),
 }))
 
+vi.mock('@/lib/trial', () => ({
+  createTrialSubscription: vi.fn(() => Promise.resolve(null)),
+}))
+
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn(() => Promise.resolve('hashed-password')),

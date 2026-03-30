@@ -101,6 +101,8 @@ export default function AdminPanelPage() {
     requirePasswordReset: true,
     accountType: 'teacher' as 'teacher' | 'student',
     studentPseudonym: '',
+    grantTrial: false,
+    trialDays: '30',
   })
 
   const [resetPasswordData, setResetPasswordData] = useState({
@@ -289,6 +291,8 @@ export default function AdminPanelPage() {
         requirePasswordReset: true,
         accountType: 'teacher',
         studentPseudonym: '',
+        grantTrial: false,
+        trialDays: '30',
       })
       fetchUsers()
     } catch (err) {
@@ -316,6 +320,7 @@ export default function AdminPanelPage() {
           isAdmin: formData.isAdmin,
           ...(formData.billingPlan && { billingPlan: formData.billingPlan }),
           requirePasswordReset: formData.requirePasswordReset,
+          ...(formData.grantTrial && { grantTrial: true, trialDays: Number(formData.trialDays) || 30 }),
         }),
       })
 
@@ -516,6 +521,8 @@ export default function AdminPanelPage() {
       requirePasswordReset: user.requirePasswordReset,
       accountType: (user.accountType || 'teacher') as 'teacher' | 'student',
       studentPseudonym: user.studentPseudonym || '',
+      grantTrial: false,
+      trialDays: '30',
     })
     setShowEditDialog(true)
   }
@@ -1147,6 +1154,31 @@ export default function AdminPanelPage() {
                     <option key={plan.id} value={plan.slug}>{plan.slug} ({plan.name})</option>
                   ))}
                 </select>
+              </div>
+              <div className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-grantTrial"
+                    checked={formData.grantTrial}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, grantTrial: checked as boolean })
+                    }
+                  />
+                  <Label htmlFor="edit-grantTrial">Grant trial (cancels existing subscription)</Label>
+                </div>
+                {formData.grantTrial && (
+                  <div>
+                    <Label htmlFor="edit-trialDays">Trial duration (days)</Label>
+                    <Input
+                      id="edit-trialDays"
+                      type="number"
+                      value={formData.trialDays}
+                      onChange={(e) => setFormData({ ...formData, trialDays: e.target.value })}
+                      min="1"
+                      max="365"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox

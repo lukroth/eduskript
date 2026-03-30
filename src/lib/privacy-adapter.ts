@@ -74,6 +74,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import { PrismaClient } from '@prisma/client'
 import { generatePseudonym } from './privacy/pseudonym'
 import { createLogger } from '@/lib/logger'
+import { createTrialSubscription } from '@/lib/trial'
 
 const log = createLogger('auth:create-user')
 
@@ -379,6 +380,9 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
         })
 
         log.info(`Teacher account created: id=${createdUser.id}, pageSlug="${pageSlug}", email=${maskedEmail}`)
+
+        // Auto-start trial for teacher accounts (no-op if no default trial plan configured)
+        await createTrialSubscription(createdUser.id)
 
         // Auto-join orgs by signup context (from org page or teacher page)
         await autoJoinOrgBySignupContext(prisma, createdUser.id, signupContext)

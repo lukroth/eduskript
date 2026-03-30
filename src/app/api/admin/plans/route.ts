@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (error) return error
 
   try {
-    const { name, slug, priceChf, interval, features, isActive } = await request.json()
+    const { name, slug, priceChf, interval, features, isActive, trialDays, isDefaultTrial } = await request.json()
 
     if (!name || !slug || priceChf === undefined || !interval) {
       return NextResponse.json(
@@ -38,6 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A plan with this slug already exists' }, { status: 409 })
     }
 
+    // If setting as default trial, unset on all other plans
+    if (isDefaultTrial) {
+      await prisma.plan.updateMany({
+        where: { isDefaultTrial: true },
+        data: { isDefaultTrial: false },
+      })
+    }
+
     const plan = await prisma.plan.create({
       data: {
         name,
@@ -46,6 +54,8 @@ export async function POST(request: Request) {
         interval,
         features: features ?? {},
         isActive: isActive ?? true,
+        trialDays: trialDays != null ? Number(trialDays) : null,
+        isDefaultTrial: isDefaultTrial ?? false,
       },
     })
 
