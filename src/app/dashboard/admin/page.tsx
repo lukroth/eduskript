@@ -61,6 +61,7 @@ interface User {
   createdAt: Date
   updatedAt: Date
   accounts: OAuthAccount[]
+  subscriptions: { status: string; currentPeriodEnd: string | null }[]
 }
 
 export default function AdminPanelPage() {
@@ -644,7 +645,7 @@ export default function AdminPanelPage() {
                     <h3 className="font-medium">{user.name}</h3>
                     {user.isAdmin && <Badge variant="outline">Admin</Badge>}
                     <Badge variant={user.billingPlan === 'free' ? 'secondary' : 'default'}>
-                      {user.billingPlan || 'free'}
+                      {user.billingPlan || 'free'}{user.subscriptions?.[0]?.status === 'trialing' ? ' (trial)' : ''}
                     </Badge>
                     {user.requirePasswordReset && <Badge variant="outline">Password Reset Required</Badge>}
                   </div>
@@ -1141,14 +1142,14 @@ export default function AdminPanelPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-billingPlan">Override Billing Plan</Label>
+                <Label htmlFor="edit-billingPlan">Override Billing Plan?</Label>
                 <select
                   id="edit-billingPlan"
                   value={formData.billingPlan}
                   onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="">Don&apos;t override (current: {selectedUser?.billingPlan || 'free'})</option>
+                  <option value="">Don&apos;t override (current: {selectedUser?.billingPlan || 'free'}{selectedUser?.subscriptions?.[0] ? `, ${selectedUser.subscriptions[0].status}${selectedUser.subscriptions[0].currentPeriodEnd ? ` until ${new Date(selectedUser.subscriptions[0].currentPeriodEnd).toLocaleDateString('de-CH')}` : ''}` : ''})</option>
                   <option value="free">free</option>
                   {availablePlans.map((plan) => (
                     <option key={plan.id} value={plan.slug}>{plan.slug} ({plan.name})</option>

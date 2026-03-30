@@ -31,6 +31,15 @@ export async function GET() {
             providerAccountId: true,
           },
         },
+        subscriptions: {
+          where: { status: { in: ['active', 'trialing'] } },
+          select: {
+            status: true,
+            currentPeriodEnd: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
